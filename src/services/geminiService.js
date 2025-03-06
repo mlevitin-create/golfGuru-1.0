@@ -31,16 +31,8 @@ const analyzeGolfSwing = async (videoFile) => {
       return createMockAnalysis(videoFile); // Fallback to mock
     }
 
-    // Check file size (Gemini has a 10MB limit for media files)
-    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit
-    if (videoFile.size > MAX_FILE_SIZE) {
-      console.error(`File size exceeds the maximum allowed: ${(videoFile.size / (1024 * 1024)).toFixed(2)}MB`);
-      return createMockAnalysis(videoFile); // Fallback to mock
-    }
-
+    // Log file details but don't enforce a size limit
     console.log('Starting video analysis, file type:', videoFile.type);
-    
-    // Specifically log more details about the file
     console.log('File details:', {
       name: videoFile.name,
       type: videoFile.type,
@@ -68,7 +60,6 @@ const analyzeGolfSwing = async (videoFile) => {
     console.log('Preparing API request payload...');
     
     // Construct the request payload with a detailed prompt for better analysis
-    // Removed responseFormat which was causing errors
     const payload = {
       contents: [
         {
@@ -128,7 +119,6 @@ Format your response ONLY as a valid JSON object with this exact structure:
       generationConfig: {
         temperature: 0.1, // Low temperature for more consistent, predictable responses
         maxOutputTokens: 2048
-        // Removed responseFormat which was causing errors
       }
     };
 
@@ -143,7 +133,7 @@ Format your response ONLY as a valid JSON object with this exact structure:
           headers: {
             'Content-Type': 'application/json'
           },
-          timeout: 90000 // 90 second timeout for video processing
+          timeout: 120000 // 120 second timeout for video processing (increased from 90s)
         }
       );
 
@@ -226,6 +216,14 @@ Format your response ONLY as a valid JSON object with this exact structure:
       console.error('Error in API request:', error);
       console.error('Error details:', error.response?.data);
       console.error('Error status:', error.response?.status);
+      
+      // Check if it's specifically a size-related error
+      if (error.response?.data?.error?.message?.includes('size') || 
+          error.response?.status === 413) {
+        console.error('The API rejected the file due to size limitations');
+        // Still fall back to mock data
+      }
+      
       return createMockAnalysis(videoFile); // Fallback to mock
     }
   } catch (error) {
