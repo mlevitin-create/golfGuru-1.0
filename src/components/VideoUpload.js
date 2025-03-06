@@ -46,12 +46,7 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
       return;
     }
     
-    // Check file size (10MB limit for Gemini API)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
-      alert(`File is too large. Maximum size is ${maxSize / (1024 * 1024)}MB. Please upload a smaller video or compress this one.`);
-      return;
-    }
+    // No size check here anymore
     
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
@@ -112,7 +107,7 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
               <path d="M12 5V19M5 12H19" stroke="#3498db" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             <p>Drag and drop a video file here, or click to select</p>
-            <p className="small">Supported formats: MP4, MOV, AVI (max 10MB)</p>
+            <p className="small">Supported formats: MP4, MOV, AVI</p>
           </>
         ) : (
           <div className="video-container">
@@ -132,8 +127,6 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
           <li>Get a clear view of your full swing</li>
           <li>Try to record from a side angle</li>
           <li>Keep the camera steady</li>
-          <li>Keep videos short (2-5 seconds) and under 10MB</li>
-          <li>Use MP4 format when possible</li>
         </ul>
       </div>
       
@@ -157,7 +150,7 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
         <div className="analyzing-indicator">
           <div className="spinner"></div>
           <p>Analyzing your swing with AI...</p>
-          <p>This may take up to 60 seconds</p>
+          <p>This may take a moment</p>
         </div>
       )}
     </div>
