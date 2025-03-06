@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/golfGuru-1.0/static/css/main.1d7127ec.css",
-    "main.js": "/golfGuru-1.0/static/js/main.89642ee7.js",
+    "main.js": "/golfGuru-1.0/static/js/main.1569c04f.js",
     "static/js/453.234a88c2.chunk.js": "/golfGuru-1.0/static/js/453.234a88c2.chunk.js",
     "index.html": "/golfGuru-1.0/index.html",
     "main.1d7127ec.css.map": "/golfGuru-1.0/static/css/main.1d7127ec.css.map",
-    "main.89642ee7.js.map": "/golfGuru-1.0/static/js/main.89642ee7.js.map",
+    "main.1569c04f.js.map": "/golfGuru-1.0/static/js/main.1569c04f.js.map",
     "453.234a88c2.chunk.js.map": "/golfGuru-1.0/static/js/453.234a88c2.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.1d7127ec.css",
-    "static/js/main.89642ee7.js"
+    "static/js/main.1569c04f.js"
   ]
 }
