@@ -71,17 +71,16 @@ const AppContent = () => {
   // Check if this is the user's first visit
   // In the AppContent component of App.js
   // In App.js
-    useEffect(() => {
-      // Use a different key for testing
-      const hasVisitedBefore = localStorage.getItem('hasVisitedBefore_v2');
-      console.log("Has visited before:", hasVisitedBefore);
-      
-      if (!hasVisitedBefore) {
-        console.log("First visit, showing welcome modal");
-        setIsWelcomeModalOpen(true);
-        localStorage.setItem('hasVisitedBefore_v2', 'true');
-      }
-    }, []);
+    // Updated code:
+      useEffect(() => {
+        // Show welcome modal for all non-logged in users
+        if (!currentUser) {
+          setIsWelcomeModalOpen(true);
+        } else {
+          // Hide the modal when user is logged in
+          setIsWelcomeModalOpen(false);
+        }
+      }, [currentUser]);
 
   // Listen for custom events to open login modal
   useEffect(() => {
