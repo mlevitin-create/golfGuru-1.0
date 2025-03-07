@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Navigation = ({ currentPage, navigateTo }) => {
+const Navigation = ({ currentPage, navigateTo, showProfile = false }) => {
   return (
     <nav className="navigation">
       <div 
@@ -27,6 +27,14 @@ const Navigation = ({ currentPage, navigateTo }) => {
       >
         Pro Comparison
       </div>
+      {showProfile && (
+        <div 
+          className={`nav-item ${currentPage === 'profile' ? 'active' : ''}`}
+          onClick={() => navigateTo('profile')}
+        >
+          Profile
+        </div>
+      )}
     </nav>
   );
 };

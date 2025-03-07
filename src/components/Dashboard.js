@@ -1,6 +1,9 @@
 import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
-const Dashboard = ({ swingHistory, navigateTo }) => {
+const Dashboard = ({ swingHistory, navigateTo, userStats }) => {
+  const { currentUser } = useAuth();
+  
   // Calculate latest score and improvement if history exists
   const hasHistory = swingHistory && swingHistory.length > 0;
   const latestSwing = hasHistory ? swingHistory[0] : null;
@@ -46,7 +49,11 @@ const Dashboard = ({ swingHistory, navigateTo }) => {
   return (
     <div>
       <section className="welcome-section">
-        <h2>Welcome to Golf Guru</h2>
+        <h2>
+          {currentUser 
+            ? `Welcome back, ${currentUser.displayName?.split(' ')[0] || 'Golfer'}!` 
+            : 'Welcome to Golf Guru'}
+        </h2>
         <p>Your personal AI golf coach to help improve your swing</p>
 
         {!hasHistory && (
@@ -61,6 +68,49 @@ const Dashboard = ({ swingHistory, navigateTo }) => {
           </div>
         )}
       </section>
+
+      {/* User stats section - only show when logged in */}
+      {currentUser && userStats && (
+        <section className="user-stats">
+          <div 
+            className="dashboard-cards" 
+            style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+              gap: '15px',
+              marginBottom: '20px' 
+            }}
+          >
+            <div className="dashboard-card" style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+              <h4>Swings Analyzed</h4>
+              <p style={{ fontSize: '24px', fontWeight: 'bold', margin: '5px 0' }}>{userStats.swingCount || 0}</p>
+            </div>
+            <div className="dashboard-card" style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+              <h4>Average Score</h4>
+              <p style={{ fontSize: '24px', fontWeight: 'bold', margin: '5px 0' }}>{(userStats.averageScore || 0).toFixed(1)}</p>
+            </div>
+            <div className="dashboard-card" style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+              <h4>Improvement</h4>
+              <p style={{ 
+                fontSize: '24px', 
+                fontWeight: 'bold', 
+                margin: '5px 0',
+                color: (userStats.improvement || 0) >= 0 ? '#27ae60' : '#e74c3c'
+              }}>
+                {(userStats.improvement || 0) > 0 ? '+' : ''}{(userStats.improvement || 0).toFixed(1)}
+              </p>
+            </div>
+            <div className="dashboard-card" style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+              <h4>Days Since First Upload</h4>
+              <p style={{ fontSize: '24px', fontWeight: 'bold', margin: '5px 0' }}>
+                {userStats.created 
+                  ? Math.ceil((new Date() - new Date(userStats.created)) / (1000 * 60 * 60 * 24)) 
+                  : 0}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {hasHistory && (
         <section className="dashboard-cards">
@@ -172,7 +222,7 @@ const Dashboard = ({ swingHistory, navigateTo }) => {
                 key={index} 
                 className="swing-history-item"
                 onClick={() => {
-                  // Navigate to analysis page with this swing data
+                  // Set this swing as the current swing data and navigate to analysis
                   // In a real implementation, you would pass the swing ID and fetch the data
                   navigateTo('analysis');
                 }}
@@ -189,9 +239,23 @@ const Dashboard = ({ swingHistory, navigateTo }) => {
         </section>
       )}
       
+      {!currentUser && hasHistory && (
+        <section className="login-prompt" style={{ marginTop: '20px', textAlign: 'center', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '10px' }}>
+          <h3>Save Your Progress</h3>
+          <p>Sign in to save your swing analyses and track your progress over time</p>
+          <button 
+            className="button" 
+            onClick={() => window.dispatchEvent(new CustomEvent('openLoginModal'))}
+            style={{ marginTop: '10px' }}
+          >
+            Sign In with Google
+          </button>
+        </section>
+      )}
+      
       <section className="app-info" style={{ marginTop: '30px', textAlign: 'center' }}>
         <h3>Golf Guru - AI-Powered Swing Analysis</h3>
-        <p>Version 1.0 - Created by Max Levitin & Rob Montoro</p>
+        <p>Version 1.1 - Created by Max Levitin & Rob Montoro</p>
       </section>
     </div>
   );

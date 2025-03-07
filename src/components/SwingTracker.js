@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 const SwingTracker = ({ swingHistory }) => {
+  const { currentUser } = useAuth();
   const [selectedMetric, setSelectedMetric] = useState('overallScore');
   
   if (!swingHistory || swingHistory.length === 0) {
@@ -20,15 +22,18 @@ const SwingTracker = ({ swingHistory }) => {
     });
   };
 
-  // Sort history by date
-  const sortedHistory = [...swingHistory].sort((a, b) => 
-    new Date(a.date) - new Date(b.date)
-  );
+  // Convert Firebase timestamp objects if needed and sort history by date
+  const processedHistory = swingHistory.map(swing => ({
+    ...swing,
+    date: swing.date instanceof Date ? swing.date : new Date(swing.date)
+  }));
+  
+  const sortedHistory = [...processedHistory].sort((a, b) => a.date - b.date);
 
   // Get all available metrics from the first swing data
   const metrics = [
     { key: 'overallScore', label: 'Overall Score' },
-    ...Object.keys(sortedHistory[0].metrics).map(key => ({
+    ...Object.keys(sortedHistory[0].metrics || {}).map(key => ({
       key,
       label: key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
     }))
@@ -63,6 +68,14 @@ const SwingTracker = ({ swingHistory }) => {
     <div className="card">
       <h2>Swing Progress Tracker</h2>
       <p>Track how your swing has improved over time</p>
+      
+      {!currentUser && swingHistory.length > 0 && (
+        <div style={{ backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '5px', marginBottom: '15px' }}>
+          <p style={{ margin: 0 }}>
+            <strong>Note:</strong> Sign in to save your progress and track your improvement over time.
+          </p>
+        </div>
+      )}
       
       <div className="metric-selector">
         <label htmlFor="metric-select">Select Metric:</label>
@@ -156,23 +169,17 @@ const SwingTracker = ({ swingHistory }) => {
       )}
       
       <div className="history-list" style={{ marginTop: '30px' }}>
-        <h3>Swing History</h3>
+        <h3>Swing History ({sortedHistory.length} swings)</h3>
         <div style={{ 
           maxHeight: '300px', 
           overflowY: 'auto',
           border: '1px solid #ddd',
           borderRadius: '10px'
         }}>
-          {sortedHistory.reverse().map((swing, index) => (
-            <div key={index} className="swing-history-item">
+          {[...sortedHistory].reverse().map((swing, index) => (
+            <div key={swing.id || index} className="swing-history-item">
               <div>
-                <strong>{new Date(swing.date).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}</strong>
+                <strong>{formatDate(swing.date)}</strong>
               </div>
               <div>
                 Score: <span style={{ fontWeight: 'bold' }}>{swing.overallScore}</span>
@@ -181,6 +188,18 @@ const SwingTracker = ({ swingHistory }) => {
           ))}
         </div>
       </div>
+      
+      {sortedHistory.length > 5 && (
+        <div className="insights" style={{ marginTop: '30px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '10px' }}>
+          <h3>Long-term Insights</h3>
+          <p>Based on your {sortedHistory.length} recorded swings:</p>
+          <ul>
+            <li>Your average score is {(sortedHistory.reduce((sum, swing) => sum + swing.overallScore, 0) / sortedHistory.length).toFixed(1)}</li>
+            <li>You've improved by {(sortedHistory[sortedHistory.length - 1].overallScore - sortedHistory[0].overallScore).toFixed(1)} points since your first swing</li>
+            <li>That's a {((sortedHistory[sortedHistory.length - 1].overallScore - sortedHistory[0].overallScore) / sortedHistory[0].overallScore * 100).toFixed(1)}% improvement!</li>
+          </ul>
+        </div>
+      )}
     </div>
   );
 };
