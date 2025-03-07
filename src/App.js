@@ -66,7 +66,7 @@ const AppContent = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [userStats, setUserStats] = useState(null);
-  const [isFirstVisit, setIsFirstVisit] = useState(true);
+  //const [isFirstVisit, setIsFirstVisit] = useState(true);
   
   // Check if this is the user's first visit
   // In the AppContent component of App.js

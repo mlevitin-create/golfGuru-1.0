@@ -65,7 +65,7 @@ const SwingTracker = ({ swingHistory, setSwingHistory, navigateTo }) => {
   }));
 
   // Find the max value for the chart
-  const maxValue = Math.max(...chartData.map(d => d.value), 100);
+  //const maxValue = Math.max(...chartData.map(d => d.value), 100);
 
   // Calculate the improvements
   const improvements = sortedHistory.length > 1 

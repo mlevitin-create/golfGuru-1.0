@@ -10,7 +10,7 @@ import {
     query, 
     where, 
     orderBy, 
-    limit, 
+    //limit, 
     serverTimestamp,
     setDoc 
   } from 'firebase/firestore';
@@ -386,3 +386,5 @@ import {
     deleteSwing,
     getUserStats
   };
+
+  
