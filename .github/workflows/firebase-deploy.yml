@@ -1,5 +1,4 @@
-# Update your .github/workflows/firebase-deploy.yml file
-
+# File: .github/workflows/firebase-deploy.yml
 name: Deploy to Firebase Hosting
 
 on:
@@ -8,7 +7,7 @@ on:
       - main  # or your default branch name
   pull_request:
     branches:
-      - main
+      - main  # or your default branch name
 
 jobs:
   build_and_deploy:
@@ -20,13 +19,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 18  # Change from 16 to 18
+          node-version: 18  # Using Node.js 18 for compatibility with Firebase tools
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build React app
         run: CI=false npm run build
         env:
           REACT_APP_FIREBASE_API_KEY: ${{ secrets.REACT_APP_FIREBASE_API_KEY }}
@@ -37,6 +36,10 @@ jobs:
           REACT_APP_FIREBASE_APP_ID: ${{ secrets.REACT_APP_FIREBASE_APP_ID }}
           REACT_APP_FIREBASE_MEASUREMENT_ID: ${{ secrets.REACT_APP_FIREBASE_MEASUREMENT_ID }}
           REACT_APP_GEMINI_API_KEY: ${{ secrets.REACT_APP_GEMINI_API_KEY }}
+
+      # Verify the build output contains your React app's index.html, not Firebase's default
+      - name: Check build output
+        run: ls -la build && cat build/index.html | head -15
 
       - name: Deploy to Firebase
         uses: FirebaseExtended/action-hosting-deploy@v0
