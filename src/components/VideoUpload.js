@@ -1,9 +1,13 @@
+// src/components/VideoUpload.js
 import React, { useState, useRef } from 'react';
+import ClubSelector from './ClubSelector';
 
-const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
+const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [showClubSelector, setShowClubSelector] = useState(false);
+  const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
 
   // Handle drag events
@@ -42,14 +46,20 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
   const handleFile = (file) => {
     // Check if the file is a video
     if (!file.type.startsWith('video/')) {
-      alert('Please upload a video file');
+      setError('Please upload a video file');
       return;
     }
     
-    // No size check here anymore
-    
+    // Check file size (15MB limit)
+    const maxSize = 15 * 1024 * 1024; // 15MB in bytes
+    if (file.size > maxSize) {
+      setError(`File size exceeds the maximum limit (15MB). Please upload a smaller video or compress this one.`);
+      return;
+    }
+
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
+    setError(null);
   };
 
   // Handle button click
@@ -57,15 +67,42 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
     fileInputRef.current.click();
   };
 
-  // Handle submit
-  const handleSubmit = () => {
+  // Handle analyze button click
+  const handleAnalyzeClick = () => {
     if (!selectedFile) {
-      alert('Please select a video first');
+      setError('Please select a video first');
       return;
     }
     
-    onVideoUpload(selectedFile);
+    // Show club selector before analyzing
+    setShowClubSelector(true);
   };
+
+  // Handle club selection continuation
+  const handleClubContinue = (clubData) => {
+    onVideoUpload(selectedFile, clubData);
+  };
+
+  // Handle skipping club selection
+  const handleClubSkip = (nextAction) => {
+    if (nextAction === 'setup-clubs') {
+      // Navigate to the club setup page
+      navigateTo('profile', { setupClubs: true });
+    } else {
+      // Continue with analysis without club data
+      onVideoUpload(selectedFile);
+    }
+  };
+
+  // If club selector is shown, render it
+  if (showClubSelector) {
+    return (
+      <ClubSelector 
+        onContinue={handleClubContinue} 
+        onSkip={handleClubSkip} 
+      />
+    );
+  }
 
   return (
     <div className="card">
@@ -73,15 +110,8 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
       <p>Upload a video of your golf swing for AI analysis</p>
       
       {error && (
-        <div className="error-message" style={{ 
-          color: '#e74c3c', 
-          backgroundColor: '#fceaea', 
-          padding: '10px', 
-          borderRadius: '5px',
-          marginBottom: '15px',
-          border: '1px solid #e74c3c'
-        }}>
-          <strong>Error:</strong> {error}
+        <div style={{ backgroundColor: '#f8d7da', color: '#721c24', padding: '10px', borderRadius: '5px', marginBottom: '15px' }}>
+          {error}
         </div>
       )}
       
@@ -110,22 +140,11 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
             <p className="small">Supported formats: MP4, MOV, AVI</p>
           </>
         ) : (
-          <div className="video-container" style={{ 
-            maxWidth: '500px',
-            width: '100%',
-            margin: '0 auto',
-            marginBottom: '20px'
-          }}>
+          <div className="video-container">
             <video 
               src={previewUrl} 
               controls 
               width="100%"
-              style={{
-                maxHeight: '350px',
-                objectFit: 'contain',
-                borderRadius: '8px',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-              }}
             />
           </div>
         )}
@@ -136,8 +155,9 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
         <ul>
           <li>Record in good lighting</li>
           <li>Get a clear view of your full swing</li>
-          <li>Try to record from a side angle</li>
+          <li>Try to record from a side angle (front-on or down-the-line)</li>
           <li>Keep the camera steady</li>
+          <li>Make sure your entire body and club are visible throughout the swing</li>
         </ul>
       </div>
       
@@ -145,13 +165,12 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
         <div className="selected-file-info">
           <p><strong>Selected File:</strong> {selectedFile.name}</p>
           <p><strong>Size:</strong> {(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
-          <p><strong>Type:</strong> {selectedFile.type}</p>
         </div>
       )}
       
       <button 
         className="button" 
-        onClick={handleSubmit}
+        onClick={handleAnalyzeClick}
         disabled={!selectedFile || isAnalyzing}
       >
         {isAnalyzing ? 'Analyzing...' : 'Analyze Swing'}

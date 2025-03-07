@@ -8,14 +8,14 @@ import ProComparison from './components/ProComparison';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
-// In App.js, replace the existing avatar code:
-import UserAvatar from './components/UserAvatar';
+import ClubBag from './components/ClubBag';
 import WelcomeModal from './components/WelcomeModal';
+import SetupFlow from './components/SetupFlow';
 import geminiService from './services/geminiService';
 import firestoreService from './services/firestoreService';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-// Modal component for login
+// Modal component for login and other modal content
 const Modal = ({ isOpen, onClose, children }) => {
   if (!isOpen) return null;
 
@@ -59,40 +59,45 @@ const Modal = ({ isOpen, onClose, children }) => {
 const AppContent = () => {
   const { currentUser } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [pageParams, setPageParams] = useState(null);
   const [swingData, setSwingData] = useState(null);
   const [swingHistory, setSwingHistory] = useState([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
+  const [isSetupFlowOpen, setIsSetupFlowOpen] = useState(false);
   const [userStats, setUserStats] = useState(null);
-  //const [isFirstVisit, setIsFirstVisit] = useState(true);
+  const [userClubs, setUserClubs] = useState([]);
   
-  // Check if this is the user's first visit
-  // In the AppContent component of App.js
-  // In App.js
-    // Updated code:
-      useEffect(() => {
-        // Show welcome modal for all non-logged in users
-        if (!currentUser) {
-          setIsWelcomeModalOpen(true);
-        } else {
-          // Hide the modal when user is logged in
-          setIsWelcomeModalOpen(false);
-        }
-      }, [currentUser]);
-
-  // Listen for custom events to open login modal
+  // Check if this is the user's first visit or login
   useEffect(() => {
-    const handleOpenLoginModal = () => setIsLoginModalOpen(true);
-    window.addEventListener('openLoginModal', handleOpenLoginModal);
-    
-    return () => {
-      window.removeEventListener('openLoginModal', handleOpenLoginModal);
+    const checkFirstTimeUser = async () => {
+      if (currentUser) {
+        try {
+          // Check if the user has completed setup
+          const userData = await firestoreService.getUserData(currentUser.uid);
+          
+          if (!userData || !userData.setupCompleted) {
+            setIsSetupFlowOpen(true);
+          }
+        } catch (error) {
+          console.error('Error checking user setup status:', error);
+        }
+      } else {
+        // For non-authenticated users, check localStorage
+        const hasVisitedBefore = localStorage.getItem('hasVisitedBefore');
+        if (!hasVisitedBefore) {
+          setIsWelcomeModalOpen(true);
+          localStorage.setItem('hasVisitedBefore', 'true');
+        }
+      }
     };
-  }, []);
+    
+    checkFirstTimeUser();
+  }, [currentUser]);
   
-  // Load user swings when user is authenticated
+  // Load user data when authenticated
   useEffect(() => {
     const loadUserData = async () => {
       if (currentUser) {
@@ -101,14 +106,19 @@ const AppContent = () => {
           const swings = await firestoreService.getUserSwings(currentUser.uid);
           setSwingHistory(swings);
           
-          // Set the most recent swing as the current swing data
-          if (swings.length > 0) {
+          // Set the most recent swing as the current swing data if on dashboard
+          if (swings.length > 0 && currentPage === 'dashboard') {
             setSwingData(swings[0]);
           }
           
           // Get user stats
           const stats = await firestoreService.getUserStats(currentUser.uid);
           setUserStats(stats);
+          
+          // Get user clubs
+          const clubs = await firestoreService.getUserClubs(currentUser.uid);
+          setUserClubs(clubs || []);
+          
         } catch (error) {
           console.error('Error loading user data:', error);
           setError('Failed to load your data. Please try again later.');
@@ -116,16 +126,15 @@ const AppContent = () => {
       } else {
         // Clear user data when logged out
         setSwingHistory([]);
-        setSwingData(null);
         setUserStats(null);
       }
     };
     
     loadUserData();
-  }, [currentUser]);
+  }, [currentUser, currentPage]);
 
-  // Function to analyze swing
-  const analyzeSwing = async (videoFile) => {
+  // Function to analyze swing with optional club data
+  const analyzeSwing = async (videoFile, clubData = null) => {
     setIsAnalyzing(true);
     setError(null);
     
@@ -138,7 +147,8 @@ const AppContent = () => {
         const savedSwing = await firestoreService.saveSwingAnalysis(
           analysisResult, 
           currentUser.uid, 
-          videoFile
+          videoFile,
+          clubData
         );
         
         // Update state with the saved data (includes Firestore ID)
@@ -150,14 +160,28 @@ const AppContent = () => {
         setUserStats(stats);
       } else {
         // Just use the local data if not logged in
-        setSwingData(analysisResult);
-        setSwingHistory(prev => [analysisResult, ...prev]);
+        const localResult = {
+          ...analysisResult,
+          _isLocalOnly: true,
+          videoUrl: URL.createObjectURL(videoFile)
+        };
+        
+        // Add club data if provided
+        if (clubData) {
+          localResult.clubId = clubData.clubId;
+          localResult.clubName = clubData.clubName;
+          localResult.clubType = clubData.clubType;
+          localResult.outcome = clubData.outcome;
+        }
+        
+        setSwingData(localResult);
+        setSwingHistory(prev => [localResult, ...prev]);
         
         // Prompt user to login to save their data
         setIsLoginModalOpen(true);
       }
       
-      setCurrentPage('analysis');
+      navigateTo('analysis');
     } catch (error) {
       console.error("Error analyzing swing:", error);
       setError(error.message || "Failed to analyze swing. Please try again.");
@@ -166,9 +190,35 @@ const AppContent = () => {
     }
   };
 
-  // Navigation handler
-  const navigateTo = (page) => {
+  // Handle setup flow completion
+  const handleSetupComplete = async (userData) => {
+    if (currentUser) {
+      try {
+        // Save user profile data to Firestore
+        await firestoreService.saveUserProfile(currentUser.uid, {
+          ...userData,
+          setupCompleted: true
+        });
+        
+        // Update clubs state
+        setUserClubs(userData.clubs);
+        
+        // Close setup flow modal
+        setIsSetupFlowOpen(false);
+      } catch (error) {
+        console.error("Error saving user profile:", error);
+        setError("Failed to save your profile. Please try again.");
+      }
+    } else {
+      // For non-authenticated users, just close the modal
+      setIsSetupFlowOpen(false);
+    }
+  };
+
+  // Enhanced navigation handler with optional parameters
+  const navigateTo = (page, params = null) => {
     setCurrentPage(page);
+    setPageParams(params);
     setError(null);
   };
 
@@ -180,24 +230,25 @@ const AppContent = () => {
           swingHistory={swingHistory} 
           navigateTo={navigateTo} 
           userStats={userStats}
+          userClubs={userClubs}
         />;
       case 'upload':
         return <VideoUpload 
-          onVideoUpload={analyzeSwing} 
+          onVideoUpload={analyzeSwing}
           isAnalyzing={isAnalyzing}
-          error={error}
+          navigateTo={navigateTo}
         />;
       case 'analysis':
         return <SwingAnalysis 
           swingData={swingData} 
           navigateTo={navigateTo}
-          setSwingHistory={setSwingHistory}  // Add this prop 
+          setSwingHistory={setSwingHistory}
         />;
       case 'tracker':
         return <SwingTracker 
-        swingHistory={swingHistory} 
-        setSwingHistory={setSwingHistory}  // Add this prop
-        navigateTo={navigateTo} 
+          swingHistory={swingHistory}
+          setSwingHistory={setSwingHistory}
+          navigateTo={navigateTo}
         />;
       case 'comparison':
         return <ProComparison 
@@ -207,12 +258,20 @@ const AppContent = () => {
         return <UserProfile 
           navigateTo={navigateTo}
           userStats={userStats}
+          userClubs={userClubs}
+          setUserClubs={setUserClubs}
+          setupClubsTab={pageParams?.setupClubs}
+        />;
+      case 'clubs':
+        return <ClubBag 
+          onComplete={() => navigateTo('profile')}
         />;
       default:
         return <Dashboard 
           swingHistory={swingHistory} 
           navigateTo={navigateTo}
           userStats={userStats}
+          userClubs={userClubs}
         />;
     }
   };
@@ -223,22 +282,31 @@ const AppContent = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <h1>GOLF GURU</h1>
           
-            {currentUser ? (
-              <div 
-                className="user-avatar" 
-                onClick={() => navigateTo('profile')}
+          {currentUser ? (
+            <div 
+              className="user-avatar" 
+              onClick={() => navigateTo('profile')}
+              style={{
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
+              <span style={{ marginRight: '10px', color: 'white' }}>
+                {currentUser.displayName?.split(' ')[0] || 'User'}
+              </span>
+              <img 
+                src={currentUser.photoURL || '/default-avatar.png'} 
+                alt="Avatar" 
                 style={{
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center'
+                  width: '35px',
+                  height: '35px',
+                  borderRadius: '50%',
+                  border: '2px solid white'
                 }}
-              >
-                <span style={{ marginRight: '10px', color: 'white' }}>
-                  {currentUser.displayName?.split(' ')[0] || 'User'}
-                </span>
-                <UserAvatar user={currentUser} size={35} />
-              </div>
-            ) : (
+              />
+            </div>
+          ) : (
             <button 
               className="button" 
               onClick={() => setIsLoginModalOpen(true)}
@@ -264,11 +332,21 @@ const AppContent = () => {
         showProfile={!!currentUser}
       />
       
+      {/* Modals */}
       <Modal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)}>
         <Login onClose={() => setIsLoginModalOpen(false)} />
       </Modal>
 
-      <WelcomeModal isOpen={isWelcomeModalOpen} onClose={() => setIsWelcomeModalOpen(false)} />
+      <Modal isOpen={isWelcomeModalOpen} onClose={() => setIsWelcomeModalOpen(false)}>
+        <WelcomeModal onClose={() => setIsWelcomeModalOpen(false)} onSetup={() => setIsSetupFlowOpen(true)} />
+      </Modal>
+      
+      <Modal 
+        isOpen={isSetupFlowOpen} 
+        onClose={() => currentUser ? null : setIsSetupFlowOpen(false)} // Only allow closing for non-auth users
+      >
+        <SetupFlow onComplete={handleSetupComplete} />
+      </Modal>
     </div>
   );
 };
