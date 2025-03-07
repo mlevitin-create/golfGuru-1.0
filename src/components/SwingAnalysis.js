@@ -59,13 +59,24 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
         <h2>Swing Analysis</h2>
         <p>Analyzed on {formatDate(swingData.date)}</p>
 
-        <div className="video-container">
-          <video 
-            src={swingData.videoUrl} 
-            controls 
-            width="100%"
-          />
-        </div>
+        <div className="video-container" style={{ 
+            maxWidth: '500px',  // Limit maximum width 
+            width: '100%',
+            margin: '0 auto',   // Center the container
+            marginBottom: '20px'
+          }}>
+            <video 
+              src={swingData.videoUrl} 
+              controls 
+              width="100%"
+              style={{
+                maxHeight: '350px', // Limit the height
+                objectFit: 'contain', // Keep aspect ratio without stretching
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+              }}
+            />
+          </div>
 
         <div className="overall-score">
           <h3>Overall Score</h3>
