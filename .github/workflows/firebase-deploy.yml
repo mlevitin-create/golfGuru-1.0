@@ -1,13 +1,14 @@
-# File: .github/workflows/firebase-deploy.yml
+# Update your .github/workflows/firebase-deploy.yml file
+
 name: Deploy to Firebase Hosting
 
 on:
   push:
     branches:
-      - main  # or your default branch name (could be 'master')
+      - main  # or your default branch name
   pull_request:
     branches:
-      - main  # or your default branch name
+      - main
 
 jobs:
   build_and_deploy:
@@ -19,7 +20,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 16
+          node-version: 18  # Change from 16 to 18
           cache: 'npm'
 
       - name: Install dependencies
