@@ -1,6 +1,10 @@
 import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import firestoreService from '../services/firestoreService';
 
-const SwingAnalysis = ({ swingData, navigateTo }) => {
+const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
+  const { currentUser } = useAuth();
+
   if (!swingData) {
     return (
       <div className="card">
@@ -31,6 +35,22 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
     if (score >= 80) return '#27ae60'; // Green for good
     if (score >= 60) return '#f39c12'; // Orange for average
     return '#e74c3c'; // Red for needs improvement
+  };
+
+  // Handle delete swing
+  const handleDeleteSwing = async (swingId) => {
+    if (window.confirm('Are you sure you want to delete this swing? This action cannot be undone.')) {
+      try {
+        await firestoreService.deleteSwing(swingId, currentUser.uid);
+        // Update local state to remove the deleted swing
+        setSwingHistory(prev => prev.filter(swing => swing.id !== swingId));
+        // Redirect to dashboard
+        navigateTo('dashboard');
+      } catch (error) {
+        console.error('Error deleting swing:', error);
+        alert('Failed to delete swing: ' + error.message);
+      }
+    }
   };
 
   return (
@@ -115,6 +135,21 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
             Upload New Video
           </button>
         </div>
+
+        {/* Delete button - only show for authenticated users who own this swing */}
+        {swingData.id && !swingData._isLocalOnly && currentUser && swingData.userId === currentUser.uid && (
+          <button 
+            className="button" 
+            onClick={() => handleDeleteSwing(swingData.id)}
+            style={{ 
+              backgroundColor: '#e74c3c',
+              marginTop: '10px',
+              width: '100%'
+            }}
+          >
+            Delete This Swing
+          </button>
+        )}
       </div>
     </div>
   );

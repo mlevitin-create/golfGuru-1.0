@@ -8,6 +8,8 @@ import ProComparison from './components/ProComparison';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
+// In App.js, replace the existing avatar code:
+import UserAvatar from './components/UserAvatar';
 import WelcomeModal from './components/WelcomeModal';
 import geminiService from './services/geminiService';
 import firestoreService from './services/firestoreService';
@@ -68,18 +70,18 @@ const AppContent = () => {
   
   // Check if this is the user's first visit
   // In the AppContent component of App.js
-  useEffect(() => {
-    // Check if this is the first visit
-    const hasVisitedBefore = localStorage.getItem('hasVisitedBefore');
-    console.log("Has visited before:", hasVisitedBefore); // Debugging log
-    
-    if (!hasVisitedBefore) {
-      console.log("First visit, showing welcome modal");
-      setIsWelcomeModalOpen(true);
-      // Set the localStorage flag after showing the modal
-      localStorage.setItem('hasVisitedBefore', 'true');
-    }
-  }, []); // Empty dependency array ensures this only runs once on mount
+  // In App.js
+    useEffect(() => {
+      // Use a different key for testing
+      const hasVisitedBefore = localStorage.getItem('hasVisitedBefore_v2');
+      console.log("Has visited before:", hasVisitedBefore);
+      
+      if (!hasVisitedBefore) {
+        console.log("First visit, showing welcome modal");
+        setIsWelcomeModalOpen(true);
+        localStorage.setItem('hasVisitedBefore_v2', 'true');
+      }
+    }, []);
 
   // Listen for custom events to open login modal
   useEffect(() => {
@@ -189,11 +191,14 @@ const AppContent = () => {
       case 'analysis':
         return <SwingAnalysis 
           swingData={swingData} 
-          navigateTo={navigateTo} 
+          navigateTo={navigateTo}
+          setSwingHistory={setSwingHistory}  // Add this prop 
         />;
       case 'tracker':
         return <SwingTracker 
-          swingHistory={swingHistory} 
+        swingHistory={swingHistory} 
+        setSwingHistory={setSwingHistory}  // Add this prop
+        navigateTo={navigateTo} 
         />;
       case 'comparison':
         return <ProComparison 
@@ -219,31 +224,22 @@ const AppContent = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <h1>GOLF GURU</h1>
           
-          {currentUser ? (
-            <div 
-              className="user-avatar" 
-              onClick={() => navigateTo('profile')}
-              style={{
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              <span style={{ marginRight: '10px', color: 'white' }}>
-                {currentUser.displayName?.split(' ')[0] || 'User'}
-              </span>
-              <img 
-                src={currentUser.photoURL || '/default-avatar.png'} 
-                alt="Avatar" 
+            {currentUser ? (
+              <div 
+                className="user-avatar" 
+                onClick={() => navigateTo('profile')}
                 style={{
-                  width: '35px',
-                  height: '35px',
-                  borderRadius: '50%',
-                  border: '2px solid white'
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center'
                 }}
-              />
-            </div>
-          ) : (
+              >
+                <span style={{ marginRight: '10px', color: 'white' }}>
+                  {currentUser.displayName?.split(' ')[0] || 'User'}
+                </span>
+                <UserAvatar user={currentUser} size={35} />
+              </div>
+            ) : (
             <button 
               className="button" 
               onClick={() => setIsLoginModalOpen(true)}

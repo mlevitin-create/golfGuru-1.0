@@ -1,8 +1,12 @@
 // src/firebase/firebase.js
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getStorage, connectStorageEmulator } from 'firebase/storage';
+
+// Log the environment 
+console.log("NODE_ENV:", process.env.NODE_ENV);
+console.log("API Key available:", !!process.env.REACT_APP_FIREBASE_API_KEY);
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -22,6 +26,14 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+
+// For local development, use emulators if needed
+if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_FIREBASE_EMULATORS === 'true') {
+  // Connect to emulators
+  connectFirestoreEmulator(db, 'localhost', 8080);
+  connectStorageEmulator(storage, 'localhost', 9199);
+  console.log("Using Firebase emulators for local development");
+}
 
 export { auth, db, storage };
 export default app;

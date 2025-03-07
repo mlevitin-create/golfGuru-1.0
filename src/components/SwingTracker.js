@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import firestoreService from '../services/firestoreService';
 
-const SwingTracker = ({ swingHistory }) => {
+const SwingTracker = ({ swingHistory, setSwingHistory, navigateTo }) => {
   const { currentUser } = useAuth();
   const [selectedMetric, setSelectedMetric] = useState('overallScore');
   
@@ -20,6 +21,22 @@ const SwingTracker = ({ swingHistory }) => {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  // Handle delete swing
+  const handleDeleteSwing = async (swingId, e) => {
+    e.stopPropagation(); // Prevent navigating to swing details
+    
+    if (window.confirm('Are you sure you want to delete this swing? This action cannot be undone.')) {
+      try {
+        await firestoreService.deleteSwing(swingId, currentUser.uid);
+        // Update local state to remove the deleted swing
+        setSwingHistory(prev => prev.filter(swing => swing.id !== swingId));
+      } catch (error) {
+        console.error('Error deleting swing:', error);
+        alert('Failed to delete swing: ' + error.message);
+      }
+    }
   };
 
   // Convert Firebase timestamp objects if needed and sort history by date
@@ -177,13 +194,47 @@ const SwingTracker = ({ swingHistory }) => {
           borderRadius: '10px'
         }}>
           {[...sortedHistory].reverse().map((swing, index) => (
-            <div key={swing.id || index} className="swing-history-item">
+            <div 
+              key={swing.id || index} 
+              className="swing-history-item"
+              onClick={() => {
+                // Navigate to analysis page with this swing data
+                navigateTo('analysis', swing);
+              }}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '15px',
+                borderBottom: '1px solid #ecf0f1',
+                cursor: 'pointer'
+              }}
+            >
               <div>
                 <strong>{formatDate(swing.date)}</strong>
               </div>
               <div>
                 Score: <span style={{ fontWeight: 'bold' }}>{swing.overallScore}</span>
               </div>
+              
+              {/* Delete button - only show for authenticated users who own this swing */}
+              {currentUser && swing.userId === currentUser.uid && !swing._isLocalOnly && (
+                <button 
+                  onClick={(e) => handleDeleteSwing(swing.id, e)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#e74c3c',
+                    cursor: 'pointer',
+                    fontSize: '1rem',
+                    padding: '5px',
+                    marginLeft: '10px'
+                  }}
+                  aria-label="Delete swing"
+                >
+                  🗑️
+                </button>
+              )}
             </div>
           ))}
         </div>
