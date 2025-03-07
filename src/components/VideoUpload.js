@@ -110,11 +110,22 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, error }) => {
             <p className="small">Supported formats: MP4, MOV, AVI</p>
           </>
         ) : (
-          <div className="video-container">
+          <div className="video-container" style={{ 
+            maxWidth: '500px',
+            width: '100%',
+            margin: '0 auto',
+            marginBottom: '20px'
+          }}>
             <video 
               src={previewUrl} 
               controls 
               width="100%"
+              style={{
+                maxHeight: '350px',
+                objectFit: 'contain',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+              }}
             />
           </div>
         )}
