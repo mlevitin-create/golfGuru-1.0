@@ -67,13 +67,19 @@ const AppContent = () => {
   const [isFirstVisit, setIsFirstVisit] = useState(true);
   
   // Check if this is the user's first visit
+  // In the AppContent component of App.js
   useEffect(() => {
+    // Check if this is the first visit
     const hasVisitedBefore = localStorage.getItem('hasVisitedBefore');
-    if (!hasVisitedBefore && !currentUser) {
+    console.log("Has visited before:", hasVisitedBefore); // Debugging log
+    
+    if (!hasVisitedBefore) {
+      console.log("First visit, showing welcome modal");
       setIsWelcomeModalOpen(true);
+      // Set the localStorage flag after showing the modal
       localStorage.setItem('hasVisitedBefore', 'true');
     }
-  }, [currentUser]);
+  }, []); // Empty dependency array ensures this only runs once on mount
 
   // Listen for custom events to open login modal
   useEffect(() => {
