@@ -88,13 +88,16 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
         <h2>Swing Analysis</h2>
         <p>Analyzed on {formatDate(swingData.date)}</p>
 
-        {/* Custom video container with styled poster */}
+        {/* Custom video container with controlled dimensions */}
         <div className="video-container" style={{ 
           maxWidth: '100%', 
           margin: '0 auto',
           borderRadius: '8px',
           overflow: 'hidden',
-          backgroundColor: '#2c3e50' // Dark background color
+          backgroundColor: '#2c3e50', // Dark background color
+          maxHeight: '500px', // Add maximum height for desktop
+          display: 'flex',
+          justifyContent: 'center'
         }}>
           <video 
             ref={videoRef}
@@ -102,8 +105,11 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
             controls 
             playsInline
             preload="metadata"
-            width="100%" 
             style={{ 
+              maxWidth: '600px', // Maximum width on desktop
+              width: '100%', // Responsive width
+              maxHeight: '500px', // Maximum height
+              objectFit: 'contain', // Maintain aspect ratio
               display: 'block',
               borderRadius: '8px',
               backgroundColor: '#2c3e50' // Ensure background color is set
