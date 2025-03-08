@@ -43,6 +43,7 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
   };
 
   // Process the selected file
+  // Process the selected file
   const handleFile = (file) => {
     // Check if the file is a video
     if (!file.type.startsWith('video/')) {
@@ -50,12 +51,12 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
       return;
     }
     
-    // Check file size (15MB limit)
-    const maxSize = 15 * 1024 * 1024; // 15MB in bytes
-    if (file.size > maxSize) {
-      setError(`File size exceeds the maximum limit (15MB). Please upload a smaller video or compress this one.`);
-      return;
-    }
+    // Remove the size limit check
+    // const maxSize = 15 * 1024 * 1024; // 15MB in bytes
+    // if (file.size > maxSize) {
+    //   setError(`File size exceeds the maximum limit (15MB). Please upload a smaller video or compress this one.`);
+    //   return;
+    // }
 
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
