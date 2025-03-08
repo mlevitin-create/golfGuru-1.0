@@ -278,9 +278,26 @@ const AppContent = () => {
 
   return (
     <div className="App">
-      <header className="App-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-          <h1>GOLF GURU</h1>
+      <header className="App-header" style={{
+        padding: '10px',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          width: '100%' 
+        }}>
+          <h1 
+            onClick={() => navigateTo('dashboard')}
+            style={{ 
+              cursor: 'pointer',
+              fontSize: 'clamp(1.5rem, 5vw, 2.5rem)' // Responsive font size
+            }}
+          >
+            GOLF GURU
+          </h1>
           
           {currentUser ? (
             <div 
@@ -292,7 +309,14 @@ const AppContent = () => {
                 alignItems: 'center'
               }}
             >
-              <span style={{ marginRight: '10px', color: 'white' }}>
+              <span style={{ 
+                marginRight: '10px', 
+                color: 'white',
+                display: 'none',  // Hide name on small screens
+                '@media (min-width: 480px)': {
+                  display: 'block'
+                }
+              }}>
                 {currentUser.displayName?.split(' ')[0] || 'User'}
               </span>
               <img 
@@ -319,7 +343,7 @@ const AppContent = () => {
             </button>
           )}
         </div>
-        <p>AI-Powered Swing Analysis</p>
+        <p style={{ fontSize: 'clamp(0.8rem, 3vw, 1rem)' }}>AI-Powered Swing Analysis</p>
       </header>
       
       <main className="App-main">

@@ -86,7 +86,7 @@ const ClubSelector = ({ onContinue, onSkip }) => {
   if (loading && !clubs.length) {
     return (
       <div className="card">
-        <h2>Loading...</h2>
+        <h2>AI Analysis In Progress...</h2>
         <div className="spinner"></div>
       </div>
     );

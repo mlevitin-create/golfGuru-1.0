@@ -50,12 +50,7 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
       return;
     }
     
-    // Removed size limit check
-    // const maxSize = 15 * 1024 * 1024; // 15MB in bytes
-    // if (file.size > maxSize) {
-    //   setError(`File size exceeds the maximum limit (15MB). Please upload a smaller video or compress this one.`);
-    //   return;
-    // }
+    // No size limit check
 
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
@@ -110,7 +105,14 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
       <p>Upload a video of your golf swing for AI analysis</p>
       
       {error && (
-        <div style={{ backgroundColor: '#f8d7da', color: '#721c24', padding: '10px', borderRadius: '5px', marginBottom: '15px' }}>
+        <div style={{ 
+          backgroundColor: '#f8d7da', 
+          color: '#721c24', 
+          padding: '10px', 
+          borderRadius: '5px', 
+          marginBottom: '15px',
+          fontSize: '0.95rem'
+        }}>
           {error}
         </div>
       )}
@@ -122,6 +124,19 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
         onDragLeave={handleDrag}
         onDrop={handleDrop}
         onClick={onButtonClick}
+        style={{
+          border: '2px dashed #bdc3c7',
+          borderRadius: '10px',
+          padding: '20px',
+          textAlign: 'center',
+          cursor: 'pointer',
+          margin: '20px 0',
+          minHeight: '150px', 
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}
       >
         <input 
           type="file" 
@@ -136,12 +151,12 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
             <svg width="50" height="50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 5V19M5 12H19" stroke="#3498db" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            <p>Drag and drop a video file here, or click to select</p>
-            <p className="small">Supported formats: MP4, MOV, AVI</p>
+            <p>Tap to select a video</p>
+            <p className="small" style={{ fontSize: '0.8rem', color: '#95a5a6' }}>or drag and drop (on desktop)</p>
           </>
         ) : (
           // Updated video container with smaller size
-          <div className="video-container" style={{ maxWidth: '300px', margin: '0 auto' }}>
+          <div className="video-container" style={{ maxWidth: '300px', margin: '0 auto', width: '100%' }}>
             <video 
               src={previewUrl} 
               controls 
@@ -152,7 +167,13 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
         )}
       </div>
       
-      <div className="upload-tips">
+      {/* Desktop tips - hidden on mobile */}
+      <div className="upload-tips" style={{ 
+        display: 'none',
+        '@media (min-width: 768px)': {
+          display: 'block'
+        }
+      }}>
         <h3>Tips for best results:</h3>
         <ul>
           <li>Record in good lighting</li>
@@ -163,8 +184,28 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
         </ul>
       </div>
       
+      {/* Mobile-friendly tips with expandable details */}
+      <div className="upload-tips-mobile" style={{ 
+        marginTop: '15px', 
+        textAlign: 'center',
+        '@media (min-width: 768px)': {
+          display: 'none'
+        }
+      }}>
+        <details>
+          <summary style={{ fontWeight: 'bold', cursor: 'pointer', padding: '10px 0' }}>
+            Tips for best results
+          </summary>
+          <ul style={{ textAlign: 'left', paddingLeft: '20px', marginTop: '10px' }}>
+            <li>Good lighting & steady camera</li>
+            <li>Side angle view</li>
+            <li>Show full body & club</li>
+          </ul>
+        </details>
+      </div>
+      
       {selectedFile && (
-        <div className="selected-file-info">
+        <div className="selected-file-info" style={{ margin: '15px 0', fontSize: '0.9rem' }}>
           <p><strong>Selected File:</strong> {selectedFile.name}</p>
           <p><strong>Size:</strong> {(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
         </div>
@@ -174,6 +215,17 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
         className="button" 
         onClick={handleAnalyzeClick}
         disabled={!selectedFile || isAnalyzing}
+        style={{
+          padding: '12px 24px',
+          width: '100%',
+          borderRadius: '5px',
+          border: 'none',
+          backgroundColor: '#3498db',
+          color: 'white',
+          fontWeight: 'bold',
+          cursor: !selectedFile || isAnalyzing ? 'not-allowed' : 'pointer',
+          opacity: !selectedFile || isAnalyzing ? 0.7 : 1
+        }}
       >
         {isAnalyzing ? 'Analyzing...' : 'Analyze Swing'}
       </button>
@@ -196,9 +248,9 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
             borderTopColor: '#3498db',
             animation: 'spin 1s linear infinite'
           }}></div>
-          <h3 style={{ marginBottom: '10px' }}>Analyzing your swing with AI...</h3>
-          <p>This process may take 30-60 seconds depending on video size.</p>
-          <p>Please don't close this window during analysis.</p>
+          <h3 style={{ marginBottom: '10px', fontSize: '1.1rem' }}>Analyzing your swing with AI...</h3>
+          <p style={{ fontSize: '0.9rem' }}>This process may take 30-60 seconds depending on video size.</p>
+          <p style={{ fontSize: '0.9rem' }}>Please don't close this window during analysis.</p>
         </div>
       )}
     </div>

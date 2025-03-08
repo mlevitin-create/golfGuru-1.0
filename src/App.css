@@ -221,3 +221,114 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Add to App.css */
+@media (max-width: 768px) {
+  input, select, button {
+    min-height: 44px; /* Minimum touch target size */
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+  
+  .button {
+    padding: 12px 24px;
+    width: 100%;
+    margin-bottom: 10px;
+  }
+  
+  /* If you have action button groups, modify them */
+  .action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  /* For side-by-side buttons that need to stay that way */
+  .action-buttons.horizontal {
+    flex-direction: row;
+  }
+  
+  .action-buttons.horizontal .button {
+    flex: 1;
+  }
+}
+
+/* Add to App.css */
+@media (max-width: 768px) {
+  .card {
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+  }
+  
+  h3 {
+    font-size: 1.2rem;
+  }
+  
+  /* Adjust grids for mobile */
+  .dashboard-cards,
+  .metrics-grid,
+  .analysis-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .App {
+    padding: 0 10px;
+  }
+  
+  .App-main {
+    padding: 15px 10px;
+  }
+  
+  /* Make modals take up more screen space on mobile */
+  .modal-content {
+    width: 95% !important;
+    max-height: 95vh !important;
+    padding: 15px !important;
+  }
+  
+  /* Adjust club table for mobile */
+  .club-list-header, .club-item {
+    font-size: 0.9rem;
+  }
+  
+  /* Simplify forms on mobile */
+  .form-group {
+    margin-bottom: 15px;
+  }
+  
+  /* Better mobile scroll handling */
+  .history-list > div {
+    max-height: 250px;
+  }
+  
+  /* Fix touch targets */
+  .nav-item {
+    padding: 12px 8px !important;
+  }
+}
+
+/* Fix iOS issues */
+input, 
+textarea,
+select {
+  font-size: 16px; /* Prevents zoom on focus in iOS */
+}
+
+/* Fix overflow issues */
+img, video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Ensure content doesn't overflow */
+* {
+  box-sizing: border-box;
+}
