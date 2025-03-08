@@ -1,14 +1,68 @@
 // src/components/VideoUpload.js
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ClubSelector from './ClubSelector';
 
 const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [showClubSelector, setShowClubSelector] = useState(false);
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+
+  // Generate thumbnail from video file
+  const generateThumbnail = (videoFile) => {
+    const videoElement = document.createElement('video');
+    videoElement.preload = 'metadata';
+    videoElement.muted = true;
+    videoElement.playsInline = true;
+    
+    const fileUrl = URL.createObjectURL(videoFile);
+    videoElement.src = fileUrl;
+    
+    // When video data is loaded, create thumbnail
+    videoElement.onloadeddata = () => {
+      console.log('Video loaded, seeking to thumbnail position');
+      // Seek to 1 second or 1/4 through the video, whichever is less
+      videoElement.currentTime = 1;
+    };
+    
+    // Once we've seeked to the right place, capture the frame
+    videoElement.onseeked = () => {
+      console.log('Video seeked, generating thumbnail');
+      const canvas = document.createElement('canvas');
+      // Set canvas dimensions to match video
+      canvas.width = videoElement.videoWidth;
+      canvas.height = videoElement.videoHeight;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      
+      // Create thumbnail URL from canvas
+      try {
+        const thumbnailUrl = canvas.toDataURL('image/jpeg');
+        console.log('Thumbnail generated successfully');
+        setThumbnailUrl(thumbnailUrl);
+      } catch (err) {
+        console.error('Error generating thumbnail:', err);
+        // If thumbnail generation fails, we'll still have the video element
+      }
+      
+      // Clean up object URL
+      URL.revokeObjectURL(fileUrl);
+    };
+    
+    // Handle errors
+    videoElement.onerror = (err) => {
+      console.error('Error loading video for thumbnail:', err);
+      URL.revokeObjectURL(fileUrl);
+    };
+    
+    // Explicitly trigger load
+    videoElement.load();
+  };
 
   // Handle drag events
   const handleDrag = (e) => {
@@ -50,10 +104,15 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
       return;
     }
     
-    // No size limit check
+    // No size limit check - removed as requested
 
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
+    setThumbnailUrl(null); // Clear previous thumbnail
+    
+    // Generate thumbnail for the video
+    generateThumbnail(file);
+    
     setError(null);
   };
 
@@ -71,6 +130,14 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
     
     // Show club selector before analyzing
     setShowClubSelector(true);
+  };
+
+  // Handle playing the video when thumbnail is clicked
+  const handleThumbnailClick = () => {
+    if (videoRef.current) {
+      videoRef.current.style.display = 'block';
+      videoRef.current.play();
+    }
   };
 
   // Handle club selection continuation
@@ -155,13 +222,72 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
             <p className="small" style={{ fontSize: '0.8rem', color: '#95a5a6' }}>or drag and drop (on desktop)</p>
           </>
         ) : (
-          // Updated video container with smaller size
+          // Updated video container with thumbnail option
           <div className="video-container" style={{ maxWidth: '300px', margin: '0 auto', width: '100%' }}>
+            {thumbnailUrl ? (
+              <div style={{ position: 'relative', marginBottom: '10px' }}>
+                <img 
+                  src={thumbnailUrl} 
+                  alt="Video preview" 
+                  style={{ 
+                    width: '100%', 
+                    borderRadius: '8px',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                  }}
+                />
+                <div 
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    borderRadius: '50%',
+                    width: '50px',
+                    height: '50px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                  onClick={handleThumbnailClick}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 5V19L19 12L8 5Z" fill="white" />
+                  </svg>
+                </div>
+              </div>
+            ) : (
+              <div style={{
+                width: '100%',
+                height: '200px',
+                backgroundColor: '#f1f1f1',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <div className="spinner" style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  border: '4px solid rgba(0, 0, 0, 0.1)',
+                  borderTopColor: '#3498db',
+                  animation: 'spin 1s linear infinite'
+                }}></div>
+              </div>
+            )}
             <video 
+              ref={videoRef}
               src={previewUrl} 
               controls 
               width="100%" 
-              style={{ borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
+              style={{ 
+                borderRadius: '8px', 
+                boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                display: thumbnailUrl ? 'none' : 'block', // Hide initially if we have a thumbnail
+                marginTop: '10px'
+              }}
             />
           </div>
         )}
@@ -187,10 +313,7 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
       {/* Mobile-friendly tips with expandable details */}
       <div className="upload-tips-mobile" style={{ 
         marginTop: '15px', 
-        textAlign: 'center',
-        '@media (min-width: 768px)': {
-          display: 'none'
-        }
+        textAlign: 'center'
       }}>
         <details>
           <summary style={{ fontWeight: 'bold', cursor: 'pointer', padding: '10px 0' }}>

@@ -216,10 +216,19 @@ const AppContent = () => {
   };
 
   // Enhanced navigation handler with optional parameters
+  // In the navigateTo function in App.js
   const navigateTo = (page, params = null) => {
     setCurrentPage(page);
     setPageParams(params);
     setError(null);
+    
+    // Track page view in Google Analytics
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', 'page_view', {
+        page_title: page.charAt(0).toUpperCase() + page.slice(1),
+        page_path: `/${page}`
+      });
+    }
   };
 
   // Render appropriate component based on current page
