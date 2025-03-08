@@ -6,73 +6,100 @@ import firestoreService from '../services/firestoreService';
 const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
   const { currentUser } = useAuth();
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
+  const [loadingThumbnail, setLoadingThumbnail] = useState(false);
   const videoRef = useRef(null);
+  const containerRef = useRef(null);
 
-  // Generate thumbnail from video URL when component mounts
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    // Alternative approach if window.scrollTo doesn't work well on mobile
+    if (containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [swingData?.id]); // Scroll when swing ID changes
+
+  // Attempt to generate thumbnail, but with timeout to prevent endless loading
   useEffect(() => {
     if (swingData && swingData.videoUrl) {
-      generateThumbnail(swingData.videoUrl);
+      setLoadingThumbnail(true);
+      
+      // Set a timeout to ensure we don't show loading spinner forever
+      const timeoutId = setTimeout(() => {
+        setLoadingThumbnail(false);
+      }, 5000); // 5 second timeout
+      
+      try {
+        generateThumbnail(swingData.videoUrl);
+      } catch (error) {
+        console.error("Error generating thumbnail:", error);
+        setLoadingThumbnail(false);
+      }
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [swingData]);
 
-  // Generate thumbnail from video URL
+  // Simplified thumbnail generation with better error handling
   const generateThumbnail = (videoUrl) => {
-    const videoElement = document.createElement('video');
-    videoElement.crossOrigin = 'anonymous'; // To handle cross-origin issues
-    videoElement.preload = 'metadata';
-    videoElement.muted = true;
-    videoElement.playsInline = true;
-    
-    // When video data is loaded, create thumbnail
-    videoElement.onloadeddata = () => {
-      console.log('Video loaded, seeking to thumbnail position');
-      // Seek to 1 second or 1/4 through the video, whichever is less
-      videoElement.currentTime = 1;
-    };
-    
-    // Once we've seeked to the right place, capture the frame
-    videoElement.onseeked = () => {
-      console.log('Video seeked, generating thumbnail');
+    try {
+      const videoElement = document.createElement('video');
+      videoElement.crossOrigin = 'anonymous';
+      videoElement.muted = true;
+      videoElement.playsInline = true;
+      videoElement.preload = 'metadata';
+      
+      // Set up event handlers
+      videoElement.onloadeddata = () => {
+        try {
+          videoElement.currentTime = 1;
+        } catch (error) {
+          console.error("Error seeking video:", error);
+          setLoadingThumbnail(false);
+        }
+      };
+      
+      videoElement.onseeked = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = videoElement.videoWidth;
+          canvas.height = videoElement.videoHeight;
+          
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+          
+          setThumbnailUrl(canvas.toDataURL('image/jpeg'));
+        } catch (error) {
+          console.error("Error creating thumbnail:", error);
+        } finally {
+          setLoadingThumbnail(false);
+        }
+      };
+      
+      videoElement.onerror = () => {
+        console.error("Video element error");
+        setLoadingThumbnail(false);
+      };
+      
+      // Set source and load
+      videoElement.src = videoUrl;
+      
+      // Additional error handling for load method
       try {
-        const canvas = document.createElement('canvas');
-        // Set canvas dimensions to match video
-        canvas.width = videoElement.videoWidth;
-        canvas.height = videoElement.videoHeight;
-        
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-        
-        // Create thumbnail URL from canvas
-        const thumbnailUrl = canvas.toDataURL('image/jpeg');
-        console.log('Thumbnail generated successfully');
-        setThumbnailUrl(thumbnailUrl);
-      } catch (err) {
-        console.error('Error generating thumbnail:', err);
-        // If thumbnail generation fails, we'll still have the video element
+        videoElement.load();
+      } catch (error) {
+        console.error("Error loading video:", error);
+        setLoadingThumbnail(false);
       }
-    };
-    
-    // Handle errors
-    videoElement.onerror = (err) => {
-      console.error('Error loading video for thumbnail:', err);
-    };
-    
-    // Set video source
-    videoElement.src = videoUrl;
-    videoElement.load();
-  };
-
-  // Handle playing the video when thumbnail is clicked
-  const handleThumbnailClick = () => {
-    if (videoRef.current) {
-      videoRef.current.style.display = 'block';
-      videoRef.current.play();
+    } catch (error) {
+      console.error("Error in thumbnail generation:", error);
+      setLoadingThumbnail(false);
     }
   };
 
   if (!swingData) {
     return (
-      <div className="card">
+      <div className="card" ref={containerRef}>
         <h2>No Swing Data Available</h2>
         <p>Please upload a video to analyze your swing</p>
         <button 
@@ -119,75 +146,22 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
   };
 
   return (
-    <div className="analysis-container">
+    <div className="analysis-container" ref={containerRef}>
       <div className="card">
         <h2>Swing Analysis</h2>
         <p>Analyzed on {formatDate(swingData.date)}</p>
 
         <div className="video-container" style={{ maxWidth: '100%', margin: '0 auto' }}>
-          {thumbnailUrl ? (
-            <div style={{ position: 'relative', marginBottom: '10px' }}>
-              <img 
-                src={thumbnailUrl} 
-                alt="Video preview" 
-                style={{ 
-                  width: '100%', 
-                  borderRadius: '8px',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
-                }}
-              />
-              <div 
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  backgroundColor: 'rgba(0,0,0,0.5)',
-                  borderRadius: '50%',
-                  width: '60px',
-                  height: '60px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer'
-                }}
-                onClick={handleThumbnailClick}
-              >
-                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M8 5V19L19 12L8 5Z" fill="white" />
-                </svg>
-              </div>
-            </div>
-          ) : (
-            <div style={{
-              width: '100%',
-              height: '200px',
-              backgroundColor: '#f1f1f1',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '10px'
-            }}>
-              <div className="spinner" style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                border: '4px solid rgba(0, 0, 0, 0.1)',
-                borderTopColor: '#3498db',
-                animation: 'spin 1s linear infinite'
-              }}></div>
-            </div>
-          )}
+          {/* Just use the video element directly - no thumbnails on older videos */}
           <video 
             ref={videoRef}
             src={swingData.videoUrl} 
             controls 
             width="100%"
+            poster="/video-placeholder.jpg" // Optional: generic poster image from public folder
             style={{ 
               borderRadius: '8px', 
-              boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-              display: thumbnailUrl ? 'none' : 'block' // Hide initially if we have a thumbnail
+              boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
             }}
           />
         </div>
