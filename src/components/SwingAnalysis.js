@@ -1,9 +1,74 @@
-import React from 'react';
+// src/components/SwingAnalysis.js
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firestoreService from '../services/firestoreService';
 
 const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
   const { currentUser } = useAuth();
+  const [thumbnailUrl, setThumbnailUrl] = useState(null);
+  const videoRef = useRef(null);
+
+  // Generate thumbnail from video URL when component mounts
+  useEffect(() => {
+    if (swingData && swingData.videoUrl) {
+      generateThumbnail(swingData.videoUrl);
+    }
+  }, [swingData]);
+
+  // Generate thumbnail from video URL
+  const generateThumbnail = (videoUrl) => {
+    const videoElement = document.createElement('video');
+    videoElement.crossOrigin = 'anonymous'; // To handle cross-origin issues
+    videoElement.preload = 'metadata';
+    videoElement.muted = true;
+    videoElement.playsInline = true;
+    
+    // When video data is loaded, create thumbnail
+    videoElement.onloadeddata = () => {
+      console.log('Video loaded, seeking to thumbnail position');
+      // Seek to 1 second or 1/4 through the video, whichever is less
+      videoElement.currentTime = 1;
+    };
+    
+    // Once we've seeked to the right place, capture the frame
+    videoElement.onseeked = () => {
+      console.log('Video seeked, generating thumbnail');
+      try {
+        const canvas = document.createElement('canvas');
+        // Set canvas dimensions to match video
+        canvas.width = videoElement.videoWidth;
+        canvas.height = videoElement.videoHeight;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        
+        // Create thumbnail URL from canvas
+        const thumbnailUrl = canvas.toDataURL('image/jpeg');
+        console.log('Thumbnail generated successfully');
+        setThumbnailUrl(thumbnailUrl);
+      } catch (err) {
+        console.error('Error generating thumbnail:', err);
+        // If thumbnail generation fails, we'll still have the video element
+      }
+    };
+    
+    // Handle errors
+    videoElement.onerror = (err) => {
+      console.error('Error loading video for thumbnail:', err);
+    };
+    
+    // Set video source
+    videoElement.src = videoUrl;
+    videoElement.load();
+  };
+
+  // Handle playing the video when thumbnail is clicked
+  const handleThumbnailClick = () => {
+    if (videoRef.current) {
+      videoRef.current.style.display = 'block';
+      videoRef.current.play();
+    }
+  };
 
   if (!swingData) {
     return (
@@ -59,24 +124,73 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
         <h2>Swing Analysis</h2>
         <p>Analyzed on {formatDate(swingData.date)}</p>
 
-        <div className="video-container" style={{ 
-            maxWidth: '500px',  // Limit maximum width 
-            width: '100%',
-            margin: '0 auto',   // Center the container
-            marginBottom: '20px'
-          }}>
-            <video 
-              src={swingData.videoUrl} 
-              controls 
-              width="100%"
-              style={{
-                maxHeight: '350px', // Limit the height
-                objectFit: 'contain', // Keep aspect ratio without stretching
-                borderRadius: '8px',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-              }}
-            />
-          </div>
+        <div className="video-container" style={{ maxWidth: '100%', margin: '0 auto' }}>
+          {thumbnailUrl ? (
+            <div style={{ position: 'relative', marginBottom: '10px' }}>
+              <img 
+                src={thumbnailUrl} 
+                alt="Video preview" 
+                style={{ 
+                  width: '100%', 
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                }}
+              />
+              <div 
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  backgroundColor: 'rgba(0,0,0,0.5)',
+                  borderRadius: '50%',
+                  width: '60px',
+                  height: '60px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+                onClick={handleThumbnailClick}
+              >
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M8 5V19L19 12L8 5Z" fill="white" />
+                </svg>
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              width: '100%',
+              height: '200px',
+              backgroundColor: '#f1f1f1',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '10px'
+            }}>
+              <div className="spinner" style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                border: '4px solid rgba(0, 0, 0, 0.1)',
+                borderTopColor: '#3498db',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+            </div>
+          )}
+          <video 
+            ref={videoRef}
+            src={swingData.videoUrl} 
+            controls 
+            width="100%"
+            style={{ 
+              borderRadius: '8px', 
+              boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+              display: thumbnailUrl ? 'none' : 'block' // Hide initially if we have a thumbnail
+            }}
+          />
+        </div>
 
         <div className="overall-score">
           <h3>Overall Score</h3>
@@ -99,6 +213,21 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
             {swingData.overallScore}
           </div>
         </div>
+
+        {/* Club information if available */}
+        {swingData.clubName && (
+          <div className="club-info" style={{ 
+            backgroundColor: '#f8f9fa', 
+            padding: '10px 15px', 
+            borderRadius: '8px',
+            marginBottom: '20px' 
+          }}>
+            <h3>Club Used</h3>
+            <p><strong>Club:</strong> {swingData.clubName}</p>
+            <p><strong>Type:</strong> {swingData.clubType}</p>
+            {swingData.outcome && <p><strong>Outcome:</strong> {swingData.outcome}</p>}
+          </div>
+        )}
 
         <div className="metrics-section">
           <h3>Swing Metrics</h3>
