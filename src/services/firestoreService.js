@@ -205,25 +205,83 @@ const getSwingById = async (swingId) => {
   }
 };
 
-/**
- * Delete a swing analysis and its associated video file
- * @param {String} swingId - The swing document ID
- * @param {String} userId - The user ID (for security check)
- * @returns {Promise<Object>} Success status
- */
+  /**
+   * Delete a swing analysis and its associated video file
+   * @param {String} swingId - The swing document ID
+   * @param {String} userId - The user ID (for security check)
+   * @returns {Promise<Object>} Success status
+   */
   const deleteSwing = async (swingId, userId) => {
     try {
       console.log('Attempting to delete swing with ID:', swingId);
       
-      // Get the swing document first to access the video URL
-      const swingDoc = await getDoc(doc(db, SWINGS_COLLECTION, swingId));
+      // Try multiple approaches to find the swing document
+      let swingData = null;
+      let docId = null;
       
-      if (!swingDoc.exists()) {
-        console.error('Swing document not found');
-        throw new Error('Swing not found');
+      // First try direct document lookup
+      try {
+        const directDoc = await getDoc(doc(db, SWINGS_COLLECTION, swingId));
+        if (directDoc.exists()) {
+          swingData = directDoc.data();
+          docId = swingId;
+          console.log('Found swing using direct document ID');
+        }
+      } catch (directError) {
+        console.log('Direct document lookup failed, trying query:', directError);
       }
       
-      const swingData = swingDoc.data();
+      // If direct lookup fails, try querying by the field with the provided ID
+      if (!swingData) {
+        try {
+          const q = query(
+            collection(db, SWINGS_COLLECTION),
+            where('userId', '==', userId),
+            where('id', '==', swingId)
+          );
+          
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const doc = querySnapshot.docs[0];
+            swingData = doc.data();
+            docId = doc.id;
+            console.log('Found swing using query by id field:', docId);
+          }
+        } catch (queryError) {
+          console.log('Query by id field failed:', queryError);
+        }
+      }
+      
+      // If both approaches fail, try querying all user swings
+      if (!swingData) {
+        try {
+          const userSwingsQuery = query(
+            collection(db, SWINGS_COLLECTION),
+            where('userId', '==', userId)
+          );
+          
+          const allSwings = await getDocs(userSwingsQuery);
+          console.log(`Found ${allSwings.size} swings for user`);
+          
+          // Check each document
+          allSwings.forEach(doc => {
+            const data = doc.data();
+            console.log(`Checking swing with ID ${doc.id}, data:`, data);
+            if (doc.id === swingId || (data.id && data.id === swingId)) {
+              swingData = data;
+              docId = doc.id;
+              console.log('Found matching swing:', docId);
+            }
+          });
+        } catch (allSwingsError) {
+          console.error('Error querying all user swings:', allSwingsError);
+        }
+      }
+      
+      if (!swingData || !docId) {
+        console.error('Swing document not found after multiple attempts');
+        throw new Error('Swing not found');
+      }
       
       // Security check - ensure the user owns this swing
       if (swingData.userId !== userId) {
@@ -231,32 +289,82 @@ const getSwingById = async (swingId) => {
         throw new Error('Unauthorized access');
       }
       
-      // First delete the document from Firestore
-      await deleteDoc(doc(db, SWINGS_COLLECTION, swingId));
-      console.log('Swing document deleted successfully');
+      // Delete from Firestore
+      await deleteDoc(doc(db, SWINGS_COLLECTION, docId));
+      console.log('Swing document deleted successfully:', docId);
       
-      // Then try to delete the video file from storage if it exists
+      // Attempt to delete the video file from Storage
+      let storageDeleteAttempted = false;
+      let storageDeleteSuccess = false;
+      
+      // Try using videoUrl if available
       if (swingData.videoUrl && swingData.videoUrl.includes('firebasestorage.googleapis.com')) {
+        storageDeleteAttempted = true;
         try {
           // Extract storage path from URL
           const videoUrlObj = new URL(swingData.videoUrl);
           const storagePath = decodeURIComponent(videoUrlObj.pathname.split('/o/')[1]?.split('?')[0]);
           
           if (storagePath) {
-            console.log('Deleting video from storage:', storagePath);
+            console.log('Deleting video from storage using URL path:', storagePath);
             const videoRef = ref(storage, storagePath);
             await deleteObject(videoRef);
-            console.log('Video deleted from storage');
-          } else {
-            console.warn('Could not extract storage path from URL:', swingData.videoUrl);
+            console.log('Video deleted from storage successfully');
+            storageDeleteSuccess = true;
           }
         } catch (storageError) {
-          console.error('Error deleting video file:', storageError);
-          // Continue even if video deletion fails - the document is already deleted
-          return { success: true, warning: 'Swing deleted but video file removal failed' };
+          console.error('Error deleting video using URL:', storageError);
         }
-      } else {
-        console.log('No Firebase storage URL found for this swing');
+      }
+      
+      // Try using videoStoragePath if available and previous attempt failed
+      if (!storageDeleteSuccess && swingData.videoStoragePath) {
+        storageDeleteAttempted = true;
+        try {
+          console.log('Deleting video using direct storage path:', swingData.videoStoragePath);
+          const videoRef = ref(storage, swingData.videoStoragePath);
+          await deleteObject(videoRef);
+          console.log('Video deleted from storage successfully');
+          storageDeleteSuccess = true;
+        } catch (pathError) {
+          console.error('Error deleting video using direct path:', pathError);
+        }
+      }
+      
+      // Try a constructed path based on userId and timestamp
+      if (!storageDeleteSuccess && swingData.created) {
+        storageDeleteAttempted = true;
+        try {
+          // Construct a path based on the pattern used in saveSwingAnalysis
+          let timestamp;
+          if (swingData.created.toDate) {
+            timestamp = swingData.created.toDate().getTime();
+          } else if (swingData.created.seconds) {
+            timestamp = swingData.created.seconds * 1000;
+          } else if (swingData.created instanceof Date) {
+            timestamp = swingData.created.getTime();
+          } else {
+            timestamp = new Date(swingData.created).getTime();
+          }
+          
+          if (swingData.originalVideoName && timestamp) {
+            const constructedPath = `swings/${userId}/${timestamp}_${swingData.originalVideoName}`;
+            console.log('Trying constructed path:', constructedPath);
+            const videoRef = ref(storage, constructedPath);
+            await deleteObject(videoRef);
+            console.log('Video deleted from storage using constructed path');
+            storageDeleteSuccess = true;
+          }
+        } catch (constructError) {
+          console.error('Error deleting video using constructed path:', constructError);
+        }
+      }
+      
+      if (storageDeleteAttempted && !storageDeleteSuccess) {
+        console.warn('Attempted to delete video from storage but failed');
+        return { success: true, warning: 'Swing deleted but video file removal failed' };
+      } else if (!storageDeleteAttempted) {
+        console.log('No storage delete attempted - no suitable video URL or path found');
       }
       
       return { success: true };
