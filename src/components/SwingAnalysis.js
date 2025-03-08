@@ -1,14 +1,12 @@
-// src/components/SwingAnalysis.js
-import React, { useState, useEffect, useRef } from 'react';
+// src/components/SwingAnalysis.js - Try this simplified approach
+import React, { useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firestoreService from '../services/firestoreService';
 
 const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
   const { currentUser } = useAuth();
-  const [thumbnailUrl, setThumbnailUrl] = useState(null);
-  const [thumbnailError, setThumbnailError] = useState(false);
-  const videoRef = useRef(null);
   const containerRef = useRef(null);
+  const videoRef = useRef(null);
 
   // Scroll to top when component mounts or when swing changes
   useEffect(() => {
@@ -18,86 +16,23 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     }
   }, [swingData?.id]);
 
-  // Generate thumbnail from video when component mounts
+  // Create a more reliable video player experience for mobile
   useEffect(() => {
-    if (swingData && swingData.videoUrl) {
-      setThumbnailUrl(null); // Reset thumbnail
-      setThumbnailError(false);
-      generateThumbnail(swingData.videoUrl);
+    if (videoRef.current && swingData?.videoUrl) {
+      // Set a solid background color to prevent white background
+      videoRef.current.style.backgroundColor = '#2c3e50'; // Dark blue background
+      
+      // Force poster image to be first frame when possible
+      try {
+        videoRef.current.onloadedmetadata = () => {
+          // Create poster from the video itself
+          videoRef.current.currentTime = 0.1;
+        };
+      } catch (e) {
+        console.log('Could not set initial frame as poster:', e);
+      }
     }
   }, [swingData]);
-
-  // Generate thumbnail from video URL - same as VideoUpload component
-  const generateThumbnail = (videoUrl) => {
-    const videoElement = document.createElement('video');
-    videoElement.preload = 'metadata';
-    videoElement.muted = true;
-    videoElement.playsInline = true;
-    
-    const fileUrl = videoUrl;
-    videoElement.src = fileUrl;
-    
-    // When video data is loaded, create thumbnail
-    videoElement.onloadeddata = () => {
-      console.log('Video loaded, seeking to thumbnail position');
-      // Seek to 1 second or 1/4 through the video, whichever is less
-      videoElement.currentTime = 1;
-    };
-    
-    // Once we've seeked to the right place, capture the frame
-    videoElement.onseeked = () => {
-      console.log('Video seeked, generating thumbnail');
-      const canvas = document.createElement('canvas');
-      // Set canvas dimensions to match video
-      canvas.width = videoElement.videoWidth;
-      canvas.height = videoElement.videoHeight;
-      
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-      
-      // Create thumbnail URL from canvas
-      try {
-        const thumbnailUrl = canvas.toDataURL('image/jpeg');
-        console.log('Thumbnail generated successfully');
-        setThumbnailUrl(thumbnailUrl);
-      } catch (err) {
-        console.error('Error generating thumbnail:', err);
-        // If thumbnail generation fails, we'll still have the video element
-        setThumbnailError(true);
-      }
-    };
-    
-    // Handle errors
-    videoElement.onerror = (err) => {
-      console.error('Error loading video for thumbnail:', err);
-      setThumbnailError(true);
-    };
-    
-    // Explicitly trigger load
-    videoElement.load();
-    
-    // Set a timeout to fall back if thumbnail generation takes too long
-    setTimeout(() => {
-      if (!thumbnailUrl && !thumbnailError) {
-        console.log('Thumbnail generation timed out');
-        setThumbnailError(true);
-      }
-    }, 5000);
-  };
-
-  // Handle playing the video when thumbnail is clicked
-  const handleThumbnailClick = () => {
-    if (videoRef.current) {
-      videoRef.current.style.display = 'block';
-      videoRef.current.play();
-      
-      // Hide the thumbnail
-      const thumbnailElement = document.querySelector('.thumbnail-container');
-      if (thumbnailElement) {
-        thumbnailElement.style.display = 'none';
-      }
-    }
-  };
 
   if (!swingData) {
     return (
@@ -153,53 +88,25 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
         <h2>Swing Analysis</h2>
         <p>Analyzed on {formatDate(swingData.date)}</p>
 
-        <div className="video-container" style={{ maxWidth: '100%', margin: '0 auto' }}>
-          {thumbnailUrl && !thumbnailError ? (
-            <div className="thumbnail-container" style={{ position: 'relative', marginBottom: '10px' }}>
-              <img 
-                src={thumbnailUrl} 
-                alt="Video preview" 
-                style={{ 
-                  width: '100%', 
-                  borderRadius: '8px',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
-                }}
-              />
-              <div 
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  backgroundColor: 'rgba(0,0,0,0.5)',
-                  borderRadius: '50%',
-                  width: '60px',
-                  height: '60px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer'
-                }}
-                onClick={handleThumbnailClick}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M8 5V19L19 12L8 5Z" fill="white" />
-                </svg>
-              </div>
-            </div>
-          ) : (
-            // If no thumbnail or error, don't show a placeholder - just the video
-            null
-          )}
+        {/* Custom video container with styled poster */}
+        <div className="video-container" style={{ 
+          maxWidth: '100%', 
+          margin: '0 auto',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          backgroundColor: '#2c3e50' // Dark background color
+        }}>
           <video 
             ref={videoRef}
             src={swingData.videoUrl} 
             controls 
+            playsInline
+            preload="metadata"
             width="100%" 
             style={{ 
-              borderRadius: '8px', 
-              boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-              display: thumbnailUrl && !thumbnailError ? 'none' : 'block' // Hide if thumbnail is shown
+              display: 'block',
+              borderRadius: '8px',
+              backgroundColor: '#2c3e50' // Ensure background color is set
             }}
           />
         </div>
@@ -226,6 +133,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
           </div>
         </div>
 
+        {/* Rest of the component remains the same */}
         {/* Club information if available */}
         {swingData.clubName && (
           <div className="club-info" style={{ 
