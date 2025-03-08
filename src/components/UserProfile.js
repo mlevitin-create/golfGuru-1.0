@@ -5,9 +5,9 @@ import ClubBag from './ClubBag';
 import ClubAnalytics from './ClubAnalytics';
 import firestoreService from '../services/firestoreService';
 
-const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClubsTab = false }) => {
+const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClubsTab = false, pageParams }) => {
   const { currentUser, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState(setupClubsTab ? 'clubs' : 'profile');
+  const [activeTab, setActiveTab] = useState('profile');
   const [userData, setUserData] = useState({
     name: currentUser?.displayName || '',
     experience: 'intermediate',
@@ -17,6 +17,20 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [swingHistory, setSwingHistory] = useState([]);
+
+  // Set the active tab based on incoming parameters
+  useEffect(() => {
+    console.log("Received page params:", pageParams);
+    console.log("Setup clubs tab:", setupClubsTab);
+    
+    if (setupClubsTab) {
+      setActiveTab('clubs');
+    } else if (pageParams && pageParams.activeTab) {
+      console.log("Setting active tab to:", pageParams.activeTab);
+      setActiveTab(pageParams.activeTab);
+    }
+  }, [setupClubsTab, pageParams]);
 
   // Load user profile data
   useEffect(() => {
@@ -24,6 +38,7 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
       if (currentUser) {
         setLoading(true);
         try {
+          // Get user profile
           const profile = await firestoreService.getUserProfile(currentUser.uid);
           if (profile) {
             setUserData({
@@ -33,12 +48,18 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
               handicap: profile.handicap || ''
             });
           }
+
+          // Get swing history for stats
+          const swings = await firestoreService.getUserSwings(currentUser.uid);
+          setSwingHistory(swings || []);
         } catch (error) {
           console.error('Error loading user profile:', error);
           setError('Failed to load your profile. Please refresh the page.');
         } finally {
           setLoading(false);
         }
+      } else {
+        setLoading(false);
       }
     };
 
@@ -116,7 +137,7 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
   return (
     <div className="profile-container">
       {/* Profile Tabs */}
-      <div className="profile-tabs" style={{ display: 'flex', marginBottom: '20px', borderBottom: '1px solid #ddd' }}>
+      <div className="profile-tabs">
         <div 
           className={`profile-tab ${activeTab === 'profile' ? 'active' : ''}`}
           onClick={() => setActiveTab('profile')}
@@ -276,7 +297,27 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
       )}
       
       {activeTab === 'analytics' && (
-        <ClubAnalytics />
+        <div className="card">
+          <h2>Club Analytics</h2>
+          {userClubs && userClubs.length > 0 ? (
+            <div className="club-analytics-content">
+              <p>This section provides analytics on your club performance based on your swing history.</p>
+              {/* Placeholder for ClubAnalytics component */}
+              <p>We're still gathering data on your club performance. Keep uploading swings with club information for more detailed analytics.</p>
+            </div>
+          ) : (
+            <div className="no-clubs-message">
+              <p>You don't have any clubs set up yet. Go to the "My Clubs" tab to add your clubs.</p>
+              <button 
+                className="button" 
+                onClick={() => setActiveTab('clubs')}
+                style={{ marginTop: '10px' }}
+              >
+                Set Up My Clubs
+              </button>
+            </div>
+          )}
+        </div>
       )}
       
       {activeTab === 'stats' && (
@@ -288,7 +329,7 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
               <div className="stats-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '20px' }}>
                 <div className="stat-card" style={{ flex: '1', minWidth: '200px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '10px' }}>
                   <h3>Swing Analysis</h3>
-                  <p><strong>Total Swings Analyzed:</strong> {userStats.totalSwings || 0}</p>
+                  <p><strong>Total Swings Analyzed:</strong> {swingHistory.length || 0}</p>
                   <p><strong>Average Score:</strong> {userStats.averageScore ? userStats.averageScore.toFixed(1) : 'N/A'}/100</p>
                   <p><strong>Best Score:</strong> {userStats.bestScore || 'N/A'}/100</p>
                 </div>
@@ -346,6 +387,13 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
           ) : (
             <div>
               <p>No stats available yet. Upload and analyze more swings to see your statistics.</p>
+              <button 
+                className="button" 
+                onClick={() => navigateTo('upload')}
+                style={{ marginTop: '15px' }}
+              >
+                Upload Swing
+              </button>
             </div>
           )}
         </div>

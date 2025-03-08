@@ -263,14 +263,15 @@ const AppContent = () => {
         return <ProComparison 
           swingData={swingData} 
         />;
-      case 'profile':
-        return <UserProfile 
-          navigateTo={navigateTo}
-          userStats={userStats}
-          userClubs={userClubs}
-          setUserClubs={setUserClubs}
-          setupClubsTab={pageParams?.setupClubs}
-        />;
+        case 'profile':
+          return <UserProfile 
+            navigateTo={navigateTo}
+            userStats={userStats}
+            userClubs={userClubs}
+            setUserClubs={setUserClubs}
+            setupClubsTab={pageParams?.setupClubs}
+            pageParams={pageParams}
+          />;
       case 'clubs':
         return <ClubBag 
           onComplete={() => navigateTo('profile')}

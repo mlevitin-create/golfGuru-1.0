@@ -1,9 +1,9 @@
+// src/components/Dashboard.js
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-const Dashboard = ({ swingHistory, navigateTo, userStats }) => {
+const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
   const { currentUser } = useAuth();
-  
   // Calculate latest score and improvement if history exists
   const hasHistory = swingHistory && swingHistory.length > 0;
   const latestSwing = hasHistory ? swingHistory[0] : null;
@@ -44,16 +44,35 @@ const Dashboard = ({ swingHistory, navigateTo, userStats }) => {
     return { best, worst };
   };
 
+  // Calculate days since first upload
+  const getDaysSinceFirstUpload = () => {
+    if (!hasHistory || swingHistory.length === 0) return 0;
+    
+    // Find the earliest swing
+    const sortedSwings = [...swingHistory].sort((a, b) => {
+      const dateA = a.date instanceof Date ? a.date : new Date(a.date);
+      const dateB = b.date instanceof Date ? b.date : new Date(b.date);
+      return dateA - dateB;
+    });
+    
+    const firstSwingDate = sortedSwings[0].date instanceof Date 
+      ? sortedSwings[0].date 
+      : new Date(sortedSwings[0].date);
+    
+    const today = new Date();
+    const diffTime = Math.abs(today - firstSwingDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays || 1; // Return at least 1 day
+  };
+
   const { best, worst } = getMetricExtremes();
+  const daysSinceFirstUpload = getDaysSinceFirstUpload();
 
   return (
     <div>
       <section className="welcome-section">
-        <h2>
-          {currentUser 
-            ? `Welcome back, ${currentUser.displayName?.split(' ')[0] || 'Golfer'}!` 
-            : 'Welcome to Golf Guru'}
-        </h2>
+        <h2>{currentUser ? `Welcome back, ${currentUser.displayName?.split(' ')[0] || 'Golfer'}!` : 'Welcome to Golf Guru'}</h2>
         <p>Your personal AI golf coach to help improve your swing</p>
 
         {!hasHistory && (
@@ -69,103 +88,89 @@ const Dashboard = ({ swingHistory, navigateTo, userStats }) => {
         )}
       </section>
 
-      {/* User stats section - only show when logged in */}
-      {currentUser && userStats && (
-        <section className="user-stats">
-          <div 
-            className="dashboard-cards" 
-            style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-              gap: '15px',
-              marginBottom: '20px' 
-            }}
-          >
-            <div className="dashboard-card" style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-              <h4>Swings Analyzed</h4>
-              <p style={{ fontSize: '24px', fontWeight: 'bold', margin: '5px 0' }}>{userStats.swingCount || 0}</p>
+      {hasHistory && (
+        <section className="dashboard-cards">
+          <div className="dashboard-card">
+            <h3>Swings Analyzed</h3>
+            <div 
+              style={{ 
+                fontSize: '2.5rem', 
+                fontWeight: 'bold',
+                margin: '15px auto',
+                color: '#2c3e50'
+              }}
+            >
+              {swingHistory.length}
             </div>
-            <div className="dashboard-card" style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-              <h4>Average Score</h4>
-              <p style={{ fontSize: '24px', fontWeight: 'bold', margin: '5px 0' }}>{(userStats.averageScore || 0).toFixed(1)}</p>
+            <p>Total swings</p>
+          </div>
+
+          <div className="dashboard-card">
+            <h3>Average Score</h3>
+            <div 
+              style={{ 
+                fontSize: '2.5rem', 
+                fontWeight: 'bold',
+                margin: '15px auto',
+                color: '#2c3e50'
+              }}
+            >
+              {userStats && userStats.averageScore ? userStats.averageScore.toFixed(1) : (swingHistory.reduce((sum, swing) => sum + swing.overallScore, 0) / swingHistory.length).toFixed(1)}
             </div>
-            <div className="dashboard-card" style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-              <h4>Improvement</h4>
-              <p style={{ 
-                fontSize: '24px', 
-                fontWeight: 'bold', 
-                margin: '5px 0',
-                color: (userStats.improvement || 0) >= 0 ? '#27ae60' : '#e74c3c'
-              }}>
-                {(userStats.improvement || 0) > 0 ? '+' : ''}{(userStats.improvement || 0).toFixed(1)}
-              </p>
+            <p>Out of 100</p>
+          </div>
+
+          <div className="dashboard-card">
+            <h3>Improvement</h3>
+            <div style={{ 
+              fontSize: '2.5rem', 
+              fontWeight: 'bold',
+              margin: '15px auto',
+              color: improvementScore >= 0 ? '#27ae60' : '#e74c3c'
+            }}>
+              {improvementScore !== null ? (improvementScore > 0 ? '+' : '') + improvementScore.toFixed(1) : '0.0'}
             </div>
-            <div className="dashboard-card" style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-              <h4>Days Since First Upload</h4>
-              <p style={{ fontSize: '24px', fontWeight: 'bold', margin: '5px 0' }}>
-                {userStats.created 
-                  ? Math.ceil((new Date() - new Date(userStats.created)) / (1000 * 60 * 60 * 24)) 
-                  : 0}
-              </p>
+            <p>Since last swing</p>
+          </div>
+
+          <div className="dashboard-card">
+            <h3>Days Since First Upload</h3>
+            <div style={{ 
+              fontSize: '2.5rem', 
+              fontWeight: 'bold',
+              margin: '15px auto',
+              color: '#2c3e50'
+            }}>
+              {daysSinceFirstUpload}
             </div>
+            <p>Days tracking progress</p>
+          </div>
+
+          {/* Fifth card for practice consistency */}
+          <div className="dashboard-card">
+            <h3>Practice Consistency</h3>
+            <div style={{ 
+              fontSize: '2.5rem', 
+              fontWeight: 'bold',
+              margin: '15px auto',
+              color: '#3498db'
+            }}>
+              {userStats && userStats.consecutiveDays ? userStats.consecutiveDays : '0'} days
+            </div>
+            <p>Current practice streak</p>
+            <button 
+              className="button" 
+              onClick={() => navigateTo('upload')}
+              style={{ marginTop: '10px', fontSize: '0.9rem' }}
+            >
+              Practice Now
+            </button>
           </div>
         </section>
       )}
 
       {hasHistory && (
-        <section className="dashboard-cards">
-          <div className="dashboard-card">
-            <h3>Latest Swing</h3>
-            <div 
-              className="score-circle" 
-              style={{ 
-                width: '80px', 
-                height: '80px', 
-                borderRadius: '50%', 
-                backgroundColor: '#f5f5f5',
-                border: `6px solid ${latestSwing.overallScore >= 80 ? '#27ae60' : latestSwing.overallScore >= 60 ? '#f39c12' : '#e74c3c'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1.8rem',
-                fontWeight: 'bold',
-                margin: '15px auto'
-              }}
-            >
-              {latestSwing.overallScore}
-            </div>
-            <p>Analyzed on {formatDate(latestSwing.date)}</p>
-            <button 
-              className="button" 
-              onClick={() => navigateTo('analysis')}
-              style={{ marginTop: '10px' }}
-            >
-              View Details
-            </button>
-          </div>
-
-          {improvementScore !== null && (
-            <div className="dashboard-card">
-              <h3>Your Progress</h3>
-              <div style={{ 
-                fontSize: '1.8rem', 
-                fontWeight: 'bold',
-                margin: '15px auto',
-                color: improvementScore >= 0 ? '#27ae60' : '#e74c3c'
-              }}>
-                {improvementScore > 0 ? '+' : ''}{improvementScore.toFixed(1)}
-              </div>
-              <p>{improvementScore >= 0 ? 'Improvement' : 'Decline'} since last swing</p>
-              <button 
-                className="button" 
-                onClick={() => navigateTo('tracker')}
-                style={{ marginTop: '10px' }}
-              >
-                View Progress
-              </button>
-            </div>
-          )}
-
+        <section className="dashboard-cards" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
           <div className="dashboard-card">
             <h3>Quick Actions</h3>
             <button 
@@ -184,12 +189,39 @@ const Dashboard = ({ swingHistory, navigateTo, userStats }) => {
               onClick={() => navigateTo('comparison')}
               style={{ 
                 width: '100%',
+                marginBottom: '10px',
                 backgroundColor: '#3498db',
                 opacity: hasHistory ? 1 : 0.5
               }}
               disabled={!hasHistory}
             >
               Compare with Pros
+            </button>
+            {/* New quick actions for Club Analytics and Stats */}
+            <button 
+              className="button" 
+              onClick={() => navigateTo('profile', { setupClubs: false, activeTab: 'analytics' })}
+              style={{ 
+                width: '100%',
+                marginBottom: '10px',
+                backgroundColor: '#2ecc71',
+                opacity: hasHistory ? 1 : 0.5
+              }}
+              disabled={!hasHistory}
+            >
+              Club Analytics
+            </button>
+            <button 
+              className="button" 
+              onClick={() => navigateTo('profile', { setupClubs: false, activeTab: 'stats' })}
+              style={{ 
+                width: '100%',
+                backgroundColor: '#9b59b6',
+                opacity: hasHistory ? 1 : 0.5
+              }}
+              disabled={!hasHistory}
+            >
+              View Stats
             </button>
           </div>
           
@@ -222,7 +254,7 @@ const Dashboard = ({ swingHistory, navigateTo, userStats }) => {
                 key={index} 
                 className="swing-history-item"
                 onClick={() => {
-                  // Set this swing as the current swing data and navigate to analysis
+                  // Navigate to analysis page with this swing data
                   // In a real implementation, you would pass the swing ID and fetch the data
                   navigateTo('analysis');
                 }}
@@ -236,20 +268,6 @@ const Dashboard = ({ swingHistory, navigateTo, userStats }) => {
               </div>
             ))}
           </div>
-        </section>
-      )}
-      
-      {!currentUser && hasHistory && (
-        <section className="login-prompt" style={{ marginTop: '20px', textAlign: 'center', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '10px' }}>
-          <h3>Save Your Progress</h3>
-          <p>Sign in to save your swing analyses and track your progress over time</p>
-          <button 
-            className="button" 
-            onClick={() => window.dispatchEvent(new CustomEvent('openLoginModal'))}
-            style={{ marginTop: '10px' }}
-          >
-            Sign In with Google
-          </button>
         </section>
       )}
       
