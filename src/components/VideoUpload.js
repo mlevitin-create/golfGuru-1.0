@@ -43,7 +43,6 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
   };
 
   // Process the selected file
-  // Process the selected file
   const handleFile = (file) => {
     // Check if the file is a video
     if (!file.type.startsWith('video/')) {
@@ -51,7 +50,7 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
       return;
     }
     
-    // Remove the size limit check
+    // Removed size limit check
     // const maxSize = 15 * 1024 * 1024; // 15MB in bytes
     // if (file.size > maxSize) {
     //   setError(`File size exceeds the maximum limit (15MB). Please upload a smaller video or compress this one.`);
@@ -141,11 +140,13 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
             <p className="small">Supported formats: MP4, MOV, AVI</p>
           </>
         ) : (
-          <div className="video-container">
+          // Updated video container with smaller size
+          <div className="video-container" style={{ maxWidth: '300px', margin: '0 auto' }}>
             <video 
               src={previewUrl} 
               controls 
-              width="100%"
+              width="100%" 
+              style={{ borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}
             />
           </div>
         )}
@@ -177,11 +178,27 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
         {isAnalyzing ? 'Analyzing...' : 'Analyze Swing'}
       </button>
       
+      {/* Enhanced loading indicator */}
       {isAnalyzing && (
-        <div className="analyzing-indicator">
-          <div className="spinner"></div>
-          <p>Analyzing your swing with AI...</p>
-          <p>This may take a moment</p>
+        <div className="analyzing-indicator" style={{
+          marginTop: '20px',
+          padding: '20px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '10px',
+          textAlign: 'center'
+        }}>
+          <div className="spinner" style={{
+            margin: '0 auto 15px',
+            width: '50px',
+            height: '50px',
+            borderRadius: '50%',
+            border: '5px solid rgba(0, 0, 0, 0.1)',
+            borderTopColor: '#3498db',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <h3 style={{ marginBottom: '10px' }}>Analyzing your swing with AI...</h3>
+          <p>This process may take 30-60 seconds depending on video size.</p>
+          <p>Please don't close this window during analysis.</p>
         </div>
       )}
     </div>

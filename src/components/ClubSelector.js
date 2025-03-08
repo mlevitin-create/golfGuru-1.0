@@ -16,7 +16,7 @@ const SHOT_OUTCOMES = [
 
 const ClubSelector = ({ onContinue, onSkip }) => {
   const { currentUser } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [clubs, setClubs] = useState([]);
   const [selectedClubId, setSelectedClubId] = useState('');
   const [selectedOutcome, setSelectedOutcome] = useState('');
@@ -46,6 +46,9 @@ const ClubSelector = ({ onContinue, onSkip }) => {
   }, [currentUser]);
 
   const handleContinue = () => {
+    // Set loading state to true
+    setLoading(true);
+    
     // If no club is selected, just skip
     if (!selectedClubId) {
       onSkip();
@@ -80,10 +83,10 @@ const ClubSelector = ({ onContinue, onSkip }) => {
       return orderedClubTypes.indexOf(a) - orderedClubTypes.indexOf(b);
     });
 
-  if (loading) {
+  if (loading && !clubs.length) {
     return (
       <div className="card">
-        <h2>Loading clubs...</h2>
+        <h2>Loading...</h2>
         <div className="spinner"></div>
       </div>
     );
@@ -123,6 +126,7 @@ const ClubSelector = ({ onContinue, onSkip }) => {
               value={selectedClubId}
               onChange={(e) => setSelectedClubId(e.target.value)}
               style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
+              disabled={loading}
             >
               <option value="">-- Select a club --</option>
               
@@ -162,6 +166,7 @@ const ClubSelector = ({ onContinue, onSkip }) => {
           value={selectedOutcome}
           onChange={(e) => setSelectedOutcome(e.target.value)}
           style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
+          disabled={loading}
         >
           <option value="">-- Select an outcome --</option>
           {SHOT_OUTCOMES.map(outcome => (
@@ -176,6 +181,7 @@ const ClubSelector = ({ onContinue, onSkip }) => {
         <button 
           className="button"
           onClick={onSkip}
+          disabled={loading}
           style={{ padding: '10px 20px', backgroundColor: '#95a5a6' }}
         >
           Skip
@@ -183,11 +189,35 @@ const ClubSelector = ({ onContinue, onSkip }) => {
         <button 
           className="button"
           onClick={handleContinue}
+          disabled={loading}
           style={{ padding: '10px 20px' }}
         >
-          Continue
+          {loading ? 'Processing...' : 'Continue'}
         </button>
       </div>
+      
+      {/* Loading indicator */}
+      {loading && (
+        <div style={{ 
+          marginTop: '20px', 
+          textAlign: 'center',
+          padding: '15px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '8px'
+        }}>
+          <div className="spinner" style={{ 
+            margin: '0 auto 15px',
+            width: '40px',
+            height: '40px',
+            border: '4px solid rgba(0, 0, 0, 0.1)',
+            borderLeftColor: '#3498db',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <p style={{ fontWeight: 'bold' }}>Analyzing your swing...</p>
+          <p>This may take a moment. Please don't close this window.</p>
+        </div>
+      )}
     </div>
   );
 };
