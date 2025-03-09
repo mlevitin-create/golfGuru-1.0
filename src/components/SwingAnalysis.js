@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firestoreService from '../services/firestoreService';
 import { metricInsightsGenerator } from '../services/geminiService';
+import './SwingAnalysis.css'; // Import a CSS file for styling
 
 const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
   const { currentUser } = useAuth();
   const [expandedMetrics, setExpandedMetrics] = useState({});
   const [metricInsights, setMetricInsights] = useState({});
   const [loadingInsights, setLoadingInsights] = useState({});
+  const videoRef = useRef(null); // Create a video reference
 
   // Scroll to top and reset expanded metrics when swing data changes
   useEffect(() => {
@@ -49,7 +51,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     try {
       // Generate insights using Gemini service
       const insights = await metricInsightsGenerator.generateMetricInsights(swingData, metricKey);
-      
+
       // Update insights state
       setMetricInsights(prev => ({
         ...prev,
@@ -111,7 +113,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     // If loading, show loading spinner
     if (isLoading) {
       return (
-        <div 
+        <div
           className="insights-loading"
           style={{
             display: 'flex',
@@ -122,7 +124,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
             borderRadius: '8px'
           }}
         >
-          <div 
+          <div
             className="spinner"
             style={{
               width: '40px',
@@ -148,11 +150,11 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     }
 
     return (
-      <div 
+      <div
         className="metric-insights"
         style={{
-          backgroundColor: insightTone === 'positive' ? '#e6f3e6' : 
-                           insightTone === 'neutral' ? '#f0f0f0' : '#f9e6e6',
+          backgroundColor: insightTone === 'positive' ? '#e6f3e6' :
+            insightTone === 'neutral' ? '#f0f0f0' : '#f9e6e6',
           padding: '15px',
           borderRadius: '8px',
           marginTop: '10px'
@@ -187,8 +189,8 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
       <div className="card">
         <h2>No Swing Data Available</h2>
         <p>Please upload a video to analyze your swing</p>
-        <button 
-          className="button" 
+        <button
+          className="button"
           onClick={() => navigateTo('upload')}
         >
           Upload Swing Video
@@ -201,7 +203,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     <div className="analysis-container">
       <div className="card">
         <h2>Swing Analysis</h2>
-        
+
         {/* Date Information */}
         <div className="date-info" style={{ marginBottom: '15px' }}>
           {swingData.recordedDate && (
@@ -211,11 +213,11 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
             </p>
           )}
           <p><strong>Analyzed on:</strong> {formatDateTime(swingData.date)}</p>
-          
+
           {swingData.outcome && (
-            <div style={{ 
+            <div style={{
               display: 'inline-block',
-              backgroundColor: '#f0f7ff', 
+              backgroundColor: '#f0f7ff',
               color: '#3498db',
               padding: '3px 8px',
               borderRadius: '12px',
@@ -227,22 +229,25 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
           )}
         </div>
 
+        {/* Custom video container with controlled dimensions */}
         <div className="video-container">
-          <video 
-            src={swingData.videoUrl} 
-            controls 
-            width="100%"
+          <video
+            ref={videoRef}
+            src={swingData.videoUrl}
+            controls
+            playsInline
+            preload="metadata"
           />
         </div>
 
         <div className="overall-score">
           <h3>Overall Score</h3>
-          <div 
-            className="score-circle" 
-            style={{ 
-              width: '100px', 
-              height: '100px', 
-              borderRadius: '50%', 
+          <div
+            className="score-circle"
+            style={{
+              width: '100px',
+              height: '100px',
+              borderRadius: '50%',
               backgroundColor: '#f5f5f5',
               border: `8px solid ${getScoreColor(swingData.overallScore)}`,
               display: 'flex',
@@ -259,17 +264,17 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
 
         <div className="metrics-section">
           <h3>Swing Metrics</h3>
-          
+
           {Object.entries(swingData.metrics).map(([key, value]) => (
             <div key={key} className="metric-item">
-              <div 
-                className="metric-label" 
+              <div
+                className="metric-label"
                 onClick={() => toggleMetricExpansion(key)}
-                style={{ 
-                  cursor: 'pointer', 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center' 
+                style={{
+                  cursor: 'pointer',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
                 }}
               >
                 <span>
@@ -277,37 +282,37 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <span style={{ marginRight: '10px' }}>{value}/100</span>
-                  <svg 
-                    width="20" 
-                    height="20" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                     style={{
                       transform: expandedMetrics[key] ? 'rotate(180deg)' : 'rotate(0)',
                       transition: 'transform 0.3s ease'
                     }}
                   >
-                    <path 
-                      d="M6 9L12 15L18 9" 
-                      stroke="#666" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
+                    <path
+                      d="M6 9L12 15L18 9"
+                      stroke="#666"
+                      strokeWidth="2"
+                      strokeLinecap="round"
                       strokeLinejoin="round"
                     />
                   </svg>
                 </div>
               </div>
               <div className="metric-bar">
-                <div 
-                  className="metric-fill" 
-                  style={{ 
-                    width: `${value}%`, 
-                    backgroundColor: getScoreColor(value) 
+                <div
+                  className="metric-fill"
+                  style={{
+                    width: `${value}%`,
+                    backgroundColor: getScoreColor(value)
                   }}
                 ></div>
               </div>
-              
+
               {/* Expanded Metric Insights */}
               {expandedMetrics[key] && renderMetricInsights(key, value)}
             </div>
@@ -324,15 +329,15 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
         </div>
 
         <div className="action-buttons">
-          <button 
-            className="button" 
+          <button
+            className="button"
             onClick={() => navigateTo('comparison')}
             style={{ marginRight: '10px' }}
           >
             Compare with Pros
           </button>
-          <button 
-            className="button" 
+          <button
+            className="button"
             onClick={() => navigateTo('upload')}
           >
             Upload New Video
@@ -341,10 +346,10 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
 
         {/* Delete button - only show for authenticated users who own this swing */}
         {swingData.id && !swingData._isLocalOnly && currentUser && swingData.userId === currentUser.uid && (
-          <button 
-            className="button" 
+          <button
+            className="button"
             onClick={() => handleDeleteSwing(swingData.id)}
-            style={{ 
+            style={{
               backgroundColor: '#e74c3c',
               marginTop: '10px',
               width: '100%'
