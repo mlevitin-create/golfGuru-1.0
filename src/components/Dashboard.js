@@ -140,16 +140,72 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
           </div>
 
           <div className="dashboard-card">
-            <h3>Days Since First Upload</h3>
-            <div style={{ 
-              fontSize: '2.5rem', 
-              fontWeight: 'bold',
-              margin: '15px auto',
-              color: '#2c3e50'
-            }}>
-              {daysSinceFirstUpload}
-            </div>
-            <p>Days tracking progress</p>
+            <h3>Progress Snapshot</h3>
+            {swingHistory.length >= 2 ? (
+              <>
+                {(() => {
+                  // Sort swings chronologically
+                  const sortedSwings = [...swingHistory].sort((a, b) => 
+                    new Date(a.recordedDate) - new Date(b.recordedDate)
+                  );
+                  
+                  // Get first and last swings
+                  const firstSwing = sortedSwings[0];
+                  const lastSwing = sortedSwings[sortedSwings.length - 1];
+                  
+                  // Calculate overall change
+                  const overallChange = lastSwing.overallScore - firstSwing.overallScore;
+                  const percentChange = ((overallChange / firstSwing.overallScore) * 100).toFixed(1);
+                  
+                  // Calculate days tracked
+                  const firstDate = new Date(firstSwing.recordedDate);
+                  const lastDate = new Date(lastSwing.recordedDate);
+                  const daysTracked = Math.round((lastDate - firstDate) / (1000 * 60 * 60 * 24)) || 1;
+                  
+                  // Calculate rate of improvement 
+                  const improvementRate = (overallChange / daysTracked).toFixed(2);
+                  
+                  return (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ 
+                        fontSize: '2.5rem', 
+                        fontWeight: 'bold',
+                        color: overallChange >= 0 ? '#27ae60' : '#e74c3c',
+                        margin: '10px 0'
+                      }}>
+                        {overallChange > 0 ? '+' : ''}{overallChange.toFixed(1)}
+                      </div>
+                      <p style={{ margin: '5px 0' }}>Overall score change</p>
+                      <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '15px' }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>{daysTracked}</div>
+                          <div style={{ fontSize: '0.8rem', color: '#777' }}>Days tracked</div>
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>{percentChange}%</div>
+                          <div style={{ fontSize: '0.8rem', color: '#777' }}>Change rate</div>
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>{improvementRate}</div>
+                          <div style={{ fontSize: '0.8rem', color: '#777' }}>Points/day</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <p>Upload at least 2 swings to see your progress over time</p>
+                <button 
+                  className="button" 
+                  onClick={() => navigateTo('upload')}
+                  style={{ marginTop: '10px', fontSize: '0.9rem' }}
+                >
+                  Upload Swing
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Practice consistency card */}
@@ -245,21 +301,166 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
             </button>
           </div>
           
-          {best && worst && (
+          {swingHistory.length >= 2 && (
             <div className="dashboard-card">
               <h3>Swing Insights</h3>
-              <div style={{ textAlign: 'left', marginTop: '15px' }}>
-                <p><strong>Strongest area:</strong> {best.name} ({best.value}/100)</p>
-                <p><strong>Area to improve:</strong> {worst.name} ({worst.value}/100)</p>
-                <p style={{ marginTop: '15px' }}>
-                  <strong>Quick tip:</strong> Focus on improving your {worst.name.toLowerCase()} for better results.
-                </p>
-              </div>
+              {(() => {
+                // Sort swings chronologically
+                const sortedSwings = [...swingHistory].sort((a, b) => 
+                  new Date(a.recordedDate) - new Date(b.recordedDate)
+                );
+                
+                // Get first and last swings
+                const firstSwing = sortedSwings[0];
+                const lastSwing = sortedSwings[sortedSwings.length - 1];
+                
+                // Find most improved and declined metrics
+                const metricChanges = {};
+                
+                if (firstSwing.metrics && lastSwing.metrics) {
+                  Object.keys(firstSwing.metrics).forEach(key => {
+                    if (lastSwing.metrics[key] !== undefined) {
+                      metricChanges[key] = {
+                        name: key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+                        change: lastSwing.metrics[key] - firstSwing.metrics[key],
+                        startValue: firstSwing.metrics[key],
+                        endValue: lastSwing.metrics[key]
+                      };
+                    }
+                  });
+                }
+                
+                // Sort metrics by change
+                const sortedMetrics = Object.values(metricChanges).sort((a, b) => b.change - a.change);
+                
+                // Find most improved metric
+                const mostImproved = sortedMetrics.length > 0 ? sortedMetrics[0] : null;
+                
+                // Find most declined metric
+                const mostDeclined = sortedMetrics.length > 0 && sortedMetrics[sortedMetrics.length - 1].change < 0
+                  ? sortedMetrics[sortedMetrics.length - 1] 
+                  : null;
+                
+                // Get clubs data if available
+                const clubData = {};
+                swingHistory.forEach(swing => {
+                  if (swing.clubName) {
+                    if (!clubData[swing.clubName]) {
+                      clubData[swing.clubName] = {
+                        swings: [],
+                        name: swing.clubName
+                      };
+                    }
+                    clubData[swing.clubName].swings.push(swing);
+                  }
+                });
+                
+                // Find best performing club
+                let bestClub = null;
+                let bestClubAvg = -1;
+                
+                Object.values(clubData).forEach(club => {
+                  if (club.swings.length >= 2) {
+                    const avgScore = club.swings.reduce((sum, swing) => sum + swing.overallScore, 0) / club.swings.length;
+                    if (avgScore > bestClubAvg) {
+                      bestClubAvg = avgScore;
+                      bestClub = club.name;
+                    }
+                  }
+                });
+                
+                // Generate insights
+                const insights = [];
+                
+                if (mostImproved && mostImproved.change > 3) {
+                  insights.push(`Your ${mostImproved.name.toLowerCase()} has improved significantly by ${mostImproved.change.toFixed(1)} points.`);
+                }
+                
+                if (mostDeclined && mostDeclined.change < -3) {
+                  insights.push(`Your ${mostDeclined.name.toLowerCase()} has declined by ${Math.abs(mostDeclined.change).toFixed(1)} points and may need attention.`);
+                }
+                
+                if (bestClub) {
+                  insights.push(`Your ${bestClub} shows the highest average score among your clubs.`);
+                }
+                
+                // Generate practice consistency insight
+                if (userStats && userStats.consecutiveDays) {
+                  if (userStats.consecutiveDays > 3) {
+                    insights.push(`Great job maintaining a ${userStats.consecutiveDays}-day practice streak!`);
+                  }
+                }
+                
+                // Add a swing trend insight
+                if (sortedSwings.length >= 5) {
+                  const recentScores = sortedSwings.slice(-5).map(swing => swing.overallScore);
+                  const recentAvg = recentScores.reduce((sum, score) => sum + score, 0) / recentScores.length;
+                  const olderAvg = sortedSwings.slice(-10, -5).length > 0 ? 
+                    sortedSwings.slice(-10, -5).reduce((sum, swing) => sum + swing.overallScore, 0) / sortedSwings.slice(-10, -5).length : 
+                    recentAvg;
+                  
+                  if (recentAvg > olderAvg + 3) {
+                    insights.push(`Your recent swings show significant improvement over previous sessions.`);
+                  } else if (recentAvg < olderAvg - 3) {
+                    insights.push(`Your recent swings have declined compared to previous sessions. Consider reviewing fundamentals.`);
+                  } else {
+                    insights.push(`Your swing performance has been relatively consistent recently.`);
+                  }
+                }
+                
+                // Add a customized recommendation
+                if (insights.length < 3) {
+                  if (mostDeclined) {
+                    switch(mostDeclined.name.toLowerCase()) {
+                      case 'backswing':
+                        insights.push(`Try focusing on maintaining a full shoulder turn during your backswing.`);
+                        break;
+                      case 'hip rotation':
+                        insights.push(`Practice drills that emphasize proper hip rotation through impact.`);
+                        break;
+                      case 'grip':
+                        insights.push(`Consider checking your grip pressure - it may be too tight or inconsistent.`);
+                        break;
+                      case 'stance':
+                        insights.push(`Work on establishing a stable, balanced setup position before each swing.`);
+                        break;
+                      default:
+                        insights.push(`Consider focusing on your ${mostDeclined.name.toLowerCase()} in your next practice session.`);
+                    }
+                  } else {
+                    insights.push(`Focus on maintaining consistency in your swing tempo and mechanics.`);
+                  }
+                }
+                
+                return (
+                  <div style={{ textAlign: 'left' }}>
+                    {insights.length > 0 ? (
+                      <ul style={{ paddingLeft: '20px', marginTop: '10px' }}>
+                        {insights.map((insight, index) => (
+                          <li key={index} style={{ marginBottom: '8px' }}>{insight}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>Upload more swings to generate personalized insights</p>
+                    )}
+                    
+                    <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                      <button 
+                        className="button" 
+                        onClick={() => navigateTo('profile', { setupClubs: false, activeTab: 'progress' })}
+                        style={{ fontSize: '0.9rem' }}
+                      >
+                        See Full Analysis
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </section>
       )}
-
+      
       {/* Enhanced Recent Swings Section */}
       {hasHistory && swingHistory.length > 0 && (
         <section className="recent-swings">
@@ -272,29 +473,29 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
           }}>
             {swingHistory.slice(0, 5).map((swing, index) => (
               <div 
-              key={swing.id || index} 
-              className="swing-history-item"
-              onClick={() => {
-                // Navigate to analysis page with this specific swing data
-                navigateTo('analysis', { swingData: swing });
-              }}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '15px',
-                borderBottom: index < swingHistory.length - 1 ? '1px solid #ecf0f1' : 'none',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s ease',
-                backgroundColor: 'transparent',
-                borderRadius: index === 0 ? '10px 10px 0 0' : index === swingHistory.length - 1 ? '0 0 10px 10px' : '0'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                  <strong style={{ fontSize: '1.1rem' }}>{formatDate(swing.recordedDate)}</strong>
+                key={swing.id || index} 
+                className="swing-history-item"
+                onClick={() => {
+                  // Navigate to analysis page with this specific swing data
+                  navigateTo('analysis', { swingData: swing });
+                }}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '15px',
+                  borderBottom: index < swingHistory.length - 1 ? '1px solid #ecf0f1' : 'none',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease',
+                  backgroundColor: 'transparent',
+                  borderRadius: index === 0 ? '10px 10px 0 0' : index === swingHistory.length - 1 ? '0 0 10px 10px' : '0'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                    <strong style={{ fontSize: '1.1rem' }}>{formatDate(swing.recordedDate)}</strong>
                     {swing.clubName && (
                       <span style={{ 
                         backgroundColor: '#e8f4fd', 
