@@ -4,12 +4,13 @@ import { useAuth } from '../contexts/AuthContext';
 import firestoreService from '../services/firestoreService';
 import clubUtils from '../utils/clubUtils';
 
-const ClubAnalytics = () => {
+const ClubAnalytics = ({ userClubs, swingHistory }) => {
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [clubs, setClubs] = useState([]);
   const [swings, setSwings] = useState([]);
   const [selectedClubId, setSelectedClubId] = useState('');
+  const [selectedMetric, setSelectedMetric] = useState('overallScore'); // Default metric
   const [insights, setInsights] = useState({});
   const [error, setError] = useState(null);
 
@@ -23,24 +24,22 @@ const ClubAnalytics = () => {
 
       setLoading(true);
       try {
-        // Load clubs and swings in parallel
-        const [userClubs, userSwings] = await Promise.all([
-          firestoreService.getUserClubs(currentUser.uid),
-          firestoreService.getUserSwings(currentUser.uid)
-        ]);
-        
-        setClubs(userClubs || []);
-        setSwings(userSwings || []);
-        
+        // Use passed props if available, otherwise fetch
+        const userClubsData = userClubs || await firestoreService.getUserClubs(currentUser.uid);
+        const userSwingsData = swingHistory || await firestoreService.getUserSwings(currentUser.uid);
+
+        setClubs(userClubsData || []);
+        setSwings(userSwingsData || []);
+
         // Select first club by default if available
-        if (userClubs && userClubs.length > 0) {
-          setSelectedClubId(userClubs[0].id);
+        if (userClubsData && userClubsData.length > 0) {
+          setSelectedClubId(userClubsData[0].id);
         }
-        
+
         // Generate insights
-        const clubInsights = clubUtils.generateClubInsights(userSwings, userClubs);
+        const clubInsights = clubUtils.generateClubInsights(userSwingsData, userClubsData);
         setInsights(clubInsights);
-        
+
       } catch (error) {
         console.error('Error loading club data:', error);
         setError('Failed to load your club data. Please try again.');
@@ -50,7 +49,7 @@ const ClubAnalytics = () => {
     };
 
     loadData();
-  }, [currentUser]);
+  }, [currentUser, userClubs, swingHistory]); // Listen for prop changes
 
   // Group clubs by type for dropdown
   const groupedClubs = clubs.reduce((acc, club) => {
@@ -63,7 +62,7 @@ const ClubAnalytics = () => {
 
   // Order club types in a logical sequence
   const orderedClubTypes = ['Wood', 'Hybrid', 'Iron', 'Wedge', 'Putter', 'Other'];
-  
+
   // Sort club groups
   const sortedClubGroups = Object.keys(groupedClubs)
     .sort((a, b) => {
@@ -72,7 +71,7 @@ const ClubAnalytics = () => {
 
   // Get swings for selected club
   const selectedClubSwings = swings.filter(swing => swing.clubId === selectedClubId);
-  
+
   // Group swings by outcome if available
   const outcomeData = selectedClubSwings.reduce((acc, swing) => {
     if (swing.outcome) {
@@ -81,16 +80,16 @@ const ClubAnalytics = () => {
     return acc;
   }, {});
 
-  // Sort swings by date for trend analysis
-  const sortedSwings = [...selectedClubSwings].sort((a, b) => new Date(a.date) - new Date(b.date));
-  
+  // Sort swings by recordedDate for trend analysis
+  const sortedSwings = [...selectedClubSwings].sort((a, b) => new Date(a.recordedDate) - new Date(b.recordedDate));
+
   // Calculate club averages
   const clubAverages = clubUtils.calculateClubAverages(selectedClubSwings);
-  
+
   // Render function for the outcome chart
   const renderOutcomeChart = (outcomes) => {
     const totalCount = Object.values(outcomes).reduce((sum, count) => sum + count, 0);
-    
+
     return (
       <div className="outcome-chart" style={{ marginTop: '20px' }}>
         <h3>Shot Outcomes</h3>
@@ -102,10 +101,10 @@ const ClubAnalytics = () => {
               .sort(([, a], [, b]) => b - a)
               .map(([outcome, count]) => {
                 const percentage = Math.round((count / totalCount) * 100);
-                
+
                 // Choose color based on outcome type
                 let color;
-                switch(outcome) {
+                switch (outcome) {
                   case 'straight': color = '#27ae60'; break; // green
                   case 'fade': color = '#3498db'; break; // blue
                   case 'draw': color = '#9b59b6'; break; // purple
@@ -116,7 +115,7 @@ const ClubAnalytics = () => {
                   case 'shank': color = '#7f8c8d'; break; // gray
                   default: color = '#95a5a6'; // light gray
                 }
-                
+
                 return (
                   <div key={outcome} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -124,13 +123,13 @@ const ClubAnalytics = () => {
                       <span>{percentage}% ({count})</span>
                     </div>
                     <div style={{ height: '20px', backgroundColor: '#f1f1f1', borderRadius: '10px', overflow: 'hidden' }}>
-                      <div 
-                        style={{ 
-                          height: '100%', 
-                          width: `${percentage}%`, 
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${percentage}%`,
                           backgroundColor: color,
                           borderRadius: '10px'
-                        }} 
+                        }}
                       />
                     </div>
                   </div>
@@ -141,6 +140,20 @@ const ClubAnalytics = () => {
       </div>
     );
   };
+
+  // Extract available metrics from the first swing (if available)
+  const availableMetrics = sortedSwings.length > 0 && sortedSwings[0].metrics
+    ? Object.keys(sortedSwings[0].metrics)
+    : [];
+
+  // Prepare data for the progress chart
+  const progressChartData = sortedSwings.map(swing => ({
+    date: new Date(swing.recordedDate).toLocaleDateString(), // Format date as needed
+    value: selectedMetric === 'overallScore' ? swing.overallScore : swing.metrics[selectedMetric]
+  }));
+
+    // Find the maximum value for scaling the chart
+    const maxValue = Math.max(...progressChartData.map(data => data.value), 100);
 
   if (loading) {
     return (
@@ -173,13 +186,13 @@ const ClubAnalytics = () => {
     return (
       <div className="card">
         <h2>Club Performance</h2>
-        
+
         <div className="club-selection" style={{ marginBottom: '20px' }}>
           <label htmlFor="club-select" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
             Select a Club:
           </label>
-          
-          <select 
+
+          <select
             id="club-select"
             value={selectedClubId}
             onChange={(e) => setSelectedClubId(e.target.value)}
@@ -207,7 +220,7 @@ const ClubAnalytics = () => {
             ))}
           </select>
         </div>
-        
+
         <p>No swing data available for this club. Upload and analyze swings with this club to see performance analytics.</p>
       </div>
     );
@@ -220,19 +233,19 @@ const ClubAnalytics = () => {
   return (
     <div className="card">
       <h2>Club Performance Analytics</h2>
-      
+
       {error && (
         <div style={{ backgroundColor: '#f8d7da', color: '#721c24', padding: '10px', borderRadius: '5px', marginBottom: '15px' }}>
           {error}
         </div>
       )}
-      
+
       <div className="club-selection" style={{ marginBottom: '20px' }}>
         <label htmlFor="club-select" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
           Select a Club:
         </label>
-        
-        <select 
+
+        <select
           id="club-select"
           value={selectedClubId}
           onChange={(e) => setSelectedClubId(e.target.value)}
@@ -260,14 +273,14 @@ const ClubAnalytics = () => {
           ))}
         </select>
       </div>
-      
-      <div className="club-details" style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        padding: '15px', 
-        backgroundColor: '#f8f9fa', 
+
+      <div className="club-details" style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '15px',
+        backgroundColor: '#f8f9fa',
         borderRadius: '10px',
-        marginBottom: '20px' 
+        marginBottom: '20px'
       }}>
         <div style={{ flex: '1' }}>
           <h3>{selectedClub.name}</h3>
@@ -276,8 +289,8 @@ const ClubAnalytics = () => {
           <p><strong>Typical Distance:</strong> {selectedClub.distance} yards</p>
         </div>
         <div style={{ flex: '1', textAlign: 'center' }}>
-          <div style={{ 
-            fontSize: '2rem', 
+          <div style={{
+            fontSize: '2rem',
             fontWeight: 'bold',
             color: '#3498db',
             marginBottom: '5px'
@@ -288,13 +301,13 @@ const ClubAnalytics = () => {
           <p><strong>{selectedClubSwings.length}</strong> swing{selectedClubSwings.length !== 1 ? 's' : ''} analyzed</p>
         </div>
       </div>
-      
+
       {clubInsights.insights && clubInsights.insights.length > 0 && (
-        <div className="club-insights" style={{ 
-          padding: '15px', 
-          backgroundColor: '#e2f3f5', 
+        <div className="club-insights" style={{
+          padding: '15px',
+          backgroundColor: '#e2f3f5',
           borderRadius: '10px',
-          marginBottom: '20px' 
+          marginBottom: '20px'
         }}>
           <h3>Insights</h3>
           <ul>
@@ -304,13 +317,13 @@ const ClubAnalytics = () => {
           </ul>
         </div>
       )}
-      
+
       <div className="analytics-section">
         <div className="metrics-overview" style={{ marginBottom: '30px' }}>
           <h3>Swing Metrics</h3>
-          
+
           {clubAverages && clubAverages.metrics && (
-            <div className="metrics-grid" style={{ 
+            <div className="metrics-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
               gap: '15px',
@@ -319,9 +332,9 @@ const ClubAnalytics = () => {
               {Object.entries(clubAverages.metrics).map(([key, value]) => {
                 const metricName = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
                 return (
-                  <div key={key} className="metric-card" style={{ 
-                    padding: '10px', 
-                    backgroundColor: '#f8f9fa', 
+                  <div key={key} className="metric-card" style={{
+                    padding: '10px',
+                    backgroundColor: '#f8f9fa',
                     borderRadius: '5px',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                   }}>
@@ -333,14 +346,31 @@ const ClubAnalytics = () => {
             </div>
           )}
         </div>
-        
+
         {/* Outcome Chart */}
         {renderOutcomeChart(outcomeData)}
-        
+
         {/* Progress Chart */}
         {sortedSwings.length >= 2 && (
           <div className="progress-chart" style={{ marginTop: '30px' }}>
             <h3>Progress Over Time</h3>
+
+            {/* Metric Selection Dropdown */}
+            <div className="metric-selector" style={{ marginBottom: '15px' }}>
+              <label htmlFor="metric-select" style={{ marginRight: '10px' }}>Select Metric:</label>
+              <select
+                id="metric-select"
+                value={selectedMetric}
+                onChange={(e) => setSelectedMetric(e.target.value)}
+                style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ddd' }}
+              >
+                <option value="overallScore">Overall Score</option>
+                {availableMetrics.map(metric => (
+                  <option key={metric} value={metric}>{metric.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="chart-container" style={{ position: 'relative', height: '250px', marginTop: '15px' }}>
               {/* Y-axis labels */}
               <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingRight: '10px' }}>
@@ -350,43 +380,42 @@ const ClubAnalytics = () => {
                 <span>25</span>
                 <span>0</span>
               </div>
-              
+
               {/* Chart area */}
-              <div style={{ marginLeft: '40px', height: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                {sortedSwings.map((swing, index) => {
-                  const date = new Date(swing.date);
-                  const formattedDate = `${date.getMonth() + 1}/${date.getDate()}`;
-                  
+              <div style={{ marginLeft: '40px', height: '100%', display: 'flex', alignItems: 'flex-end', borderBottom: '2px solid #ddd' }}>
+                {progressChartData.map((data, index) => {
+                  const barHeight = (data.value / 100) * 100; // Calculate bar height
                   return (
-                    <div key={index} style={{ 
-                      flex: '1', 
-                      textAlign: 'center', 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      alignItems: 'center', 
-                      height: '100%' 
+                    <div key={index} style={{
+                      flex: '1',
+                      textAlign: 'center',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      height: '100%'
                     }}>
-                      <div 
-                        style={{ 
-                          width: '30px', 
-                          height: `${(swing.overallScore / 100) * 100}%`, 
+                      <div
+                        style={{
+                          width: '30px',
+                          height: `${barHeight}%`,
                           backgroundColor: '#3498db',
                           marginBottom: '10px',
                           borderRadius: '5px 5px 0 0',
-                          position: 'relative'
+                          position: 'relative',
+                          marginTop: 'auto' // Align bars to the bottom
                         }}
                       >
-                        <span style={{ 
-                          position: 'absolute', 
-                          top: '-25px', 
-                          left: '50%', 
+                        <span style={{
+                          position: 'absolute',
+                          top: '-25px',
+                          left: '50%',
                           transform: 'translateX(-50%)',
                           fontWeight: 'bold'
                         }}>
-                          {swing.overallScore}
+                          {data.value}
                         </span>
                       </div>
-                      <span style={{ fontSize: '0.8rem' }}>{formattedDate}</span>
+                      <span style={{ fontSize: '0.8rem' }}>{data.date}</span>
                     </div>
                   );
                 })}

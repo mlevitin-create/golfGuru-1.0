@@ -25,7 +25,7 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
   useEffect(() => {
     console.log("Received page params:", pageParams);
     console.log("Setup clubs tab:", setupClubsTab);
-    
+
     if (setupClubsTab) {
       setActiveTab('clubs');
     } else if (pageParams && pageParams.activeTab) {
@@ -77,14 +77,14 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
   // Save profile changes
   const saveProfile = async () => {
     if (!currentUser) return;
-    
+
     setSaving(true);
     try {
       await firestoreService.saveUserProfile(currentUser.uid, {
         ...userData,
         updatedAt: new Date()
       });
-      
+
       // Display success message or update UI
     } catch (error) {
       console.error('Error saving profile:', error);
@@ -126,8 +126,8 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
       <div className="card">
         <h2>Profile</h2>
         <p>Please sign in to view and manage your profile.</p>
-        <button 
-          className="button" 
+        <button
+          className="button"
           onClick={() => window.dispatchEvent(new Event('openLoginModal'))}
         >
           Sign In
@@ -140,44 +140,44 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
     <div className="profile-container">
       {/* Profile Tabs */}
       <div className="profile-tabs">
-        <div 
+        <div
           className={`profile-tab ${activeTab === 'profile' ? 'active' : ''}`}
           onClick={() => setActiveTab('profile')}
-          style={{ 
-            padding: '10px 20px', 
+          style={{
+            padding: '10px 20px',
             cursor: 'pointer',
             borderBottom: activeTab === 'profile' ? '2px solid #3498db' : 'none'
           }}
         >
           Profile
         </div>
-        <div 
+        <div
           className={`profile-tab ${activeTab === 'clubs' ? 'active' : ''}`}
           onClick={() => setActiveTab('clubs')}
-          style={{ 
-            padding: '10px 20px', 
+          style={{
+            padding: '10px 20px',
             cursor: 'pointer',
             borderBottom: activeTab === 'clubs' ? '2px solid #3498db' : 'none'
           }}
         >
           My Clubs
         </div>
-        <div 
+        <div
           className={`profile-tab ${activeTab === 'analytics' ? 'active' : ''}`}
           onClick={() => setActiveTab('analytics')}
-          style={{ 
-            padding: '10px 20px', 
+          style={{
+            padding: '10px 20px',
             cursor: 'pointer',
             borderBottom: activeTab === 'analytics' ? '2px solid #3498db' : 'none'
           }}
         >
           Club Analytics
         </div>
-        <div 
+        <div
           className={`profile-tab ${activeTab === 'stats' ? 'active' : ''}`}
           onClick={() => setActiveTab('stats')}
-          style={{ 
-            padding: '10px 20px', 
+          style={{
+            padding: '10px 20px',
             cursor: 'pointer',
             borderBottom: activeTab === 'stats' ? '2px solid #3498db' : 'none'
           }}
@@ -190,21 +190,21 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
       {activeTab === 'profile' && (
         <div className="card">
           <h2>My Profile</h2>
-          
+
           {error && (
             <div style={{ backgroundColor: '#f8d7da', color: '#721c24', padding: '10px', borderRadius: '5px', marginBottom: '15px' }}>
               {error}
             </div>
           )}
-          
+
           <div className="user-info" style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-            <img 
-              src={currentUser.photoURL || '/default-avatar.png'} 
+            <img
+              src={currentUser.photoURL || '/default-avatar.png'}
               alt="Profile"
-              style={{ 
-                width: '80px', 
-                height: '80px', 
-                borderRadius: '50%', 
+              style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
                 marginRight: '20px',
                 border: '3px solid #3498db'
               }}
@@ -215,12 +215,12 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
               <p>Joined: {new Date(currentUser.metadata.creationTime).toLocaleDateString()}</p>
             </div>
           </div>
-          
+
           <div className="profile-form">
             <div className="form-group" style={{ marginBottom: '15px' }}>
               <label htmlFor="name" style={{ display: 'block', marginBottom: '5px' }}>Display Name</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 id="name"
                 name="name"
                 value={userData.name}
@@ -228,10 +228,10 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
                 style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
               />
             </div>
-            
+
             <div className="form-group" style={{ marginBottom: '15px' }}>
               <label htmlFor="experience" style={{ display: 'block', marginBottom: '5px' }}>Golf Experience</label>
-              <select 
+              <select
                 id="experience"
                 name="experience"
                 value={userData.experience}
@@ -243,10 +243,10 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
                 <option value="advanced">Advanced (5+ years)</option>
               </select>
             </div>
-            
+
             <div className="form-group" style={{ marginBottom: '15px' }}>
               <label htmlFor="playFrequency" style={{ display: 'block', marginBottom: '5px' }}>How often do you play?</label>
-              <select 
+              <select
                 id="playFrequency"
                 name="playFrequency"
                 value={userData.playFrequency}
@@ -258,11 +258,11 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
                 <option value="occasionally">Occasionally</option>
               </select>
             </div>
-            
+
             <div className="form-group" style={{ marginBottom: '15px' }}>
               <label htmlFor="handicap" style={{ display: 'block', marginBottom: '5px' }}>Handicap</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 id="handicap"
                 name="handicap"
                 value={userData.handicap}
@@ -271,19 +271,19 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
                 style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
               />
             </div>
-            <div className="form-group" style={{ 
-              marginTop: '25px', 
-              backgroundColor: '#f8f9fa', 
-              padding: '15px', 
+            <div className="form-group" style={{
+              marginTop: '25px',
+              backgroundColor: '#f8f9fa',
+              padding: '15px',
               borderRadius: '8px',
               marginBottom: '20px'
             }}>
               <h3 style={{ marginTop: '0', marginBottom: '10px' }}>Historical Swing Tracking</h3>
-              
+
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     name="allowHistoricalSwings"
                     checked={userData.allowHistoricalSwings !== false}
                     onChange={handleInputChange}
@@ -297,17 +297,17 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
               </div>
             </div>
             <div className="button-group" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-              <button 
-                className="button" 
+              <button
+                className="button"
                 onClick={saveProfile}
                 disabled={saving}
                 style={{ padding: '10px 20px' }}
               >
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
-              
-              <button 
-                className="button" 
+
+              <button
+                className="button"
                 onClick={handleLogout}
                 style={{ padding: '10px 20px', backgroundColor: '#e74c3c' }}
               >
@@ -317,25 +317,25 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
           </div>
         </div>
       )}
-      
+
       {activeTab === 'clubs' && (
         <ClubBag onComplete={handleClubUpdateComplete} />
       )}
-      
+
       {activeTab === 'analytics' && (
         <div className="card">
           <h2>Club Analytics</h2>
           {userClubs && userClubs.length > 0 ? (
             <div className="club-analytics-content">
               <p>This section provides analytics on your club performance based on your swing history.</p>
-              {/* Placeholder for ClubAnalytics component */}
-              <p>We're still gathering data on your club performance. Keep uploading swings with club information for more detailed analytics.</p>
+              {/* Render ClubAnalytics component and pass necessary data */}
+              <ClubAnalytics userClubs={userClubs} swingHistory={swingHistory} />
             </div>
           ) : (
             <div className="no-clubs-message">
               <p>You don't have any clubs set up yet. Go to the "My Clubs" tab to add your clubs.</p>
-              <button 
-                className="button" 
+              <button
+                className="button"
                 onClick={() => setActiveTab('clubs')}
                 style={{ marginTop: '10px' }}
               >
@@ -345,11 +345,11 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
           )}
         </div>
       )}
-      
+
       {activeTab === 'stats' && (
         <div className="card">
           <h2>My Golf Stats</h2>
-          
+
           {userStats ? (
             <div className="stats-container">
               <div className="stats-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '20px' }}>
@@ -359,7 +359,7 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
                   <p><strong>Average Score:</strong> {userStats.averageScore ? userStats.averageScore.toFixed(1) : 'N/A'}/100</p>
                   <p><strong>Best Score:</strong> {userStats.bestScore || 'N/A'}/100</p>
                 </div>
-                
+
                 <div className="stat-card" style={{ flex: '1', minWidth: '200px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '10px' }}>
                   <h3>Club Usage</h3>
                   {userStats.clubUsage && Object.keys(userStats.clubUsage).length > 0 ? (
@@ -376,7 +376,7 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
                   )}
                 </div>
               </div>
-              
+
               <div className="stats-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '20px' }}>
                 <div className="stat-card" style={{ flex: '1', minWidth: '200px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '10px' }}>
                   <h3>Swing Outcomes</h3>
@@ -392,7 +392,7 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
                     <p>No outcome data available</p>
                   )}
                 </div>
-                
+
                 <div className="stat-card" style={{ flex: '1', minWidth: '200px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '10px' }}>
                   <h3>Most Improved Areas</h3>
                   {userStats.improvements && Object.keys(userStats.improvements).length > 0 ? (
@@ -413,8 +413,8 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
           ) : (
             <div>
               <p>No stats available yet. Upload and analyze more swings to see your statistics.</p>
-              <button 
-                className="button" 
+              <button
+                className="button"
                 onClick={() => navigateTo('upload')}
                 style={{ marginTop: '15px' }}
               >
