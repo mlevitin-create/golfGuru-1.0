@@ -1,6 +1,7 @@
-// src/components/VideoUpload.js
 import React, { useState, useRef, useEffect } from 'react';
 import ClubSelector from './ClubSelector';
+import DateSelector from './DateSelector';
+import { extractVideoCreationDate } from '../utils/videoMetadata';
 
 const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
   const [dragActive, setDragActive] = useState(false);
@@ -9,60 +10,11 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [showClubSelector, setShowClubSelector] = useState(false);
   const [error, setError] = useState(null);
+  const [swingDate, setSwingDate] = useState(new Date());
+  const [fileDate, setFileDate] = useState(null);
+  const [showDateSelector, setShowDateSelector] = useState(false);
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
-
-  // Generate thumbnail from video file
-  const generateThumbnail = (videoFile) => {
-    const videoElement = document.createElement('video');
-    videoElement.preload = 'metadata';
-    videoElement.muted = true;
-    videoElement.playsInline = true;
-    
-    const fileUrl = URL.createObjectURL(videoFile);
-    videoElement.src = fileUrl;
-    
-    // When video data is loaded, create thumbnail
-    videoElement.onloadeddata = () => {
-      console.log('Video loaded, seeking to thumbnail position');
-      // Seek to 1 second or 1/4 through the video, whichever is less
-      videoElement.currentTime = 1;
-    };
-    
-    // Once we've seeked to the right place, capture the frame
-    videoElement.onseeked = () => {
-      console.log('Video seeked, generating thumbnail');
-      const canvas = document.createElement('canvas');
-      // Set canvas dimensions to match video
-      canvas.width = videoElement.videoWidth;
-      canvas.height = videoElement.videoHeight;
-      
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-      
-      // Create thumbnail URL from canvas
-      try {
-        const thumbnailUrl = canvas.toDataURL('image/jpeg');
-        console.log('Thumbnail generated successfully');
-        setThumbnailUrl(thumbnailUrl);
-      } catch (err) {
-        console.error('Error generating thumbnail:', err);
-        // If thumbnail generation fails, we'll still have the video element
-      }
-      
-      // Clean up object URL
-      URL.revokeObjectURL(fileUrl);
-    };
-    
-    // Handle errors
-    videoElement.onerror = (err) => {
-      console.error('Error loading video for thumbnail:', err);
-      URL.revokeObjectURL(fileUrl);
-    };
-    
-    // Explicitly trigger load
-    videoElement.load();
-  };
 
   // Handle drag events
   const handleDrag = (e) => {
@@ -97,23 +49,83 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
   };
 
   // Process the selected file
-  const handleFile = (file) => {
+  const handleFile = async (file) => {
     // Check if the file is a video
     if (!file.type.startsWith('video/')) {
       setError('Please upload a video file');
       return;
     }
     
-    // No size limit check - removed as requested
-
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
     setThumbnailUrl(null); // Clear previous thumbnail
+    
+    // Extract date from file if possible
+    try {
+      const extractedDate = await extractVideoCreationDate(file);
+      setFileDate(extractedDate);
+      setSwingDate(extractedDate);
+      setShowDateSelector(true);
+    } catch (error) {
+      console.error('Error extracting date from video:', error);
+      setFileDate(null);
+      setSwingDate(new Date());
+      setShowDateSelector(true);
+    }
     
     // Generate thumbnail for the video
     generateThumbnail(file);
     
     setError(null);
+  };
+
+  // Generate thumbnail from video file
+  const generateThumbnail = (videoFile) => {
+    const videoElement = document.createElement('video');
+    videoElement.preload = 'metadata';
+    videoElement.muted = true;
+    videoElement.playsInline = true;
+    
+    const fileUrl = URL.createObjectURL(videoFile);
+    videoElement.src = fileUrl;
+    
+    // When video data is loaded, create thumbnail
+    videoElement.onloadeddata = () => {
+      // Seek to 1 second or 1/4 through the video, whichever is less
+      videoElement.currentTime = 1;
+    };
+    
+    // Once we've seeked to the right place, capture the frame
+    videoElement.onseeked = () => {
+      const canvas = document.createElement('canvas');
+      // Set canvas dimensions to match video
+      canvas.width = videoElement.videoWidth;
+      canvas.height = videoElement.videoHeight;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      
+      // Create thumbnail URL from canvas
+      try {
+        const thumbnailUrl = canvas.toDataURL('image/jpeg');
+        setThumbnailUrl(thumbnailUrl);
+      } catch (err) {
+        console.error('Error generating thumbnail:', err);
+        // If thumbnail generation fails, we'll still have the video element
+      }
+      
+      // Clean up object URL
+      URL.revokeObjectURL(fileUrl);
+    };
+    
+    // Handle errors
+    videoElement.onerror = (err) => {
+      console.error('Error loading video for thumbnail:', err);
+      URL.revokeObjectURL(fileUrl);
+    };
+    
+    // Explicitly trigger load
+    videoElement.load();
   };
 
   // Handle button click
@@ -136,13 +148,22 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
   const handleThumbnailClick = () => {
     if (videoRef.current) {
       videoRef.current.style.display = 'block';
+      if (thumbnailUrl) {
+        setThumbnailUrl(null);
+      }
       videoRef.current.play();
     }
   };
 
   // Handle club selection continuation
   const handleClubContinue = (clubData) => {
-    onVideoUpload(selectedFile, clubData);
+    // Include the date with the swing data
+    const swingWithDate = {
+      ...clubData,
+      recordedDate: swingDate // Add the selected or extracted date
+    };
+    
+    onVideoUpload(selectedFile, swingWithDate);
   };
 
   // Handle skipping club selection
@@ -151,18 +172,35 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
       // Navigate to the club setup page
       navigateTo('profile', { setupClubs: true });
     } else {
-      // Continue with analysis without club data
-      onVideoUpload(selectedFile);
+      // Continue with analysis without club data, but with date
+      onVideoUpload(selectedFile, { recordedDate: swingDate });
     }
+  };
+
+  // Handle date change
+  const handleDateChange = (date) => {
+    setSwingDate(date);
   };
 
   // If club selector is shown, render it
   if (showClubSelector) {
     return (
-      <ClubSelector 
-        onContinue={handleClubContinue} 
-        onSkip={handleClubSkip} 
-      />
+      <div className="card">
+        <h2>Swing Details</h2>
+        
+        {/* Date Selector */}
+        <DateSelector 
+          initialDate={fileDate || swingDate}
+          onDateChange={handleDateChange}
+          extractFromFile={!!fileDate}
+        />
+        
+        {/* Club Selector */}
+        <ClubSelector 
+          onContinue={handleClubContinue} 
+          onSkip={handleClubSkip} 
+        />
+      </div>
     );
   }
 
@@ -222,7 +260,7 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
             <p className="small" style={{ fontSize: '0.8rem', color: '#95a5a6' }}>or drag and drop (on desktop)</p>
           </>
         ) : (
-          // Updated video container with thumbnail option
+          // Video container with thumbnail option
           <div className="video-container" style={{ maxWidth: '300px', margin: '0 auto', width: '100%' }}>
             {thumbnailUrl ? (
               <div style={{ position: 'relative', marginBottom: '10px' }}>
@@ -234,6 +272,7 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
                     borderRadius: '8px',
                     boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
                   }}
+                  onClick={handleThumbnailClick}
                 />
                 <div 
                   style={{
@@ -293,24 +332,16 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
         )}
       </div>
       
-      {/* Desktop tips - hidden on mobile */}
-      <div className="upload-tips" style={{ 
-        display: 'none',
-        '@media (min-width: 768px)': {
-          display: 'block'
-        }
-      }}>
-        <h3>Tips for best results:</h3>
-        <ul>
-          <li>Record in good lighting</li>
-          <li>Get a clear view of your full swing</li>
-          <li>Try to record from a side angle (front-on or down-the-line)</li>
-          <li>Keep the camera steady</li>
-          <li>Make sure your entire body and club are visible throughout the swing</li>
-        </ul>
-      </div>
+      {/* Date Selector (visible when file is selected) */}
+      {showDateSelector && selectedFile && (
+        <DateSelector 
+          initialDate={fileDate || new Date()}
+          onDateChange={handleDateChange}
+          extractFromFile={!!fileDate}
+        />
+      )}
       
-      {/* Mobile-friendly tips with expandable details */}
+      {/* Upload tips */}
       <div className="upload-tips-mobile" style={{ 
         marginTop: '15px', 
         textAlign: 'center'
@@ -367,7 +398,7 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
             width: '50px',
             height: '50px',
             borderRadius: '50%',
-            border: '5px solid rgba(0, 0, 0, 0.1)',
+            border: '5px solid rgba(0,0,0,0.1)',
             borderTopColor: '#3498db',
             animation: 'spin 1s linear infinite'
           }}></div>

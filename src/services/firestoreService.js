@@ -26,15 +26,20 @@ const USERS_COLLECTION = 'users';
  * @param {Object} swingData - The swing analysis data
  * @param {String} userId - The user ID
  * @param {File} videoFile - The original video file
- * @param {Object} clubData - Optional club data (id, name, type, outcome)
+ * @param {Object} metadata - Optional metadata (club, date, etc.)
  * @returns {Promise<Object>} The saved swing data with Firestore ID
  */
-const saveSwingAnalysis = async (swingData, userId, videoFile, clubData = null) => {
+const saveSwingAnalysis = async (swingData, userId, videoFile, metadata = null) => {
   try {
     console.log('Starting to save swing analysis to Firestore');
     
     // Create local URL for the video file regardless of storage success
     const localVideoUrl = URL.createObjectURL(videoFile);
+    
+    // Extract recordedDate from metadata if available
+    const recordedDate = metadata?.recordedDate ? 
+      new Date(metadata.recordedDate) : 
+      (swingData.recordedDate ? new Date(swingData.recordedDate) : new Date());
     
     // Prepare basic swing data with local video URL as fallback
     let swingToSave = {
@@ -42,18 +47,19 @@ const saveSwingAnalysis = async (swingData, userId, videoFile, clubData = null) 
       userId,
       videoUrl: localVideoUrl,  // Use local URL initially
       originalVideoName: videoFile.name,
-      created: new Date(),
+      recordedDate, // When the swing was actually performed
+      created: new Date(), // When the analysis was performed
       updated: new Date(),
       // Flag to indicate this is stored locally only
       _isLocalOnly: true
     };
     
     // Add club data if provided
-    if (clubData) {
-      swingToSave.clubId = clubData.clubId;
-      swingToSave.clubName = clubData.clubName;
-      swingToSave.clubType = clubData.clubType;
-      swingToSave.outcome = clubData.outcome || null;
+    if (metadata) {
+      if (metadata.clubId) swingToSave.clubId = metadata.clubId;
+      if (metadata.clubName) swingToSave.clubName = metadata.clubName;
+      if (metadata.clubType) swingToSave.clubType = metadata.clubType;
+      if (metadata.outcome) swingToSave.outcome = metadata.outcome;
     }
     
     try {
@@ -99,6 +105,7 @@ const saveSwingAnalysis = async (swingData, userId, videoFile, clubData = null) 
         
         const docRef = await addDoc(collection(db, 'swings'), {
           ...swingToSave,
+          recordedDate: swingToSave.recordedDate, // Ensure this is stored in Firestore
           created: serverTimestamp(),
           updated: serverTimestamp()
         });
@@ -132,7 +139,8 @@ const saveSwingAnalysis = async (swingData, userId, videoFile, clubData = null) 
       const savedLocalSwing = localStorageService.saveSwing({
         ...swingData,
         userId,
-        videoUrl: localVideoUrl
+        videoUrl: localVideoUrl,
+        recordedDate
       });
       
       return savedLocalSwing;
@@ -146,6 +154,7 @@ const saveSwingAnalysis = async (swingData, userId, videoFile, clubData = null) 
       ...swingData,
       userId,
       videoUrl: URL.createObjectURL(videoFile),
+      recordedDate: metadata?.recordedDate ? new Date(metadata.recordedDate) : new Date(),
       created: new Date(),
       updated: new Date(),
       _isMemoryOnly: true
@@ -156,14 +165,16 @@ const saveSwingAnalysis = async (swingData, userId, videoFile, clubData = null) 
 /**
  * Get all swing analyses for a user
  * @param {String} userId - The user ID
+ * @param {Boolean} orderByRecordedDate - If true, order by recorded date instead of analysis date
  * @returns {Promise<Array>} Array of swing analyses
  */
-const getUserSwings = async (userId) => {
+const getUserSwings = async (userId, orderByRecordedDate = true) => {
   try {
+    // Create query based on ordering preference
     const q = query(
       collection(db, SWINGS_COLLECTION),
       where('userId', '==', userId),
-      orderBy('created', 'desc')
+      orderBy(orderByRecordedDate ? 'recordedDate' : 'created', 'desc')
     );
     
     const querySnapshot = await getDocs(q);
@@ -172,7 +183,8 @@ const getUserSwings = async (userId) => {
       ...doc.data(),
       // Convert Firestore timestamps to regular Date objects
       created: doc.data().created?.toDate(),
-      updated: doc.data().updated?.toDate()
+      updated: doc.data().updated?.toDate(),
+      recordedDate: doc.data().recordedDate?.toDate() || doc.data().created?.toDate()
     }));
   } catch (error) {
     console.error('Error getting user swings:', error);
@@ -193,11 +205,14 @@ const getSwingById = async (swingId) => {
       throw new Error('Swing not found');
     }
     
+    const data = swingDoc.data();
+    
     return {
       id: swingDoc.id,
-      ...swingDoc.data(),
-      created: swingDoc.data().created?.toDate(),
-      updated: swingDoc.data().updated?.toDate()
+      ...data,
+      created: data.created?.toDate(),
+      updated: data.updated?.toDate(),
+      recordedDate: data.recordedDate?.toDate() || data.created?.toDate()
     };
   } catch (error) {
     console.error('Error getting swing by ID:', error);
@@ -205,174 +220,230 @@ const getSwingById = async (swingId) => {
   }
 };
 
-  /**
-   * Delete a swing analysis and its associated video file
-   * @param {String} swingId - The swing document ID
-   * @param {String} userId - The user ID (for security check)
-   * @returns {Promise<Object>} Success status
-   */
-  const deleteSwing = async (swingId, userId) => {
+/**
+ * Delete a swing analysis and its associated video file
+ * @param {String} swingId - The swing document ID
+ * @param {String} userId - The user ID (for security check)
+ * @returns {Promise<Object>} Success status
+ */
+const deleteSwing = async (swingId, userId) => {
+  try {
+    console.log('Attempting to delete swing with ID:', swingId);
+    
+    // Try multiple approaches to find the swing document
+    let swingData = null;
+    let docId = null;
+    
+    // First try direct document lookup
     try {
-      console.log('Attempting to delete swing with ID:', swingId);
-      
-      // Try multiple approaches to find the swing document
-      let swingData = null;
-      let docId = null;
-      
-      // First try direct document lookup
+      const directDoc = await getDoc(doc(db, SWINGS_COLLECTION, swingId));
+      if (directDoc.exists()) {
+        swingData = directDoc.data();
+        docId = swingId;
+        console.log('Found swing using direct document ID');
+      }
+    } catch (directError) {
+      console.log('Direct document lookup failed, trying query:', directError);
+    }
+    
+    // If direct lookup fails, try querying by the field with the provided ID
+    if (!swingData) {
       try {
-        const directDoc = await getDoc(doc(db, SWINGS_COLLECTION, swingId));
-        if (directDoc.exists()) {
-          swingData = directDoc.data();
-          docId = swingId;
-          console.log('Found swing using direct document ID');
+        const q = query(
+          collection(db, SWINGS_COLLECTION),
+          where('userId', '==', userId),
+          where('id', '==', swingId)
+        );
+        
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
+          swingData = doc.data();
+          docId = doc.id;
+          console.log('Found swing using query by id field:', docId);
         }
-      } catch (directError) {
-        console.log('Direct document lookup failed, trying query:', directError);
+      } catch (queryError) {
+        console.log('Query by id field failed:', queryError);
       }
-      
-      // If direct lookup fails, try querying by the field with the provided ID
-      if (!swingData) {
-        try {
-          const q = query(
-            collection(db, SWINGS_COLLECTION),
-            where('userId', '==', userId),
-            where('id', '==', swingId)
-          );
-          
-          const querySnapshot = await getDocs(q);
-          if (!querySnapshot.empty) {
-            const doc = querySnapshot.docs[0];
-            swingData = doc.data();
+    }
+    
+    // If both approaches fail, try querying all user swings
+    if (!swingData) {
+      try {
+        const userSwingsQuery = query(
+          collection(db, SWINGS_COLLECTION),
+          where('userId', '==', userId)
+        );
+        
+        const allSwings = await getDocs(userSwingsQuery);
+        console.log(`Found ${allSwings.size} swings for user`);
+        
+        // Check each document
+        allSwings.forEach(doc => {
+          const data = doc.data();
+          console.log(`Checking swing with ID ${doc.id}, data:`, data);
+          if (doc.id === swingId || (data.id && data.id === swingId)) {
+            swingData = data;
             docId = doc.id;
-            console.log('Found swing using query by id field:', docId);
+            console.log('Found matching swing:', docId);
           }
-        } catch (queryError) {
-          console.log('Query by id field failed:', queryError);
-        }
+        });
+      } catch (allSwingsError) {
+        console.error('Error querying all user swings:', allSwingsError);
       }
-      
-      // If both approaches fail, try querying all user swings
-      if (!swingData) {
-        try {
-          const userSwingsQuery = query(
-            collection(db, SWINGS_COLLECTION),
-            where('userId', '==', userId)
-          );
-          
-          const allSwings = await getDocs(userSwingsQuery);
-          console.log(`Found ${allSwings.size} swings for user`);
-          
-          // Check each document
-          allSwings.forEach(doc => {
-            const data = doc.data();
-            console.log(`Checking swing with ID ${doc.id}, data:`, data);
-            if (doc.id === swingId || (data.id && data.id === swingId)) {
-              swingData = data;
-              docId = doc.id;
-              console.log('Found matching swing:', docId);
-            }
-          });
-        } catch (allSwingsError) {
-          console.error('Error querying all user swings:', allSwingsError);
-        }
-      }
-      
-      if (!swingData || !docId) {
-        console.error('Swing document not found after multiple attempts');
-        throw new Error('Swing not found');
-      }
-      
-      // Security check - ensure the user owns this swing
-      if (swingData.userId !== userId) {
-        console.error('User does not own this swing');
-        throw new Error('Unauthorized access');
-      }
-      
-      // Delete from Firestore
-      await deleteDoc(doc(db, SWINGS_COLLECTION, docId));
-      console.log('Swing document deleted successfully:', docId);
-      
-      // Attempt to delete the video file from Storage
-      let storageDeleteAttempted = false;
-      let storageDeleteSuccess = false;
-      
-      // Try using videoUrl if available
-      if (swingData.videoUrl && swingData.videoUrl.includes('firebasestorage.googleapis.com')) {
-        storageDeleteAttempted = true;
-        try {
-          // Extract storage path from URL
-          const videoUrlObj = new URL(swingData.videoUrl);
-          const storagePath = decodeURIComponent(videoUrlObj.pathname.split('/o/')[1]?.split('?')[0]);
-          
-          if (storagePath) {
-            console.log('Deleting video from storage using URL path:', storagePath);
-            const videoRef = ref(storage, storagePath);
-            await deleteObject(videoRef);
-            console.log('Video deleted from storage successfully');
-            storageDeleteSuccess = true;
-          }
-        } catch (storageError) {
-          console.error('Error deleting video using URL:', storageError);
-        }
-      }
-      
-      // Try using videoStoragePath if available and previous attempt failed
-      if (!storageDeleteSuccess && swingData.videoStoragePath) {
-        storageDeleteAttempted = true;
-        try {
-          console.log('Deleting video using direct storage path:', swingData.videoStoragePath);
-          const videoRef = ref(storage, swingData.videoStoragePath);
+    }
+    
+    if (!swingData || !docId) {
+      console.error('Swing document not found after multiple attempts');
+      throw new Error('Swing not found');
+    }
+    
+    // Security check - ensure the user owns this swing
+    if (swingData.userId !== userId) {
+      console.error('User does not own this swing');
+      throw new Error('Unauthorized access');
+    }
+    
+    // Delete from Firestore
+    await deleteDoc(doc(db, SWINGS_COLLECTION, docId));
+    console.log('Swing document deleted successfully:', docId);
+    
+    // Attempt to delete the video file from Storage
+    let storageDeleteAttempted = false;
+    let storageDeleteSuccess = false;
+    
+    // Try using videoUrl if available
+    if (swingData.videoUrl && swingData.videoUrl.includes('firebasestorage.googleapis.com')) {
+      storageDeleteAttempted = true;
+      try {
+        // Extract storage path from URL
+        const videoUrlObj = new URL(swingData.videoUrl);
+        const storagePath = decodeURIComponent(videoUrlObj.pathname.split('/o/')[1]?.split('?')[0]);
+        
+        if (storagePath) {
+          console.log('Deleting video from storage using URL path:', storagePath);
+          const videoRef = ref(storage, storagePath);
           await deleteObject(videoRef);
           console.log('Video deleted from storage successfully');
           storageDeleteSuccess = true;
-        } catch (pathError) {
-          console.error('Error deleting video using direct path:', pathError);
         }
+      } catch (storageError) {
+        console.error('Error deleting video using URL:', storageError);
       }
-      
-      // Try a constructed path based on userId and timestamp
-      if (!storageDeleteSuccess && swingData.created) {
-        storageDeleteAttempted = true;
-        try {
-          // Construct a path based on the pattern used in saveSwingAnalysis
-          let timestamp;
-          if (swingData.created.toDate) {
-            timestamp = swingData.created.toDate().getTime();
-          } else if (swingData.created.seconds) {
-            timestamp = swingData.created.seconds * 1000;
-          } else if (swingData.created instanceof Date) {
-            timestamp = swingData.created.getTime();
-          } else {
-            timestamp = new Date(swingData.created).getTime();
-          }
-          
-          if (swingData.originalVideoName && timestamp) {
-            const constructedPath = `swings/${userId}/${timestamp}_${swingData.originalVideoName}`;
-            console.log('Trying constructed path:', constructedPath);
-            const videoRef = ref(storage, constructedPath);
-            await deleteObject(videoRef);
-            console.log('Video deleted from storage using constructed path');
-            storageDeleteSuccess = true;
-          }
-        } catch (constructError) {
-          console.error('Error deleting video using constructed path:', constructError);
-        }
-      }
-      
-      if (storageDeleteAttempted && !storageDeleteSuccess) {
-        console.warn('Attempted to delete video from storage but failed');
-        return { success: true, warning: 'Swing deleted but video file removal failed' };
-      } else if (!storageDeleteAttempted) {
-        console.log('No storage delete attempted - no suitable video URL or path found');
-      }
-      
-      return { success: true };
-    } catch (error) {
-      console.error('Error in deleteSwing function:', error);
-      throw error;
     }
-  };
+    
+    // Try using videoStoragePath if available and previous attempt failed
+    if (!storageDeleteSuccess && swingData.videoStoragePath) {
+      storageDeleteAttempted = true;
+      try {
+        console.log('Deleting video using direct storage path:', swingData.videoStoragePath);
+        const videoRef = ref(storage, swingData.videoStoragePath);
+        await deleteObject(videoRef);
+        console.log('Video deleted from storage successfully');
+        storageDeleteSuccess = true;
+      } catch (pathError) {
+        console.error('Error deleting video using direct path:', pathError);
+      }
+    }
+    
+    // Try a constructed path based on userId and timestamp
+    if (!storageDeleteSuccess && swingData.created) {
+      storageDeleteAttempted = true;
+      try {
+        // Construct a path based on the pattern used in saveSwingAnalysis
+        let timestamp;
+        if (swingData.created.toDate) {
+          timestamp = swingData.created.toDate().getTime();
+        } else if (swingData.created.seconds) {
+          timestamp = swingData.created.seconds * 1000;
+        } else if (swingData.created instanceof Date) {
+          timestamp = swingData.created.getTime();
+        } else {
+          timestamp = new Date(swingData.created).getTime();
+        }
+        
+        if (swingData.originalVideoName && timestamp) {
+          const constructedPath = `swings/${userId}/${timestamp}_${swingData.originalVideoName}`;
+          console.log('Trying constructed path:', constructedPath);
+          const videoRef = ref(storage, constructedPath);
+          await deleteObject(videoRef);
+          console.log('Video deleted from storage using constructed path');
+          storageDeleteSuccess = true;
+        }
+      } catch (constructError) {
+        console.error('Error deleting video using constructed path:', constructError);
+      }
+    }
+    
+    if (storageDeleteAttempted && !storageDeleteSuccess) {
+      console.warn('Attempted to delete video from storage but failed');
+      return { success: true, warning: 'Swing deleted but video file removal failed' };
+    } else if (!storageDeleteAttempted) {
+      console.log('No storage delete attempted - no suitable video URL or path found');
+    }
+    
+    // Try to update user stats after deletion
+    try {
+      await updateUserStats(userId);
+    } catch (statsError) {
+      console.error('Non-critical error updating user stats after deletion:', statsError);
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error in deleteSwing function:', error);
+    throw error;
+  }
+};
+
+/**
+ * Calculate consecutive days of practice
+ * @param {Array} swings - Array of swings with effectiveDate property
+ * @returns {number} Number of consecutive days practiced up to today
+ */
+const calculateConsecutiveDays = (swings) => {
+  if (!swings || swings.length === 0) return 0;
+  
+  // Get unique dates (normalized to day precision, no time)
+  const uniqueDates = new Set();
+  swings.forEach(swing => {
+    const date = swing.effectiveDate;
+    const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    uniqueDates.add(normalizedDate.getTime());
+  });
+  
+  const sortedDates = Array.from(uniqueDates)
+    .map(timestamp => new Date(timestamp))
+    .sort((a, b) => b - a); // Sort in descending order (newest first)
+  
+  // Check if most recent swing is today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // If most recent date isn't today, return 0
+  if (sortedDates.length === 0 || sortedDates[0].getTime() !== today.getTime()) return 0;
+  
+  let consecutiveDays = 1; // Start with today
+  
+  // Count consecutive days
+  for (let i = 0; i < sortedDates.length - 1; i++) {
+    const currentDate = sortedDates[i];
+    const nextDate = sortedDates[i+1];
+    
+    const oneDayBefore = new Date(currentDate);
+    oneDayBefore.setDate(oneDayBefore.getDate() - 1);
+    
+    if (oneDayBefore.getTime() === nextDate.getTime()) {
+      // This is the previous consecutive day
+      consecutiveDays++;
+    } else {
+      // Streak is broken
+      break;
+    }
+  }
+  
+  return consecutiveDays;
+};
 
 /**
  * Update user statistics in Firestore
@@ -396,11 +467,16 @@ const updateUserStats = async (userId) => {
     let earliestScore = 0;
     
     const swings = querySnapshot.docs
-      .map(doc => ({
-        ...doc.data(),
-        created: doc.data().created?.toDate() || new Date()
-      }))
-      .sort((a, b) => a.created - b.created);
+      .map(doc => {
+        const data = doc.data();
+        // Prioritize recordedDate over created date for historical tracking
+        const effectiveDate = data.recordedDate?.toDate() || data.created?.toDate() || new Date();
+        return {
+          ...data,
+          effectiveDate
+        };
+      })
+      .sort((a, b) => a.effectiveDate - b.effectiveDate);
     
     if (swings.length > 0) {
       swings.forEach(swing => {
@@ -430,6 +506,9 @@ const updateUserStats = async (userId) => {
       }
     });
     
+    // Calculate consecutive days streak
+    const consecutiveDays = calculateConsecutiveDays(swings);
+    
     // Get or create user stats document
     const userStatsRef = doc(db, USERS_COLLECTION, userId);
     const userStatsDoc = await getDoc(userStatsRef);
@@ -442,6 +521,7 @@ const updateUserStats = async (userId) => {
         improvementPercentage: earliestScore > 0 ? (improvement / earliestScore) * 100 : 0,
         clubUsage,
         outcomes,
+        consecutiveDays,
         updated: serverTimestamp()
       });
     } else {
@@ -454,6 +534,7 @@ const updateUserStats = async (userId) => {
         improvementPercentage: 0,
         clubUsage,
         outcomes,
+        consecutiveDays,
         created: serverTimestamp(),
         updated: serverTimestamp()
       });
@@ -485,7 +566,8 @@ const getUserStats = async (userId) => {
           improvement: 0,
           improvementPercentage: 0,
           clubUsage: {},
-          outcomes: {}
+          outcomes: {},
+          consecutiveDays: 0
         };
       }
       
@@ -563,27 +645,30 @@ const saveUserClubs = async (userId, clubs) => {
  * Get club-specific swing data for a user
  * @param {String} userId - The user ID
  * @param {String} clubId - The club ID
+ * @param {Boolean} orderByRecordedDate - If true, order by recorded date instead of analysis date
  * @returns {Promise<Array>} Array of swing data for the specified club
  */
-const getClubSwingData = async (userId, clubId) => {
+const getClubSwingData = async (userId, clubId, orderByRecordedDate = true) => {
   try {
     const swingsRef = collection(db, SWINGS_COLLECTION);
     const q = query(
       swingsRef, 
       where('userId', '==', userId),
       where('clubId', '==', clubId),
-      orderBy('created', 'desc')
+      orderBy(orderByRecordedDate ? 'recordedDate' : 'created', 'desc')
     );
     
     const querySnapshot = await getDocs(q);
     const swings = [];
     
     querySnapshot.forEach((doc) => {
+      const data = doc.data();
       swings.push({
         id: doc.id,
-        ...doc.data(),
-        created: doc.data().created?.toDate(), // Convert Firestore timestamp to JS Date
-        updated: doc.data().updated?.toDate()
+        ...data,
+        created: data.created?.toDate(), // Convert Firestore timestamp to JS Date
+        updated: data.updated?.toDate(),
+        recordedDate: data.recordedDate?.toDate() || data.created?.toDate()
       });
     });
     
@@ -605,10 +690,15 @@ const getUserProfile = async (userId) => {
     const docSnap = await getDoc(userDocRef);
     
     if (docSnap.exists()) {
+      const data = docSnap.data();
       return {
-        ...docSnap.data(),
-        created: docSnap.data().created?.toDate(),
-        updated: docSnap.data().updated?.toDate()
+        ...data,
+        created: data.created?.toDate(),
+        updated: data.updated?.toDate(),
+        // Convert recordedDate if present
+        defaultSwingDate: data.defaultSwingDate?.toDate?.() || data.defaultSwingDate,
+        // Ensure allowHistoricalSwings has a default value
+        allowHistoricalSwings: data.allowHistoricalSwings !== false
       };
     }
     
@@ -631,23 +721,34 @@ const saveUserProfile = async (userId, profileData) => {
     const userDocRef = doc(db, USERS_COLLECTION, userId);
     const docSnap = await getDoc(userDocRef);
     
+    // Process dates in profile data
+    const processedData = { ...profileData };
+    
+    if (processedData.defaultSwingDate) {
+      // Ensure defaultSwingDate is a Date object for Firestore
+      processedData.defaultSwingDate = 
+        processedData.defaultSwingDate instanceof Date 
+          ? processedData.defaultSwingDate 
+          : new Date(processedData.defaultSwingDate);
+    }
+    
     if (docSnap.exists()) {
       // Update existing profile
       await updateDoc(userDocRef, {
-        ...profileData,
+        ...processedData,
         updated: serverTimestamp()
       });
     } else {
       // Create new profile
       await setDoc(userDocRef, {
-        ...profileData,
+        ...processedData,
         created: serverTimestamp(),
         updated: serverTimestamp()
       });
     }
     
     return {
-      ...profileData,
+      ...processedData,
       updated: new Date()
     };
   } catch (error) {
@@ -667,16 +768,53 @@ const getUserData = async (userId) => {
     const docSnap = await getDoc(userDocRef);
     
     if (docSnap.exists()) {
+      const data = docSnap.data();
       return {
-        ...docSnap.data(),
-        created: docSnap.data().created?.toDate(),
-        updated: docSnap.data().updated?.toDate()
+        ...data,
+        created: data.created?.toDate(),
+        updated: data.updated?.toDate(),
+        // Convert any date fields
+        defaultSwingDate: data.defaultSwingDate?.toDate?.() || data.defaultSwingDate,
+        // Set default values for optional fields
+        allowHistoricalSwings: data.allowHistoricalSwings !== false
       };
     }
     
     return null;
   } catch (error) {
     console.error('Error getting user data:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get user swings grouped by date
+ * @param {String} userId - The user ID
+ * @returns {Promise<Object>} Object with dates as keys and arrays of swings as values
+ */
+const getSwingsByDate = async (userId) => {
+  try {
+    // Get all user swings
+    const swings = await getUserSwings(userId, true); // Order by recordedDate
+    
+    // Group by date (ignoring time)
+    const swingsByDate = {};
+    swings.forEach(swing => {
+      const recordedDate = swing.recordedDate instanceof Date ? 
+        swing.recordedDate : new Date(swing.recordedDate);
+      
+      const dateKey = recordedDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      if (!swingsByDate[dateKey]) {
+        swingsByDate[dateKey] = [];
+      }
+      
+      swingsByDate[dateKey].push(swing);
+    });
+    
+    return swingsByDate;
+  } catch (error) {
+    console.error('Error getting swings by date:', error);
     throw error;
   }
 };
@@ -693,5 +831,6 @@ export default {
   getClubSwingData,
   getUserProfile,
   saveUserProfile,
-  getUserData
+  getUserData,
+  getSwingsByDate
 };

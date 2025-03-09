@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ClubBag from './ClubBag';
 import ClubAnalytics from './ClubAnalytics';
 import firestoreService from '../services/firestoreService';
+import DateSelector from './DateSelector';
 
 const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClubsTab = false, pageParams }) => {
   const { currentUser, logout } = useAuth();
@@ -12,7 +13,8 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
     name: currentUser?.displayName || '',
     experience: 'intermediate',
     playFrequency: 'monthly',
-    handicap: ''
+    handicap: '',
+    allowHistoricalSwings: true  // Default to true for existing users
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -269,7 +271,31 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
                 style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
               />
             </div>
-            
+            <div className="form-group" style={{ 
+              marginTop: '25px', 
+              backgroundColor: '#f8f9fa', 
+              padding: '15px', 
+              borderRadius: '8px',
+              marginBottom: '20px'
+            }}>
+              <h3 style={{ marginTop: '0', marginBottom: '10px' }}>Historical Swing Tracking</h3>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    name="allowHistoricalSwings"
+                    checked={userData.allowHistoricalSwings !== false}
+                    onChange={handleInputChange}
+                    style={{ marginRight: '10px' }}
+                  />
+                  Allow tracking of historical swings with custom dates
+                </label>
+                <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '5px', marginLeft: '25px' }}>
+                  Enable this to upload and analyze videos from past practice sessions with their original recording dates.
+                </p>
+              </div>
+            </div>
             <div className="button-group" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
               <button 
                 className="button" 

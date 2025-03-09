@@ -13,22 +13,23 @@ const USE_MOCK_DATA = false; // Set to false to try real API
 /**
  * Analyzes a golf swing video using Gemini API with automatic fallback to mock data
  * @param {File} videoFile - The video file to analyze
+ * @param {Object} metadata - Additional metadata like club and date information
  * @returns {Promise} Promise that resolves to the analysis results (real or mock)
  */
-const analyzeGolfSwing = async (videoFile) => {
+const analyzeGolfSwing = async (videoFile, metadata = null) => {
   // If USE_MOCK_DATA is true, skip API call and generate mock data
   if (USE_MOCK_DATA) {
     console.log('Using mock data instead of real API');
     // Add a small delay to simulate API call
     await new Promise(resolve => setTimeout(resolve, 2000));
-    return createMockAnalysis(videoFile);
+    return createMockAnalysis(videoFile, metadata);
   }
 
   try {
     // Check if API key is configured
     if (!API_KEY) {
       console.error('Gemini API key is not configured');
-      return createMockAnalysis(videoFile); // Fallback to mock
+      return createMockAnalysis(videoFile, metadata); // Fallback to mock
     }
 
     // Log file details but don't enforce a size limit
@@ -47,17 +48,23 @@ const analyzeGolfSwing = async (videoFile) => {
       console.log('Successfully converted video to base64');
     } catch (error) {
       console.error('Error converting file to base64:', error);
-      return createMockAnalysis(videoFile); // Fallback to mock
+      return createMockAnalysis(videoFile, metadata); // Fallback to mock
     }
     
     // Get base64 data part
     const base64Data = base64Video.split('base64,')[1];
     if (!base64Data) {
       console.error('Failed to extract base64 data from video');
-      return createMockAnalysis(videoFile); // Fallback to mock
+      return createMockAnalysis(videoFile, metadata); // Fallback to mock
     }
 
     console.log('Preparing API request payload...');
+    
+    // Add club information to the prompt if available
+    let clubInfo = "";
+    if (metadata?.clubName) {
+      clubInfo = `\n\nThis swing was performed with a ${metadata.clubName}. Take this into account in your analysis.`;
+    }
     
     // Construct the request payload with a detailed prompt for better analysis
     const payload = {
@@ -82,7 +89,7 @@ const analyzeGolfSwing = async (videoFile) => {
    - confidence: Assess the decisiveness and commitment to the swing
    - focus: Evaluate setup routine and swing execution
 
-3. Provide three specific, actionable recommendations for improvement.
+3. Provide three specific, actionable recommendations for improvement.${clubInfo}
 
 Format your response ONLY as a valid JSON object with this exact structure:
 {
@@ -142,13 +149,13 @@ Format your response ONLY as a valid JSON object with this exact structure:
       // Check if we have a valid response structure
       if (!response.data || !response.data.candidates || !response.data.candidates[0]) {
         console.error('Invalid API response structure:', response.data);
-        return createMockAnalysis(videoFile); // Fallback to mock
+        return createMockAnalysis(videoFile, metadata); // Fallback to mock
       }
 
       const textResponse = response.data.candidates[0].content.parts[0].text;
       if (!textResponse) {
         console.error('No text in API response');
-        return createMockAnalysis(videoFile); // Fallback to mock
+        return createMockAnalysis(videoFile, metadata); // Fallback to mock
       }
       
       console.log('Parsing response text to JSON...');
@@ -167,7 +174,7 @@ Format your response ONLY as a valid JSON object with this exact structure:
           if (jsonStart === -1 || jsonEnd <= jsonStart) {
             console.error('No valid JSON found in response');
             console.error('Raw response:', textResponse);
-            return createMockAnalysis(videoFile); // Fallback to mock
+            return createMockAnalysis(videoFile, metadata); // Fallback to mock
           }
           
           const jsonString = textResponse.substring(jsonStart, jsonEnd);
@@ -177,7 +184,7 @@ Format your response ONLY as a valid JSON object with this exact structure:
         // Validate the parsed data has the expected structure and sanitize the data
         if (!analysisData.overallScore || !analysisData.metrics || !analysisData.recommendations) {
           console.error('Parsed data missing required fields:', analysisData);
-          return createMockAnalysis(videoFile); // Fallback to mock
+          return createMockAnalysis(videoFile, metadata); // Fallback to mock
         }
         
         // Ensure all metrics are within the 0-100 range
@@ -202,15 +209,23 @@ Format your response ONLY as a valid JSON object with this exact structure:
       } catch (error) {
         console.error('Error parsing API response:', error);
         console.error('Raw response text:', textResponse);
-        return createMockAnalysis(videoFile); // Fallback to mock
+        return createMockAnalysis(videoFile, metadata); // Fallback to mock
       }
+      
+      // Extract date information from metadata if available
+      const recordedDate = metadata?.recordedDate || new Date();
       
       // Add metadata to the analysis
       return {
         ...analysisData,
         id: Date.now().toString(),
-        date: new Date().toISOString(),
-        videoUrl: URL.createObjectURL(videoFile)
+        date: new Date().toISOString(), // Analysis date (now)
+        recordedDate: recordedDate instanceof Date ? recordedDate.toISOString() : recordedDate,
+        videoUrl: URL.createObjectURL(videoFile),
+        clubName: metadata?.clubName || null,
+        clubId: metadata?.clubId || null,
+        clubType: metadata?.clubType || null,
+        outcome: metadata?.outcome || null
       };
     } catch (error) {
       console.error('Error in API request:', error);
@@ -224,44 +239,85 @@ Format your response ONLY as a valid JSON object with this exact structure:
         // Still fall back to mock data
       }
       
-      return createMockAnalysis(videoFile); // Fallback to mock
+      return createMockAnalysis(videoFile, metadata); // Fallback to mock
     }
   } catch (error) {
     console.error('Unexpected error in analyzeGolfSwing:', error);
-    return createMockAnalysis(videoFile); // Fallback to mock for any unexpected errors
+    return createMockAnalysis(videoFile, metadata); // Fallback to mock for any unexpected errors
   }
 };
 
 /**
  * Create mock analysis data for fallback
  * @param {File} videoFile - The video file
+ * @param {Object} metadata - Additional metadata like club and date information
  * @returns {Object} Mock analysis data
  */
-const createMockAnalysis = (videoFile) => {
+const createMockAnalysis = (videoFile, metadata = null) => {
   console.log('Generating mock analysis data');
+  
+  // Extract date information from metadata if available
+  const recordedDate = metadata?.recordedDate || new Date();
+  
+  // Adjust mock data based on club type if available
+  let metrics = {
+    backswing: Math.floor(Math.random() * 40) + 60,
+    stance: Math.floor(Math.random() * 40) + 60,
+    grip: Math.floor(Math.random() * 40) + 60,
+    swingBack: Math.floor(Math.random() * 40) + 60,
+    swingForward: Math.floor(Math.random() * 40) + 60,
+    hipRotation: Math.floor(Math.random() * 40) + 60,
+    swingSpeed: Math.floor(Math.random() * 40) + 60,
+    shallowing: Math.floor(Math.random() * 40) + 60,
+    pacing: Math.floor(Math.random() * 40) + 60,
+    confidence: Math.floor(Math.random() * 40) + 60,
+    focus: Math.floor(Math.random() * 40) + 60,
+  };
+  
+  // Adjust recommendations based on club type
+  let recommendations = [
+    "Try to keep your left arm straight throughout your swing",
+    "Your grip appears to be too tight, which may be affecting your control",
+    "Focus on rotating your hips more during the downswing"
+  ];
+  
+  // Slightly customize mock data based on club type
+  if (metadata?.clubType === 'Wood') {
+    metrics.swingSpeed = Math.min(100, metrics.swingSpeed + 10);
+    recommendations[0] = "Focus on maintaining a consistent swing path with your wood";
+  } else if (metadata?.clubType === 'Iron') {
+    metrics.shallowing = Math.min(100, metrics.shallowing + 5);
+    recommendations[1] = "Work on hitting down on the ball with your iron";
+  } else if (metadata?.clubType === 'Wedge') {
+    metrics.stance = Math.min(100, metrics.stance + 8);
+    recommendations[2] = "Practice opening your stance slightly with your wedge";
+  } else if (metadata?.clubType === 'Putter') {
+    metrics.pacing = Math.min(100, metrics.pacing + 15);
+    metrics.focus = Math.min(100, metrics.focus + 10);
+    recommendations = [
+      "Keep your head still throughout your putting stroke",
+      "Focus on a smooth, pendulum-like motion",
+      "Maintain consistent tempo in your putting stroke"
+    ];
+  }
+  
+  // Calculate overall score from metrics
+  const overallScore = Math.floor(
+    Object.values(metrics).reduce((sum, value) => sum + value, 0) / Object.keys(metrics).length
+  );
+  
   return {
     id: Date.now().toString(),
-    date: new Date().toISOString(),
-    overallScore: Math.floor(Math.random() * 30) + 60,
-    metrics: {
-      backswing: Math.floor(Math.random() * 40) + 60,
-      stance: Math.floor(Math.random() * 40) + 60,
-      grip: Math.floor(Math.random() * 40) + 60,
-      swingBack: Math.floor(Math.random() * 40) + 60,
-      swingForward: Math.floor(Math.random() * 40) + 60,
-      hipRotation: Math.floor(Math.random() * 40) + 60,
-      swingSpeed: Math.floor(Math.random() * 40) + 60,
-      shallowing: Math.floor(Math.random() * 40) + 60,
-      pacing: Math.floor(Math.random() * 40) + 60,
-      confidence: Math.floor(Math.random() * 40) + 60,
-      focus: Math.floor(Math.random() * 40) + 60,
-    },
-    recommendations: [
-      "Try to keep your left arm straight throughout your swing",
-      "Your grip appears to be too tight, which may be affecting your control",
-      "Focus on rotating your hips more during the downswing"
-    ],
+    date: new Date().toISOString(), // Analysis date (now)
+    recordedDate: recordedDate instanceof Date ? recordedDate.toISOString() : recordedDate,
+    overallScore: overallScore,
+    metrics: metrics,
+    recommendations: recommendations,
     videoUrl: URL.createObjectURL(videoFile),
+    clubName: metadata?.clubName || null,
+    clubId: metadata?.clubId || null,
+    clubType: metadata?.clubType || null,
+    outcome: metadata?.outcome || null,
     _isMockData: true // Flag to indicate this is mock data
   };
 };

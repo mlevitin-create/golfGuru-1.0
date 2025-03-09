@@ -1,4 +1,3 @@
-// src/components/SwingAnalysis.js - Try this simplified approach
 import React, { useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firestoreService from '../services/firestoreService';
@@ -49,7 +48,8 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     );
   }
 
-  const formatDate = (dateString) => {
+  // Format date with time
+  const formatDateTime = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -57,6 +57,16 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
+    });
+  };
+
+  // Format date without time
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
   };
 
@@ -86,7 +96,16 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     <div className="analysis-container" ref={containerRef}>
       <div className="card">
         <h2>Swing Analysis</h2>
-        <p>Analyzed on {formatDate(swingData.date)}</p>
+        
+        {/* Date Information with both recorded and analyzed dates */}
+        <div className="date-info" style={{ marginBottom: '15px' }}>
+          {swingData.recordedDate && (
+            <p>
+              <strong>Recorded on:</strong> {formatDate(swingData.recordedDate)}
+            </p>
+          )}
+          <p><strong>Analyzed on:</strong> {formatDateTime(swingData.date)}</p>
+        </div>
 
         {/* Custom video container with controlled dimensions */}
         <div className="video-container" style={{ 
@@ -139,7 +158,6 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
           </div>
         </div>
 
-        {/* Rest of the component remains the same */}
         {/* Club information if available */}
         {swingData.clubName && (
           <div className="club-info" style={{ 
