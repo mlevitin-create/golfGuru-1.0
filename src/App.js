@@ -112,6 +112,7 @@ const AppContent = () => {
   // Load user data when authenticated
   useEffect(() => {
     const loadUserData = async () => {
+      console.log('Loading user data.  CurrentUser:', currentUser); // Add line here to see 
       if (currentUser) {
         try {
           // Fetch user's swing history
@@ -156,9 +157,10 @@ const AppContent = () => {
       
       // Save to Firestore if user is logged in
       if (currentUser) {
+        // Modified code in App.js:
         const savedSwing = await firestoreService.saveSwingAnalysis(
-          analysisResult, 
-          currentUser.uid, 
+          analysisResult, // Correct: Pass the entire analysisResult (containing overallScore)
+          currentUser.uid,
           videoFile,
           clubData
         );

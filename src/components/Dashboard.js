@@ -3,14 +3,16 @@ import { useAuth } from '../contexts/AuthContext';
 
 const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
   const { currentUser } = useAuth();
+  // Add this line to log the swingHistory prop
+  console.log('Dashboard - swingHistory:', swingHistory);
   // Calculate latest score and improvement if history exists
   const hasHistory = swingHistory && swingHistory.length > 0;
-  const latestSwing = hasHistory ? swingHistory[0] : null;
-  const previousSwing = hasHistory && swingHistory.length > 1 ? swingHistory[1] : null;
+  //const latestSwing = hasHistory ? swingHistory[0] : null;
+  //const previousSwing = hasHistory && swingHistory.length > 1 ? swingHistory[1] : null;
   
-  const improvementScore = latestSwing && previousSwing 
-    ? latestSwing.overallScore - previousSwing.overallScore 
-    : null;
+  //const improvementScore = latestSwing && previousSwing 
+    //? latestSwing.overallScore - previousSwing.overallScore 
+    //: null;
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -28,29 +30,6 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
     return '#e74c3c'; // Red for needs improvement
   };
 
-  // Find the best and worst metrics from latest swing
-  const getMetricExtremes = () => {
-    if (!latestSwing) return { best: null, worst: null };
-
-    let best = { name: '', value: 0 };
-    let worst = { name: '', value: 100 };
-
-    Object.entries(latestSwing.metrics).forEach(([key, value]) => {
-      const name = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-      
-      if (value > best.value) {
-        best = { name, value };
-      }
-      
-      if (value < worst.value) {
-        worst = { name, value };
-      }
-    });
-
-    return { best, worst };
-  };
-
-  // Calculate days since first upload
   const getDaysSinceFirstUpload = () => {
     if (!hasHistory || swingHistory.length === 0) return 0;
     
@@ -72,7 +51,6 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
     return diffDays || 1; // Return at least 1 day
   };
 
-  const { best, worst } = getMetricExtremes();
   const daysSinceFirstUpload = getDaysSinceFirstUpload();
 
   return (
@@ -111,7 +89,7 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
             <p>Total swings</p>
           </div>
 
-          <div className="dashboard-card">
+          {/*{/* <div className="dashboard-card">
             <h3>Average Score</h3>
             <div 
               style={{ 
@@ -121,7 +99,7 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
                 color: '#2c3e50'
               }}
             >
-              {userStats && userStats.averageScore ? userStats.averageScore.toFixed(1) : (swingHistory.reduce((sum, swing) => sum + swing.overallScore, 0) / swingHistory.length).toFixed(1)}
+              {userStats && userStats.averageScore ? userStats.averageScore.toFixed(1) : (swingHistory.reduce((sum, swing) => sum + (swing.overallScore || 0), 0) / swingHistory.length).toFixed(1)}
             </div>
             <p>Out of 100</p>
           </div>
@@ -137,7 +115,7 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
               {improvementScore !== null ? (improvementScore > 0 ? '+' : '') + improvementScore.toFixed(1) : '0.0'}
             </div>
             <p>Since last swing</p>
-          </div>
+          </div>*/}
 
           <div className="dashboard-card">
             <h3>Days Since First Upload</h3>
@@ -206,7 +184,7 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
             {/* Quick actions for Club Analytics and Stats */}
             <button 
               className="button" 
-              onClick={() => navigateTo('profile', { setupClubs: false, activeTab: 'analytics' })}
+              onClick={() => navigateTo('profile', { setupClubs: false, activeTab: 'stats' })}
               style={{ 
                 width: '100%',
                 marginBottom: '10px',
@@ -230,141 +208,6 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
               View Stats
             </button>
           </div>
-          
-          {best && worst && (
-            <div className="dashboard-card">
-              <h3>Swing Insights</h3>
-              <div style={{ textAlign: 'left', marginTop: '15px' }}>
-                <p><strong>Strongest area:</strong> {best.name} ({best.value}/100)</p>
-                <p><strong>Area to improve:</strong> {worst.name} ({worst.value}/100)</p>
-                <p style={{ marginTop: '15px' }}>
-                  <strong>Quick tip:</strong> Focus on improving your {worst.name.toLowerCase()} for better results.
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Enhanced Recent Swings Section */}
-      {hasHistory && swingHistory.length > 0 && (
-        <section className="recent-swings">
-          <h3>Recent Swings</h3>
-          <div style={{ 
-            maxHeight: '400px', 
-            overflowY: 'auto',
-            border: '1px solid #ddd',
-            borderRadius: '10px'
-          }}>
-            {swingHistory.slice(0, 5).map((swing, index) => (
-              <div 
-                key={swing.id || index} 
-                className="swing-history-item"
-                onClick={() => {
-                  // Navigate to analysis page with this specific swing data
-                  navigateTo('analysis', { swingData: swing });
-                }}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '15px',
-                  borderBottom: index < swingHistory.length - 1 ? '1px solid #ecf0f1' : 'none',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s ease',
-                  backgroundColor: 'transparent',
-                  borderRadius: index === 0 ? '10px 10px 0 0' : index === swingHistory.length - 1 ? '0 0 10px 10px' : '0'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '1.1rem' }}>{formatDate(swing.date)}</strong>
-                    {swing.clubName && (
-                      <span style={{ 
-                        backgroundColor: '#e8f4fd', 
-                        color: '#3498db',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontSize: '0.8rem',
-                        marginLeft: '10px',
-                        fontWeight: 'bold'
-                      }}>
-                        {swing.clubName}
-                      </span>
-                    )}
-                    {swing.outcome && (
-                      <span style={{ 
-                        backgroundColor: '#eafaf1', 
-                        color: '#27ae60',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontSize: '0.8rem',
-                        marginLeft: '8px'
-                      }}>
-                        {swing.outcome.charAt(0).toUpperCase() + swing.outcome.slice(1)}
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Miniature metrics display */}
-                  <div style={{ display: 'flex', gap: '10px', fontSize: '0.85rem', color: '#7f8c8d' }}>
-                    {swing.metrics && Object.entries(swing.metrics)
-                      .sort((a, b) => b[1] - a[1]) // Sort by highest value
-                      .slice(0, 3) // Take top 3 metrics
-                      .map(([key, value]) => (
-                        <span key={key}>
-                          {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).split(' ')[0]}: {value}
-                        </span>
-                      ))
-                    }
-                  </div>
-                </div>
-                
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    backgroundColor: getScoreColor(swing.overallScore),
-                    width: '45px',
-                    height: '45px',
-                    borderRadius: '50%',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    fontSize: '1.2rem',
-                    marginRight: '5px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }}>
-                    {swing.overallScore}
-                  </div>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M9 18L15 12L9 6" stroke="#bdc3c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          {swingHistory.length > 5 && (
-            <div style={{ textAlign: 'center', marginTop: '10px' }}>
-              <button 
-                onClick={() => navigateTo('tracker')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#3498db',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem',
-                  padding: '5px 10px',
-                  textDecoration: 'underline'
-                }}
-              >
-                View All Swings
-              </button>
-            </div>
-          )}
         </section>
       )}
       
