@@ -202,18 +202,35 @@ const AppContent = () => {
     }
   };
 
-  // Enhanced navigation handler with scroll to top functionality
-  const navigateTo = (page, params = null) => {
-    setCurrentPage(page);
-    setPageParams(params);
-    setError(null);
-    
-    // Scroll to the top of the page
+// Enhanced navigation handler with robust scroll to top functionality
+const navigateTo = (page, params = null) => {
+  // Update the current page and params
+  setCurrentPage(page);
+  setPageParams(params);
+  setError(null);
+  
+  // Force scroll to top - multiple approaches for better browser/device compatibility
+  try {
+    // Method 1: Using scrollTo with auto behavior (immediate)
     window.scrollTo({
       top: 0,
-      behavior: 'smooth' // Use 'auto' for instant scrolling
+      left: 0,
+      behavior: 'auto' // Changed from 'smooth' to 'auto' for more immediate response
     });
-  };
+    
+    // Method 2: For older browsers or if the above doesn't work
+    setTimeout(() => {
+      window.scrollTo(0, 0);
+      
+      // Method 3: Additional backup for mobile
+      document.body.scrollTop = 0; // For Safari
+      document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
+    }, 10);
+  } catch (err) {
+    // Fallback for any browser that doesn't support the options object
+    window.scrollTo(0, 0);
+  }
+};
 
   // Render appropriate component based on current page
   const renderPage = () => {
@@ -327,6 +344,7 @@ const AppContent = () => {
               currentPage={currentPage} 
               navigateTo={navigateTo} 
               showProfile={!!currentUser}
+              pageParams={pageParams}
             />
           </div>
         )}
@@ -336,14 +354,12 @@ const AppContent = () => {
         {renderPage()}
       </main>
       
-      {/* Only show desktop navigation on non-mobile screens */}
-      {!isMobile && (
-        <Navigation 
-          currentPage={currentPage} 
-          navigateTo={navigateTo} 
-          showProfile={!!currentUser}
-        />
-      )}
+      {/* Show navigation for both mobile and desktop - this keeps the bottom navigation */}
+      <Navigation 
+        currentPage={currentPage} 
+        navigateTo={navigateTo} 
+        showProfile={!!currentUser}
+      />
       
       {/* Modals */}
       <Modal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)}>

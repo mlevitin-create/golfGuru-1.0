@@ -1,11 +1,11 @@
 // src/components/MobileNavDropdown.js
 import React, { useState } from 'react';
 
-const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false }) => {
+const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false, pageParams }) => {
   const [isOpen, setIsOpen] = useState(false);
   
-  const handleNavigate = (page) => {
-    navigateTo(page);
+  const handleNavigate = (page, params = null) => {
+    navigateTo(page, params);
     setIsOpen(false);
   };
   
@@ -20,7 +20,7 @@ const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false }) => 
   };
 
   return (
-    <div className="mobile-nav-dropdown">
+    <div className="mobile-nav-dropdown" style={{ position: 'relative', zIndex: 100 }}>
       {/* Dropdown toggle button */}
       <button 
         className="dropdown-toggle"
@@ -68,8 +68,8 @@ const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false }) => 
             right: 0,
             backgroundColor: 'white',
             border: '1px solid #ddd',
-            borderRadius: '0 0 4px 4px',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+            borderRadius: '0 0 8px 8px',
+            boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
             zIndex: 5,
             marginTop: '-1px'
           }}
@@ -80,8 +80,10 @@ const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false }) => 
             style={{
               padding: '12px 16px',
               cursor: 'pointer',
-              backgroundColor: currentPage === 'dashboard' ? '#f0f0f0' : 'transparent',
-              borderBottom: '1px solid #eee'
+              backgroundColor: currentPage === 'dashboard' ? '#f0f7ff' : 'transparent',
+              borderBottom: '1px solid #eee',
+              color: '#333',
+              fontWeight: currentPage === 'dashboard' ? 'bold' : 'normal'
             }}
           >
             Dashboard
@@ -92,8 +94,10 @@ const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false }) => 
             style={{
               padding: '12px 16px',
               cursor: 'pointer',
-              backgroundColor: currentPage === 'upload' ? '#f0f0f0' : 'transparent',
-              borderBottom: '1px solid #eee'
+              backgroundColor: currentPage === 'upload' ? '#f0f7ff' : 'transparent',
+              borderBottom: '1px solid #eee',
+              color: '#333',
+              fontWeight: currentPage === 'upload' ? 'bold' : 'normal'
             }}
           >
             Upload Swing
@@ -104,8 +108,10 @@ const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false }) => 
             style={{
               padding: '12px 16px',
               cursor: 'pointer',
-              backgroundColor: currentPage === 'tracker' ? '#f0f0f0' : 'transparent',
-              borderBottom: '1px solid #eee'
+              backgroundColor: currentPage === 'tracker' ? '#f0f7ff' : 'transparent',
+              borderBottom: '1px solid #eee',
+              color: '#333',
+              fontWeight: currentPage === 'tracker' ? 'bold' : 'normal'
             }}
           >
             Progress Tracker
@@ -116,8 +122,10 @@ const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false }) => 
             style={{
               padding: '12px 16px',
               cursor: 'pointer',
-              backgroundColor: currentPage === 'comparison' ? '#f0f0f0' : 'transparent',
-              borderBottom: '1px solid #eee'
+              backgroundColor: currentPage === 'comparison' ? '#f0f7ff' : 'transparent',
+              borderBottom: '1px solid #eee',
+              color: '#333',
+              fontWeight: currentPage === 'comparison' ? 'bold' : 'normal'
             }}
           >
             Pro Comparison
@@ -129,25 +137,83 @@ const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false }) => 
               style={{
                 padding: '12px 16px',
                 cursor: 'pointer',
-                backgroundColor: '#f0f0f0',
-                borderBottom: '1px solid #eee'
+                backgroundColor: '#f0f7ff',
+                borderBottom: '1px solid #eee',
+                color: '#333',
+                fontWeight: 'bold'
               }}
             >
               Swing Analysis
             </div>
           )}
           {showProfile && (
-            <div 
-              className={`dropdown-item ${currentPage === 'profile' ? 'active' : ''}`}
-              onClick={() => handleNavigate('profile')}
-              style={{
-                padding: '12px 16px',
-                cursor: 'pointer',
-                backgroundColor: currentPage === 'profile' ? '#f0f0f0' : 'transparent'
-              }}
-            >
-              My Profile
-            </div>
+            <>
+              <div 
+                className={`dropdown-item ${currentPage === 'profile' && (!pageParams || !pageParams.activeTab) ? 'active' : ''}`}
+                onClick={() => handleNavigate('profile')}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  backgroundColor: currentPage === 'profile' && (!pageParams || !pageParams.activeTab) ? '#f0f7ff' : 'transparent',
+                  borderBottom: '1px solid #eee',
+                  color: '#333',
+                  fontWeight: currentPage === 'profile' && (!pageParams || !pageParams.activeTab) ? 'bold' : 'normal'
+                }}
+              >
+                My Profile
+              </div>
+              <div style={{ 
+                backgroundColor: '#f8f9fa',
+                padding: '8px 8px 8px 16px',
+                borderBottom: '1px solid #eee',
+                color: '#666',
+                fontSize: '0.85rem',
+                fontWeight: 'bold'
+              }}>
+                Profile Sections
+              </div>
+              <div 
+                className="dropdown-item"
+                onClick={() => handleNavigate('profile', { setupClubs: false, activeTab: 'stats' })}
+                style={{
+                  padding: '12px 16px 12px 24px',
+                  cursor: 'pointer',
+                  backgroundColor: currentPage === 'profile' && pageParams && pageParams.activeTab === 'stats' ? '#f0f7ff' : 'transparent',
+                  borderBottom: '1px solid #eee',
+                  color: '#333',
+                  fontWeight: currentPage === 'profile' && pageParams && pageParams.activeTab === 'stats' ? 'bold' : 'normal'
+                }}
+              >
+                Stats
+              </div>
+              <div 
+                className="dropdown-item"
+                onClick={() => handleNavigate('profile', { setupClubs: false, activeTab: 'clubs' })}
+                style={{
+                  padding: '12px 16px 12px 24px',
+                  cursor: 'pointer',
+                  backgroundColor: currentPage === 'profile' && pageParams && pageParams.activeTab === 'clubs' ? '#f0f7ff' : 'transparent',
+                  borderBottom: '1px solid #eee',
+                  color: '#333',
+                  fontWeight: currentPage === 'profile' && pageParams && pageParams.activeTab === 'clubs' ? 'bold' : 'normal'
+                }}
+              >
+                My Clubs
+              </div>
+              <div 
+                className="dropdown-item"
+                onClick={() => handleNavigate('profile', { setupClubs: false, activeTab: 'analytics' })}
+                style={{
+                  padding: '12px 16px 12px 24px',
+                  cursor: 'pointer',
+                  backgroundColor: currentPage === 'profile' && pageParams && pageParams.activeTab === 'analytics' ? '#f0f7ff' : 'transparent',
+                  color: '#333',
+                  fontWeight: currentPage === 'profile' && pageParams && pageParams.activeTab === 'analytics' ? 'bold' : 'normal'
+                }}
+              >
+                Club Analytics
+              </div>
+            </>
           )}
         </div>
       )}
