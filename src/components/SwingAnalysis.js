@@ -141,6 +141,12 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     // If no insights yet, return null
     if (!insights) return null;
 
+    // Validate insights structure before rendering
+    if (!insights.goodAspects || !insights.improvementAreas || !insights.technicalBreakdown || !insights.recommendations) {
+      console.error("Invalid insights structure:", insights);
+      return <div>Error loading insights.</div>; // Or a more user-friendly message
+    }
+
     return (
       <div 
         className="metric-insights"
@@ -162,9 +168,13 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
               {section === 'recommendations' && 'Actionable Recommendations'}
             </h4>
             <ul style={{ paddingLeft: '20px', marginBottom: '10px' }}>
-              {insights[section].map((item, index) => (
-                <li key={index} style={{ marginBottom: '5px' }}>{item}</li>
-              ))}
+              {insights && insights[section] && Array.isArray(insights[section]) ? (
+                insights[section].map((item, index) => (
+                  <li key={index} style={{ marginBottom: '5px' }}>{item}</li>
+                ))
+              ) : (
+                <li>No data available</li> // Or any other fallback
+              )}
             </ul>
           </div>
         ))}

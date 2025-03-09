@@ -40,7 +40,7 @@ const analyzeGolfSwing = async (videoFile, metadata = null) => {
       size: `${(videoFile.size / (1024 * 1024)).toFixed(2)}MB`,
       lastModified: new Date(videoFile.lastModified).toISOString()
     });
-    
+
     // Convert video to base64
     let base64Video;
     try {
@@ -50,7 +50,7 @@ const analyzeGolfSwing = async (videoFile, metadata = null) => {
       console.error('Error converting file to base64:', error);
       return createMockAnalysis(videoFile, metadata); // Fallback to mock
     }
-    
+
     // Get base64 data part
     const base64Data = base64Video.split('base64,')[1];
     if (!base64Data) {
@@ -59,13 +59,13 @@ const analyzeGolfSwing = async (videoFile, metadata = null) => {
     }
 
     console.log('Preparing API request payload...');
-    
+
     // Add club information to the prompt if available
     let clubInfo = "";
     if (metadata?.clubName) {
       clubInfo = `\n\nThis swing was performed with a ${metadata.clubName}. Take this into account in your analysis.`;
     }
-    
+
     // Construct the request payload with a detailed prompt for better analysis
     const payload = {
       contents: [
@@ -73,7 +73,7 @@ const analyzeGolfSwing = async (videoFile, metadata = null) => {
           parts: [
             {
               text: `You are a professional golf coach with expertise in swing analysis. Analyze this golf swing video in detail and provide the following information:
-              
+
 1. Overall swing score (0-100) based on proper form, mechanics, and effectiveness.
 
 2. Score each of the following metrics from 0-100:
@@ -124,13 +124,13 @@ Format your response ONLY as a valid JSON object with this exact structure:
         }
       ],
       generationConfig: {
-        temperature: 0.1, // Low temperature for more consistent, predictable responses
+        temperature: 0.5, // Low temperature for more consistent, predictable responses
         maxOutputTokens: 2048
       }
     };
 
     console.log('Sending request to Gemini API...');
-    
+
     try {
       // Make the API request with timeout
       const response = await axios.post(
@@ -145,7 +145,7 @@ Format your response ONLY as a valid JSON object with this exact structure:
       );
 
       console.log('Received response from Gemini API');
-      
+
       // Check if we have a valid response structure
       if (!response.data || !response.data.candidates || !response.data.candidates[0]) {
         console.error('Invalid API response structure:', response.data);
@@ -157,9 +157,9 @@ Format your response ONLY as a valid JSON object with this exact structure:
         console.error('No text in API response');
         return createMockAnalysis(videoFile, metadata); // Fallback to mock
       }
-      
+
       console.log('Parsing response text to JSON...');
-      
+
       // Try to find and parse JSON in the response
       let analysisData;
       try {
@@ -170,30 +170,30 @@ Format your response ONLY as a valid JSON object with this exact structure:
           // Fall back to extracting JSON from text
           const jsonStart = textResponse.indexOf('{');
           const jsonEnd = textResponse.lastIndexOf('}') + 1;
-          
+
           if (jsonStart === -1 || jsonEnd <= jsonStart) {
             console.error('No valid JSON found in response');
             console.error('Raw response:', textResponse);
             return createMockAnalysis(videoFile, metadata); // Fallback to mock
           }
-          
+
           const jsonString = textResponse.substring(jsonStart, jsonEnd);
           analysisData = JSON.parse(jsonString);
         }
-        
+
         // Validate the parsed data has the expected structure and sanitize the data
         if (!analysisData.overallScore || !analysisData.metrics || !analysisData.recommendations) {
           console.error('Parsed data missing required fields:', analysisData);
           return createMockAnalysis(videoFile, metadata); // Fallback to mock
         }
-        
+
         // Ensure all metrics are within the 0-100 range
         analysisData.overallScore = Math.min(100, Math.max(0, Math.round(analysisData.overallScore)));
-        
+
         Object.keys(analysisData.metrics).forEach(key => {
           analysisData.metrics[key] = Math.min(100, Math.max(0, Math.round(analysisData.metrics[key])));
         });
-        
+
         // Ensure we have exactly 3 recommendations
         if (!Array.isArray(analysisData.recommendations) || analysisData.recommendations.length < 1) {
           analysisData.recommendations = [
@@ -204,17 +204,17 @@ Format your response ONLY as a valid JSON object with this exact structure:
         } else if (analysisData.recommendations.length > 3) {
           analysisData.recommendations = analysisData.recommendations.slice(0, 3);
         }
-        
+
         console.log('Successfully parsed analysis data');
       } catch (error) {
         console.error('Error parsing API response:', error);
         console.error('Raw response text:', textResponse);
         return createMockAnalysis(videoFile, metadata); // Fallback to mock
       }
-      
+
       // Extract date information from metadata if available
       const recordedDate = metadata?.recordedDate || new Date();
-      
+
       // Add metadata to the analysis
       return {
         ...analysisData,
@@ -231,14 +231,14 @@ Format your response ONLY as a valid JSON object with this exact structure:
       console.error('Error in API request:', error);
       console.error('Error details:', error.response?.data);
       console.error('Error status:', error.response?.status);
-      
+
       // Check if it's specifically a size-related error
-      if (error.response?.data?.error?.message?.includes('size') || 
-          error.response?.status === 413) {
+      if (error.response?.data?.error?.message?.includes('size') ||
+        error.response?.status === 413) {
         console.error('The API rejected the file due to size limitations');
         // Still fall back to mock data
       }
-      
+
       return createMockAnalysis(videoFile, metadata); // Fallback to mock
     }
   } catch (error) {
@@ -255,10 +255,10 @@ Format your response ONLY as a valid JSON object with this exact structure:
  */
 const createMockAnalysis = (videoFile, metadata = null) => {
   console.log('Generating mock analysis data');
-  
+
   // Extract date information from metadata if available
   const recordedDate = metadata?.recordedDate || new Date();
-  
+
   // Adjust mock data based on club type if available
   let metrics = {
     backswing: Math.floor(Math.random() * 40) + 60,
@@ -273,14 +273,14 @@ const createMockAnalysis = (videoFile, metadata = null) => {
     confidence: Math.floor(Math.random() * 40) + 60,
     focus: Math.floor(Math.random() * 40) + 60,
   };
-  
+
   // Adjust recommendations based on club type
   let recommendations = [
     "Try to keep your left arm straight throughout your swing",
     "Your grip appears to be too tight, which may be affecting your control",
     "Focus on rotating your hips more during the downswing"
   ];
-  
+
   // Slightly customize mock data based on club type
   if (metadata?.clubType === 'Wood') {
     metrics.swingSpeed = Math.min(100, metrics.swingSpeed + 10);
@@ -300,12 +300,12 @@ const createMockAnalysis = (videoFile, metadata = null) => {
       "Maintain consistent tempo in your putting stroke"
     ];
   }
-  
+
   // Calculate overall score from metrics
   const overallScore = Math.floor(
     Object.values(metrics).reduce((sum, value) => sum + value, 0) / Object.keys(metrics).length
   );
-  
+
   return {
     id: Date.now().toString(),
     date: new Date().toISOString(), // Analysis date (now)
@@ -351,127 +351,141 @@ const generateMetricInsights = async (swingData, metricKey) => {
   try {
     // Sanitize and validate input
     if (!swingData || !metricKey) {
-      throw new Error('Invalid input for metric insights generation');
+      console.error('Invalid input: Missing swingData or metricKey');
+      return getDefaultInsights(metricKey);
     }
 
     // Ensure the metric value is a number and within 0-100 range
     const metricValue = Number(swingData.metrics[metricKey] || 0);
     const safeMetricValue = Math.max(0, Math.min(100, metricValue));
 
-    // Construct a more robust prompt
-    const prompt = JSON.stringify({
-      task: 'Golf Swing Metric Analysis',
-      metric: {
-        name: metricKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
-        score: safeMetricValue
-      },
-      instructions: [
-        'Provide a professional, constructive golf swing analysis.',
-        'Be specific and actionable in your insights.',
-        'Focus on technique and improvement strategies.'
-      ],
-      outputFormat: {
-        goodAspects: 'Array of positive observations',
-        improvementAreas: 'Array of specific improvement suggestions',
-        technicalBreakdown: 'Array of technical insights',
-        recommendations: 'Array of actionable tips'
-      }
-    });
+    // Detailed prompt construction with error handling
+    const createPrompt = () => {
+      const metricName = metricKey.replace(/([A-Z])/g, ' $1').toLowerCase();
 
-    // Construct the payload for Gemini API
-    const payload = {
-      contents: [
-        {
-          parts: [
-            {
-              text: `Analyze a golf swing metric with the following context:
-
-${prompt}
-
-Detailed requirements:
-1. For good aspects, highlight what the golfer is doing correctly
-2. For improvement areas, pinpoint specific technical issues
-3. Technical breakdown should include biomechanical observations
-4. Recommendations must be practical and implementable
-
-Respond ONLY with a valid JSON object matching the specified output format.`
-            }
-          ]
+      return JSON.stringify({
+        task: "Golf Swing Metric Analysis",
+        metric: {
+          name: metricName,
+          score: safeMetricValue
+        },
+        instructions: [
+          "Provide a professional golf swing analysis",
+          "Focus on technical aspects of the swing",
+          "Give actionable feedback"
+        ],
+        outputFormat: {
+          metricName: "string",
+          score: "number (0-100)",
+          tone: "string (excellent/good/needs improvement/poor)",
+          goodAspects: "array of strings",
+          improvementAreas: "array of strings",
+          technicalBreakdown: "array of strings",
+          recommendations: "array of strings"
         }
-      ],
+      });
+    };
+
+    // Prepare payload with robust configuration
+    const payload = {
+      contents: [{
+        parts: [{
+          text: `Analyze a golf swing metric based on the following context:
+
+Metric Context: ${createPrompt()}
+
+Please provide a detailed, professional analysis following these guidelines:
+1. Assess the metric's performance objectively
+2. Highlight both strengths and areas for improvement
+3. Provide specific, actionable recommendations
+4. Use clear, concise language
+5. Strictly adhere to the JSON output format
+
+Your response should be a valid JSON object that can be directly parsed.`
+        }]
+      }],
       generationConfig: {
-        temperature: 0.2, // Low temperature for consistent responses
+        temperature: 0.5,
         maxOutputTokens: 1024,
-        responseFormat: { type: "JSON" }
+        // Removed responseFormat to see if it resolves 400 error
       }
     };
 
-    // Make API call with enhanced error handling
+    // Add comprehensive logging
+    console.log('Payload being sent:', JSON.stringify(payload, null, 2));
+
+    // More robust axios configuration
     const response = await axios.post(
       `${API_URL}?key=${API_KEY}`,
       payload,
       {
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
-        timeout: 30000, // 30 second timeout
+        timeout: 30000,
         validateStatus: function (status) {
-          // Accept only 200 status codes
-          return status >= 200 && status < 300;
+          return status >= 200 && status < 300; // Default
         }
       }
     );
 
-    // Extract and parse the JSON response
-    const textResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!textResponse) {
-      console.error('No text response from Gemini API');
-      return getDefaultInsights(metricKey);
-    }
-
-    // Try to parse the JSON, with robust fallback parsing
-    let insights;
-    try {
-      // First try direct parsing
-      insights = JSON.parse(textResponse);
-    } catch (e) {
-      // Fallback: extract JSON from text
+    // Enhanced response parsing
+    const extractInsights = (responseData) => {
       try {
-        const jsonStart = textResponse.indexOf('{');
-        const jsonEnd = textResponse.lastIndexOf('}') + 1;
-        
-        if (jsonStart !== -1 && jsonEnd > jsonStart) {
-          const jsonString = textResponse.substring(jsonStart, jsonEnd);
-          insights = JSON.parse(jsonString);
-        } else {
-          throw new Error('Could not extract JSON');
+        // Multiple strategies to extract insights
+        const candidates = responseData?.candidates;
+        if (!candidates || candidates.length === 0) {
+          console.error('No candidates in response');
+          return getDefaultInsights(metricKey);
         }
+
+        const textResponse = candidates[0]?.content?.parts?.[0]?.text;
+        if (!textResponse) {
+          console.error('No text in response');
+          return getDefaultInsights(metricKey);
+        }
+
+        // Try to extract JSON
+        const jsonMatch = textResponse.match(/```json\n([\s\S]*)\n```/);
+        const jsonText = jsonMatch ? jsonMatch[1] : textResponse;
+
+        let insights;
+        try {
+          insights = JSON.parse(jsonText);
+        } catch (jsonError) {
+          console.error("Error parsing JSON:", jsonError);
+          console.error("Raw JSON text:", jsonText);
+          return getDefaultInsights(metricKey);
+        }
+
+        // Validate insights structure
+        if (!insights.goodAspects || !insights.improvementAreas || !insights.technicalBreakdown || !insights.recommendations) {
+          console.error('Invalid insights structure:', insights);
+          return getDefaultInsights(metricKey);
+        }
+
+        return insights;
       } catch (parseError) {
-        console.error('JSON parsing error:', parseError);
+        console.error('Parsing error:', parseError);
         return getDefaultInsights(metricKey);
       }
-    }
+    };
 
-    // Validate the insights structure
-    if (!insights.goodAspects || !insights.improvementAreas || 
-        !insights.technicalBreakdown || !insights.recommendations) {
-      console.error('Invalid insights structure:', insights);
-      return getDefaultInsights(metricKey);
-    }
+    // Extract and return insights
+    return extractInsights(response.data);
 
-    return insights;
   } catch (error) {
-    console.error(`Error generating insights for ${metricKey}:`, error);
-    
-    // Log more detailed error information
-    if (error.response) {
-      console.error('Response data:', error.response.data);
-      console.error('Response status:', error.response.status);
-      console.error('Response headers:', error.response.headers);
-    }
+    // Comprehensive error logging
+    console.error('Full error in generateMetricInsights:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      responseData: error.response?.data,
+      responseStatus: error.response?.status
+    });
 
-    // Return default insights
+    // Return default insights on any error
     return getDefaultInsights(metricKey);
   }
 };
@@ -490,8 +504,10 @@ const getDefaultInsights = (metricKey) => {
   };
 
   // Optionally add some very generic insights based on metric key
-  switch(metricKey) {
+  switch (metricKey) {
     case 'backswing':
+      defaultInsights.goodAspects = ['Good wrist hinge.'];
+      defaultInsights.improvementAreas = ['Maintain a consistent spine angle.'];
       defaultInsights.recommendations = [
         'Maintain a consistent spine angle',
         'Keep your left arm relatively straight',
@@ -499,13 +515,97 @@ const getDefaultInsights = (metricKey) => {
       ];
       break;
     case 'stance':
+      defaultInsights.goodAspects = ['Balanced posture.'];
+      defaultInsights.improvementAreas = ['Ensure consistent foot placement.'];
       defaultInsights.recommendations = [
         'Ensure balanced weight distribution',
         'Practice consistent foot positioning',
         'Maintain athletic and stable posture'
       ];
       break;
-    // Add more specific default insights for other metrics as needed
+    case 'grip':
+      defaultInsights.goodAspects = ['Neutral grip position.'];
+      defaultInsights.improvementAreas = ['Check grip pressure.'];
+      defaultInsights.recommendations = [
+        'Maintain consistent grip pressure',
+        'Ensure proper hand placement',
+        'Practice grip alignment'
+      ];
+      break;
+    case 'swingBack':
+      defaultInsights.goodAspects = ['Smooth takeaway.'];
+      defaultInsights.improvementAreas = ['Control rotation speed.'];
+      defaultInsights.recommendations = [
+        'Control rotation speed',
+        'Maintain swing plane',
+        'Practice consistent rotation'
+      ];
+      break;
+    case 'swingForward':
+      defaultInsights.goodAspects = ['Good extension through impact.'];
+      defaultInsights.improvementAreas = ['Maintain consistent swing path.'];
+      defaultInsights.recommendations = [
+        'Maintain consistent swing path',
+        'Ensure proper follow-through',
+        'Practice extension through impact'
+      ];
+      break;
+    case 'hipRotation':
+      defaultInsights.goodAspects = ['Active hip turn.'];
+      defaultInsights.improvementAreas = ['Coordinate hip and shoulder rotation.'];
+      defaultInsights.recommendations = [
+        'Coordinate hip and shoulder rotation',
+        'Ensure proper hip turn',
+        'Practice hip rotation drills'
+      ];
+      break;
+    case 'swingSpeed':
+      defaultInsights.goodAspects = ['Good acceleration.'];
+      defaultInsights.improvementAreas = ['Control tempo.'];
+      defaultInsights.recommendations = [
+        'Control tempo',
+        'Maintain consistent acceleration',
+        'Practice tempo drills'
+      ];
+      break;
+    case 'shallowing':
+      defaultInsights.goodAspects = ['Good club path.'];
+      defaultInsights.improvementAreas = ['Maintain consistent shaft position.'];
+      defaultInsights.recommendations = [
+        'Maintain consistent shaft position',
+        'Ensure proper club path',
+        'Practice shallowing drills'
+      ];
+      break;
+    case 'pacing':
+      defaultInsights.goodAspects = ['Smooth rhythm.'];
+      defaultInsights.improvementAreas = ['Maintain consistent timing.'];
+      defaultInsights.recommendations = [
+        'Maintain consistent timing',
+        'Ensure smooth rhythm',
+        'Practice timing drills'
+      ];
+      break;
+    case 'confidence':
+      defaultInsights.goodAspects = ['Decisive swing.'];
+      defaultInsights.improvementAreas = ['Commit to swing.'];
+      defaultInsights.recommendations = [
+        'Commit to swing',
+        'Ensure decisiveness',
+        'Practice confidence drills'
+      ];
+      break;
+    case 'focus':
+      defaultInsights.goodAspects = ['Good setup routine.'];
+      defaultInsights.improvementAreas = ['Maintain concentration.'];
+      defaultInsights.recommendations = [
+        'Maintain concentration',
+        'Ensure proper setup routine',
+        'Practice focus drills'
+      ];
+      break;
+    default:
+      break;
   }
 
   return defaultInsights;
