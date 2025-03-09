@@ -1,23 +1,8 @@
-// src/components/Dashboard.js
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
   const { currentUser } = useAuth();
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  
-  // Check if the screen is mobile size
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
-  
   // Calculate latest score and improvement if history exists
   const hasHistory = swingHistory && swingHistory.length > 0;
   const latestSwing = hasHistory ? swingHistory[0] : null;
@@ -34,6 +19,13 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  // Get color based on score value
+  const getScoreColor = (score) => {
+    if (score >= 80) return '#27ae60'; // Green for good
+    if (score >= 60) return '#f39c12'; // Orange for average
+    return '#e74c3c'; // Red for needs improvement
   };
 
   // Find the best and worst metrics from latest swing
@@ -89,29 +81,7 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
         <h2>{currentUser ? `Welcome back, ${currentUser.displayName?.split(' ')[0] || 'Golfer'}!` : 'Welcome to Golf Guru'}</h2>
         <p>Your personal AI golf coach to help improve your swing</p>
 
-        {/* Mobile Upload Button - Always show at top on mobile */}
-        {isMobile && (
-          <button 
-            className="button" 
-            onClick={() => navigateTo('upload')}
-            style={{ 
-              width: '100%',
-              marginTop: '15px',
-              padding: '12px',
-              fontSize: '1rem',
-              backgroundColor: '#3498db',
-              borderRadius: '8px',
-              border: 'none',
-              color: 'white',
-              fontWeight: 'bold',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-            }}
-          >
-            Upload Swing Video
-          </button>
-        )}
-
-        {!hasHistory && !isMobile && (
+        {!hasHistory && (
           <div className="get-started">
             <p>Upload your first swing video to get started!</p>
             <button 
@@ -182,7 +152,7 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
             <p>Days tracking progress</p>
           </div>
 
-          {/* Fifth card for practice consistency */}
+          {/* Practice consistency card */}
           <div className="dashboard-card">
             <h3>Practice Consistency</h3>
             <div style={{ 
@@ -194,36 +164,32 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
               {userStats && userStats.consecutiveDays ? userStats.consecutiveDays : '0'} days
             </div>
             <p>Current practice streak</p>
-            {!isMobile && (
-              <button 
-                className="button" 
-                onClick={() => navigateTo('upload')}
-                style={{ marginTop: '10px', fontSize: '0.9rem' }}
-              >
-                Practice Now
-              </button>
-            )}
+            <button 
+              className="button" 
+              onClick={() => navigateTo('upload')}
+              style={{ marginTop: '10px', fontSize: '0.9rem' }}
+            >
+              Practice Now
+            </button>
           </div>
         </section>
       )}
 
       {hasHistory && (
-        <section className="dashboard-cards" style={{ gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)' }}>
+        <section className="dashboard-cards" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
           <div className="dashboard-card">
             <h3>Quick Actions</h3>
-            {!isMobile && (
-              <button 
-                className="button" 
-                onClick={() => navigateTo('upload')}
-                style={{ 
-                  marginTop: '15px', 
-                  width: '100%',
-                  marginBottom: '10px'
-                }}
-              >
-                Upload New Swing
-              </button>
-            )}
+            <button 
+              className="button" 
+              onClick={() => navigateTo('upload')}
+              style={{ 
+                marginTop: '15px', 
+                width: '100%',
+                marginBottom: '10px'
+              }}
+            >
+              Upload New Swing
+            </button>
             <button 
               className="button" 
               onClick={() => navigateTo('comparison')}
@@ -237,7 +203,7 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
             >
               Compare with Pros
             </button>
-            {/* New quick actions for Club Analytics and Stats */}
+            {/* Quick actions for Club Analytics and Stats */}
             <button 
               className="button" 
               onClick={() => navigateTo('profile', { setupClubs: false, activeTab: 'analytics' })}
@@ -280,33 +246,125 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
         </section>
       )}
 
+      {/* Enhanced Recent Swings Section */}
       {hasHistory && swingHistory.length > 0 && (
         <section className="recent-swings">
           <h3>Recent Swings</h3>
           <div style={{ 
-            maxHeight: '300px', 
+            maxHeight: '400px', 
             overflowY: 'auto',
             border: '1px solid #ddd',
             borderRadius: '10px'
           }}>
             {swingHistory.slice(0, 5).map((swing, index) => (
               <div 
-                key={index} 
+                key={swing.id || index} 
                 className="swing-history-item"
                 onClick={() => {
-                  // Navigate to analysis page with this swing data
-                  navigateTo('analysis');
+                  // Navigate to analysis page with this specific swing data
+                  navigateTo('analysis', { swingData: swing });
                 }}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '15px',
+                  borderBottom: index < swingHistory.length - 1 ? '1px solid #ecf0f1' : 'none',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease',
+                  backgroundColor: 'transparent',
+                  borderRadius: index === 0 ? '10px 10px 0 0' : index === swingHistory.length - 1 ? '0 0 10px 10px' : '0'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
-                <div>
-                  <strong>{formatDate(swing.date)}</strong>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                    <strong style={{ fontSize: '1.1rem' }}>{formatDate(swing.date)}</strong>
+                    {swing.clubName && (
+                      <span style={{ 
+                        backgroundColor: '#e8f4fd', 
+                        color: '#3498db',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.8rem',
+                        marginLeft: '10px',
+                        fontWeight: 'bold'
+                      }}>
+                        {swing.clubName}
+                      </span>
+                    )}
+                    {swing.outcome && (
+                      <span style={{ 
+                        backgroundColor: '#eafaf1', 
+                        color: '#27ae60',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.8rem',
+                        marginLeft: '8px'
+                      }}>
+                        {swing.outcome.charAt(0).toUpperCase() + swing.outcome.slice(1)}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Miniature metrics display */}
+                  <div style={{ display: 'flex', gap: '10px', fontSize: '0.85rem', color: '#7f8c8d' }}>
+                    {swing.metrics && Object.entries(swing.metrics)
+                      .sort((a, b) => b[1] - a[1]) // Sort by highest value
+                      .slice(0, 3) // Take top 3 metrics
+                      .map(([key, value]) => (
+                        <span key={key}>
+                          {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).split(' ')[0]}: {value}
+                        </span>
+                      ))
+                    }
+                  </div>
                 </div>
-                <div>
-                  Score: <span style={{ fontWeight: 'bold' }}>{swing.overallScore}</span>
+                
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    backgroundColor: getScoreColor(swing.overallScore),
+                    width: '45px',
+                    height: '45px',
+                    borderRadius: '50%',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '1.2rem',
+                    marginRight: '5px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}>
+                    {swing.overallScore}
+                  </div>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 18L15 12L9 6" stroke="#bdc3c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </div>
               </div>
             ))}
           </div>
+          
+          {swingHistory.length > 5 && (
+            <div style={{ textAlign: 'center', marginTop: '10px' }}>
+              <button 
+                onClick={() => navigateTo('tracker')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#3498db',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  padding: '5px 10px',
+                  textDecoration: 'underline'
+                }}
+              >
+                View All Swings
+              </button>
+            </div>
+          )}
         </section>
       )}
       

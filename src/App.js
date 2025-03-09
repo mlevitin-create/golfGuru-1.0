@@ -203,34 +203,24 @@ const AppContent = () => {
   };
 
 // Enhanced navigation handler with robust scroll to top functionality
-const navigateTo = (page, params = null) => {
-  // Update the current page and params
-  setCurrentPage(page);
-  setPageParams(params);
-  setError(null);
-  
-  // Force scroll to top - multiple approaches for better browser/device compatibility
-  try {
-    // Method 1: Using scrollTo with auto behavior (immediate)
-    window.scrollTo({
-      top: 0,
-      left: 0,
-      behavior: 'auto' // Changed from 'smooth' to 'auto' for more immediate response
-    });
-    
-    // Method 2: For older browsers or if the above doesn't work
-    setTimeout(() => {
-      window.scrollTo(0, 0);
+// Update the navigateTo function in App.js to handle navigation with specific swing data
+    const navigateTo = (page, params = null) => {
+      setCurrentPage(page);
+      setPageParams(params);
       
-      // Method 3: Additional backup for mobile
-      document.body.scrollTop = 0; // For Safari
-      document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
-    }, 10);
-  } catch (err) {
-    // Fallback for any browser that doesn't support the options object
-    window.scrollTo(0, 0);
-  }
-};
+      // If navigating to analysis page with specific swing data, update current swing data
+      if (page === 'analysis' && params && params.swingData) {
+        setSwingData(params.swingData);
+      }
+      
+      setError(null);
+      
+      // Scroll to the top of the page
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    };
 
   // Render appropriate component based on current page
   const renderPage = () => {
