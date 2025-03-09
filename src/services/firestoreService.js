@@ -47,7 +47,7 @@ const uploadVideo = async (userId, videoFile) => {
 
 /**
  * Save a swing analysis to Firestore
- * @param {Object} analysisData - The swing analysis data (includes overallScore, etc.)
+ * @param {Object} analysisData - The swing analysis data
  * @param {string} userId - The user ID
  * @param {File} videoFile - The video file
  * @param {Object} metadata - Additional metadata (club, date, etc.)
@@ -66,7 +66,7 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
     
     // Create Firestore document
     const swingData = {
-      ...analysisData, // Spread in analysisData to include overallScore, metrics, etc.
+      ...analysisData,
       userId,
       videoUrl,
       date: new Date(), // When the analysis was performed
@@ -82,7 +82,7 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
     delete swingData._isMockData;
     
     // Add to Firestore
-    const docRef = await addDoc(collection(db, SWINGS_COLLECTION), swingData);
+    const docRef = await addDoc(collection(db, 'swings'), swingData);
     
     // Update user stats after adding new swing
     await updateUserStats(userId);
@@ -101,34 +101,35 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
 /**
  * Get a user's swings from Firestore
  * @param {string} userId - The user ID
- * @param {boolean} orderByRecordedDate - Whether to order by recorded date (default) or analysis date
  * @returns {Promise<Array>} The user's swings
  */
-const getUserSwings = async (userId, orderByRecordedDate = true) => {
+const getUserSwings = async (userId) => {
   try {
-    console.log(`Getting swings for user ${userId}`);
+    // Query swings collection, ordered by recorded date (not analysis date)
     const q = query(
-      collection(db, SWINGS_COLLECTION),
+      collection(db, 'swings'), 
       where('userId', '==', userId),
-      orderBy(orderByRecordedDate ? 'recordedDate' : 'date', 'desc')
+      orderBy('recordedDate', 'desc')
     );
-
+    
     const querySnapshot = await getDocs(q);
     const swings = [];
-
+    
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-
-      swings.push({
+      
+      // Convert timestamps to Date objects
+      const formattedData = {
+        ...data,
         id: doc.id,
-        date: data.date,
-        recordedDate: data.recordedDate,
-        overallScore: data.overallScore || 'N/A',
-        metrics: data.metrics || {}
-      });
+        date: data.date?.toDate ? data.date.toDate() : new Date(data.date),
+        recordedDate: data.recordedDate?.toDate ? data.recordedDate.toDate() : new Date(data.recordedDate),
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt)
+      };
+      
+      swings.push(formattedData);
     });
-
-    console.log("Swings retrieved: ", swings) // ADD THE SWINGS VALUE AND RELOAD
+    
     return swings;
   } catch (error) {
     console.error('Error getting user swings:', error);
