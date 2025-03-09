@@ -1,52 +1,27 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firestoreService from '../services/firestoreService';
+import { metricInsightsGenerator } from '../services/geminiService';
 
 const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
   const { currentUser } = useAuth();
-  const containerRef = useRef(null);
-  const videoRef = useRef(null);
+  const [expandedMetrics, setExpandedMetrics] = useState({});
+  const [metricInsights, setMetricInsights] = useState({});
+  const [loadingInsights, setLoadingInsights] = useState({});
 
-  // Scroll to top when component mounts or when swing changes
+  // Scroll to top and reset expanded metrics when swing data changes
   useEffect(() => {
     window.scrollTo(0, 0);
-    if (containerRef.current) {
-      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    setExpandedMetrics({});
+    setMetricInsights({});
   }, [swingData?.id]);
 
-  // Create a more reliable video player experience for mobile
-  useEffect(() => {
-    if (videoRef.current && swingData?.videoUrl) {
-      // Set a solid background color to prevent white background
-      videoRef.current.style.backgroundColor = '#2c3e50'; // Dark blue background
-      
-      // Force poster image to be first frame when possible
-      try {
-        videoRef.current.onloadedmetadata = () => {
-          // Create poster from the video itself
-          videoRef.current.currentTime = 0.1;
-        };
-      } catch (e) {
-        console.log('Could not set initial frame as poster:', e);
-      }
-    }
-  }, [swingData]);
-
-  if (!swingData) {
-    return (
-      <div className="card" ref={containerRef}>
-        <h2>No Swing Data Available</h2>
-        <p>Please upload a video to analyze your swing</p>
-        <button 
-          className="button" 
-          onClick={() => navigateTo('upload')}
-        >
-          Upload Swing Video
-        </button>
-      </div>
-    );
-  }
+  // Get score color based on metric value
+  const getScoreColor = (score) => {
+    if (score >= 80) return '#27ae60'; // Green for good
+    if (score >= 60) return '#f39c12'; // Orange for average
+    return '#e74c3c'; // Red for needs improvement
+  };
 
   // Format date with time
   const formatDateTime = (dateString) => {
@@ -60,20 +35,40 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     });
   };
 
-  // Format date without time
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
+  // Fetch insights for a specific metric
+  const fetchMetricInsights = async (metricKey) => {
+    // If insights already exist or are currently loading, do nothing
+    if (metricInsights[metricKey] || loadingInsights[metricKey]) return;
 
-  const getScoreColor = (score) => {
-    if (score >= 80) return '#27ae60'; // Green for good
-    if (score >= 60) return '#f39c12'; // Orange for average
-    return '#e74c3c'; // Red for needs improvement
+    // Set loading state
+    setLoadingInsights(prev => ({
+      ...prev,
+      [metricKey]: true
+    }));
+
+    try {
+      // Generate insights using Gemini service
+      const insights = await metricInsightsGenerator.generateMetricInsights(swingData, metricKey);
+      
+      // Update insights state
+      setMetricInsights(prev => ({
+        ...prev,
+        [metricKey]: insights
+      }));
+    } catch (error) {
+      console.error(`Error fetching insights for ${metricKey}:`, error);
+      // Fallback to default insights
+      setMetricInsights(prev => ({
+        ...prev,
+        [metricKey]: metricInsightsGenerator.getDefaultInsights(metricKey)
+      }));
+    } finally {
+      // Clear loading state
+      setLoadingInsights(prev => ({
+        ...prev,
+        [metricKey]: false
+      }));
+    }
   };
 
   // Handle delete swing
@@ -92,47 +87,141 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     }
   };
 
+  // Toggle metric expansion and fetch insights
+  const toggleMetricExpansion = (metricKey) => {
+    setExpandedMetrics(prev => ({
+      ...prev,
+      [metricKey]: !prev[metricKey]
+    }));
+
+    // Fetch insights when expanding
+    if (!expandedMetrics[metricKey]) {
+      fetchMetricInsights(metricKey);
+    }
+  };
+
+  // Render metric insights
+  const renderMetricInsights = (metricKey, score) => {
+    const insights = metricInsights[metricKey];
+    const isLoading = loadingInsights[metricKey];
+
+    // Determine insight tone based on score
+    const insightTone = score >= 80 ? 'positive' : score >= 60 ? 'neutral' : 'needs-improvement';
+
+    // If loading, show loading spinner
+    if (isLoading) {
+      return (
+        <div 
+          className="insights-loading"
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '20px',
+            backgroundColor: '#f0f0f0',
+            borderRadius: '8px'
+          }}
+        >
+          <div 
+            className="spinner"
+            style={{
+              width: '40px',
+              height: '40px',
+              border: '4px solid rgba(0, 0, 0, 0.1)',
+              borderTopColor: '#3498db',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }}
+          />
+          <span style={{ marginLeft: '10px' }}>Generating insights...</span>
+        </div>
+      );
+    }
+
+    // If no insights yet, return null
+    if (!insights) return null;
+
+    return (
+      <div 
+        className="metric-insights"
+        style={{
+          backgroundColor: insightTone === 'positive' ? '#e6f3e6' : 
+                           insightTone === 'neutral' ? '#f0f0f0' : '#f9e6e6',
+          padding: '15px',
+          borderRadius: '8px',
+          marginTop: '10px'
+        }}
+      >
+        {/* Standard insights sections */}
+        {['goodAspects', 'improvementAreas', 'technicalBreakdown', 'recommendations'].map(section => (
+          <div key={section} className={section}>
+            <h4>
+              {section === 'goodAspects' && 'What Went Well'}
+              {section === 'improvementAreas' && 'Areas to Improve'}
+              {section === 'technicalBreakdown' && 'Technical Breakdown'}
+              {section === 'recommendations' && 'Actionable Recommendations'}
+            </h4>
+            <ul style={{ paddingLeft: '20px', marginBottom: '10px' }}>
+              {insights[section].map((item, index) => (
+                <li key={index} style={{ marginBottom: '5px' }}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  if (!swingData) {
+    return (
+      <div className="card">
+        <h2>No Swing Data Available</h2>
+        <p>Please upload a video to analyze your swing</p>
+        <button 
+          className="button" 
+          onClick={() => navigateTo('upload')}
+        >
+          Upload Swing Video
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="analysis-container" ref={containerRef}>
+    <div className="analysis-container">
       <div className="card">
         <h2>Swing Analysis</h2>
         
-        {/* Date Information with both recorded and analyzed dates */}
+        {/* Date Information */}
         <div className="date-info" style={{ marginBottom: '15px' }}>
           {swingData.recordedDate && (
             <p>
-              <strong>Recorded on:</strong> {formatDate(swingData.recordedDate)}
+              <strong>Recorded on:</strong> {formatDateTime(swingData.recordedDate)}
+              {swingData.clubName && ` with ${swingData.clubName}`}
             </p>
           )}
           <p><strong>Analyzed on:</strong> {formatDateTime(swingData.date)}</p>
+          
+          {swingData.outcome && (
+            <div style={{ 
+              display: 'inline-block',
+              backgroundColor: '#f0f7ff', 
+              color: '#3498db',
+              padding: '3px 8px',
+              borderRadius: '12px',
+              fontSize: '0.85rem',
+              marginTop: '5px'
+            }}>
+              Shot Outcome: {swingData.outcome.charAt(0).toUpperCase() + swingData.outcome.slice(1)}
+            </div>
+          )}
         </div>
 
-        {/* Custom video container with controlled dimensions */}
-        <div className="video-container" style={{ 
-          maxWidth: '100%', 
-          margin: '0 auto',
-          borderRadius: '8px',
-          overflow: 'hidden',
-          backgroundColor: '#2c3e50', // Dark background color
-          maxHeight: '500px', // Add maximum height for desktop
-          display: 'flex',
-          justifyContent: 'center'
-        }}>
+        <div className="video-container">
           <video 
-            ref={videoRef}
             src={swingData.videoUrl} 
             controls 
-            playsInline
-            preload="metadata"
-            style={{ 
-              maxWidth: '600px', // Maximum width on desktop
-              width: '100%', // Responsive width
-              maxHeight: '500px', // Maximum height
-              objectFit: 'contain', // Maintain aspect ratio
-              display: 'block',
-              borderRadius: '8px',
-              backgroundColor: '#2c3e50' // Ensure background color is set
-            }}
+            width="100%"
           />
         </div>
 
@@ -158,29 +247,46 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
           </div>
         </div>
 
-        {/* Club information if available */}
-        {swingData.clubName && (
-          <div className="club-info" style={{ 
-            backgroundColor: '#f8f9fa', 
-            padding: '10px 15px', 
-            borderRadius: '8px',
-            marginBottom: '20px' 
-          }}>
-            <h3>Club Used</h3>
-            <p><strong>Club:</strong> {swingData.clubName}</p>
-            <p><strong>Type:</strong> {swingData.clubType}</p>
-            {swingData.outcome && <p><strong>Outcome:</strong> {swingData.outcome.charAt(0).toUpperCase() + swingData.outcome.slice(1)}</p>}
-          </div>
-        )}
-
         <div className="metrics-section">
           <h3>Swing Metrics</h3>
           
           {Object.entries(swingData.metrics).map(([key, value]) => (
             <div key={key} className="metric-item">
-              <div className="metric-label">
-                <span>{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
-                <span>{value}/100</span>
+              <div 
+                className="metric-label" 
+                onClick={() => toggleMetricExpansion(key)}
+                style={{ 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center' 
+                }}
+              >
+                <span>
+                  {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{ marginRight: '10px' }}>{value}/100</span>
+                  <svg 
+                    width="20" 
+                    height="20" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    xmlns="http://www.w3.org/2000/svg"
+                    style={{
+                      transform: expandedMetrics[key] ? 'rotate(180deg)' : 'rotate(0)',
+                      transition: 'transform 0.3s ease'
+                    }}
+                  >
+                    <path 
+                      d="M6 9L12 15L18 9" 
+                      stroke="#666" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
               </div>
               <div className="metric-bar">
                 <div 
@@ -191,6 +297,9 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                   }}
                 ></div>
               </div>
+              
+              {/* Expanded Metric Insights */}
+              {expandedMetrics[key] && renderMetricInsights(key, value)}
             </div>
           ))}
         </div>

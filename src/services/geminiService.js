@@ -338,3 +338,182 @@ const fileToBase64 = (file) => {
 
 // Export with mock function available for testing
 export default { analyzeGolfSwing, createMockAnalysis };
+
+// Add this to the existing geminiService.js
+
+/**
+ * Generate detailed metric insights for a specific swing metric
+ * @param {Object} swingData - The complete swing analysis data
+ * @param {string} metricKey - The specific metric to generate insights for
+ * @returns {Promise<Object>} Detailed insights for the metric
+ */
+const generateMetricInsights = async (swingData, metricKey) => {
+  try {
+    // Sanitize and validate input
+    if (!swingData || !metricKey) {
+      throw new Error('Invalid input for metric insights generation');
+    }
+
+    // Ensure the metric value is a number and within 0-100 range
+    const metricValue = Number(swingData.metrics[metricKey] || 0);
+    const safeMetricValue = Math.max(0, Math.min(100, metricValue));
+
+    // Construct a more robust prompt
+    const prompt = JSON.stringify({
+      task: 'Golf Swing Metric Analysis',
+      metric: {
+        name: metricKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+        score: safeMetricValue
+      },
+      instructions: [
+        'Provide a professional, constructive golf swing analysis.',
+        'Be specific and actionable in your insights.',
+        'Focus on technique and improvement strategies.'
+      ],
+      outputFormat: {
+        goodAspects: 'Array of positive observations',
+        improvementAreas: 'Array of specific improvement suggestions',
+        technicalBreakdown: 'Array of technical insights',
+        recommendations: 'Array of actionable tips'
+      }
+    });
+
+    // Construct the payload for Gemini API
+    const payload = {
+      contents: [
+        {
+          parts: [
+            {
+              text: `Analyze a golf swing metric with the following context:
+
+${prompt}
+
+Detailed requirements:
+1. For good aspects, highlight what the golfer is doing correctly
+2. For improvement areas, pinpoint specific technical issues
+3. Technical breakdown should include biomechanical observations
+4. Recommendations must be practical and implementable
+
+Respond ONLY with a valid JSON object matching the specified output format.`
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.2, // Low temperature for consistent responses
+        maxOutputTokens: 1024,
+        responseFormat: { type: "JSON" }
+      }
+    };
+
+    // Make API call with enhanced error handling
+    const response = await axios.post(
+      `${API_URL}?key=${API_KEY}`,
+      payload,
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000, // 30 second timeout
+        validateStatus: function (status) {
+          // Accept only 200 status codes
+          return status >= 200 && status < 300;
+        }
+      }
+    );
+
+    // Extract and parse the JSON response
+    const textResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!textResponse) {
+      console.error('No text response from Gemini API');
+      return getDefaultInsights(metricKey);
+    }
+
+    // Try to parse the JSON, with robust fallback parsing
+    let insights;
+    try {
+      // First try direct parsing
+      insights = JSON.parse(textResponse);
+    } catch (e) {
+      // Fallback: extract JSON from text
+      try {
+        const jsonStart = textResponse.indexOf('{');
+        const jsonEnd = textResponse.lastIndexOf('}') + 1;
+        
+        if (jsonStart !== -1 && jsonEnd > jsonStart) {
+          const jsonString = textResponse.substring(jsonStart, jsonEnd);
+          insights = JSON.parse(jsonString);
+        } else {
+          throw new Error('Could not extract JSON');
+        }
+      } catch (parseError) {
+        console.error('JSON parsing error:', parseError);
+        return getDefaultInsights(metricKey);
+      }
+    }
+
+    // Validate the insights structure
+    if (!insights.goodAspects || !insights.improvementAreas || 
+        !insights.technicalBreakdown || !insights.recommendations) {
+      console.error('Invalid insights structure:', insights);
+      return getDefaultInsights(metricKey);
+    }
+
+    return insights;
+  } catch (error) {
+    console.error(`Error generating insights for ${metricKey}:`, error);
+    
+    // Log more detailed error information
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
+      console.error('Response headers:', error.response.headers);
+    }
+
+    // Return default insights
+    return getDefaultInsights(metricKey);
+  }
+};
+
+/**
+ * Provide default insights for a metric if API generation fails
+ * @param {string} metricKey - The metric key
+ * @returns {Object} Default insights object
+ */
+const getDefaultInsights = (metricKey) => {
+  const defaultInsights = {
+    goodAspects: ['Unable to generate specific insights'],
+    improvementAreas: ['Consult a golf professional for detailed analysis'],
+    technicalBreakdown: ['Detailed technical breakdown not available'],
+    recommendations: ['Continue practicing and seek professional guidance']
+  };
+
+  // Optionally add some very generic insights based on metric key
+  switch(metricKey) {
+    case 'backswing':
+      defaultInsights.recommendations = [
+        'Maintain a consistent spine angle',
+        'Keep your left arm relatively straight',
+        'Practice club positioning at the top of the backswing'
+      ];
+      break;
+    case 'stance':
+      defaultInsights.recommendations = [
+        'Ensure balanced weight distribution',
+        'Practice consistent foot positioning',
+        'Maintain athletic and stable posture'
+      ];
+      break;
+    // Add more specific default insights for other metrics as needed
+  }
+
+  return defaultInsights;
+};
+// In geminiService.js, add this to the exports at the bottom:
+
+// Metric Insights Generator
+export const metricInsightsGenerator = {
+  generateMetricInsights,
+  getDefaultInsights
+};
