@@ -4,7 +4,11 @@ import {
   signInWithPopup, 
   signOut, 
   onAuthStateChanged,
-  GoogleAuthProvider 
+  GoogleAuthProvider,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile
 } from 'firebase/auth';
 import { auth } from '../firebase/firebase';
 
@@ -35,6 +39,45 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Sign up with email and password
+  const signup = async (email, password, displayName) => {
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Update profile with display name
+      if (displayName) {
+        await updateProfile(result.user, {
+          displayName: displayName
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      console.error("Error signing up with email/password", error);
+      throw error;
+    }
+  };
+  
+  // Sign in with email and password
+  const login = async (email, password) => {
+    try {
+      return await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      console.error("Error logging in with email/password", error);
+      throw error;
+    }
+  };
+  
+  // Reset password
+  const resetPassword = async (email) => {
+    try {
+      return await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+      console.error("Error resetting password", error);
+      throw error;
+    }
+  };
+
   // Sign out
   const logout = async () => {
     try {
@@ -61,6 +104,9 @@ export const AuthProvider = ({ children }) => {
   const value = {
     currentUser,
     signInWithGoogle,
+    signup,
+    login,
+    resetPassword,
     logout
   };
 

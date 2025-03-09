@@ -1,107 +1,450 @@
 // src/components/Login.js
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = ({ onClose, allowSkip = false }) => {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, login, signup, resetPassword } = useAuth();
+  
+  // View states: 'login', 'signup', 'reset'
+  const [view, setView] = useState('login');
+  
+  // Form states
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // This useEffect will help debug auth errors
-  useEffect(() => {
-    // Log to console when component mounts
-    console.log("Login component mounted");
-    
-    // Return a cleanup function
-    return () => console.log("Login component unmounted");
-  }, []);
-
+  const [message, setMessage] = useState('');
+  
+  // Handle Google sign in
   const handleGoogleSignIn = async () => {
+    setError('');
+    setLoading(true);
     try {
-      setError('');
-      setLoading(true);
-      console.log("Attempting Google sign-in...");
       await signInWithGoogle();
-      console.log("Sign-in successful!");
-      if (onClose) onClose();
+      onClose();
     } catch (error) {
-      console.error('Failed to sign in with Google:', error);
-      // More detailed error message
-      setError(`Failed to sign in with Google: ${error.message || 'Unknown error'}`);
+      setError(formatError(error.message));
     } finally {
       setLoading(false);
     }
   };
-
-  const handleSkip = () => {
-    if (onClose) onClose();
+  
+  // Handle email/password login
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    
+    setError('');
+    setLoading(true);
+    
+    try {
+      await login(email, password);
+      onClose();
+    } catch (error) {
+      setError(formatError(error.message));
+    } finally {
+      setLoading(false);
+    }
   };
-
-  return (
-    <div className="login-container card">
-      {!allowSkip && (
-        <>
-          <h2>Welcome to Golf Guru</h2>
-          <p>Sign in to track your progress and save your swing analysis</p>
-        </>
-      )}
-
-      {error && <div className="error-message" style={{
-        backgroundColor: '#ffebee', 
-        color: '#c62828',
-        padding: '10px',
-        borderRadius: '4px',
-        marginBottom: '15px'
-      }}>{error}</div>}
-
-      <button
-        className="button google-sign-in"
+  
+  // Handle signup
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    
+    setError('');
+    setLoading(true);
+    
+    try {
+      await signup(email, password, displayName.trim() || null);
+      setMessage('Account created successfully! You are now logged in.');
+      onClose();
+    } catch (error) {
+      setError(formatError(error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Handle password reset
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    
+    setError('');
+    setMessage('');
+    setLoading(true);
+    
+    try {
+      await resetPassword(email);
+      setMessage('Password reset email sent! Check your inbox.');
+    } catch (error) {
+      setError(formatError(error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Helper to validate email format
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
+  
+  // Helper to format error messages from Firebase
+  const formatError = (errorMsg) => {
+    if (errorMsg.includes('auth/user-not-found') || errorMsg.includes('auth/wrong-password')) {
+      return 'Invalid email or password';
+    } else if (errorMsg.includes('auth/email-already-in-use')) {
+      return 'Email already in use. Try logging in or resetting your password.';
+    } else if (errorMsg.includes('auth/weak-password')) {
+      return 'Password is too weak. Please use a stronger password.';
+    } else if (errorMsg.includes('auth/network-request-failed')) {
+      return 'Network error. Please check your connection and try again.';
+    } else {
+      return errorMsg.replace('Firebase: ', '').replace(/ \(auth\/.*\)./, '.');
+    }
+  };
+  
+  // Render login view
+  const renderLogin = () => (
+    <form onSubmit={handleLogin}>
+      <h2>Sign In</h2>
+      
+      <div style={{ marginBottom: '15px' }}>
+        <label htmlFor="email" style={{ display: 'block', marginBottom: '5px' }}>Email</label>
+        <input
+          type="email"
+          id="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
+        />
+      </div>
+      
+      <div style={{ marginBottom: '15px' }}>
+        <label htmlFor="password" style={{ display: 'block', marginBottom: '5px' }}>Password</label>
+        <input
+          type="password"
+          id="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
+        />
+      </div>
+      
+      <button 
+        type="submit" 
+        disabled={loading}
+        className="button"
+        style={{ 
+          width: '100%', 
+          padding: '12px', 
+          marginBottom: '10px',
+          backgroundColor: '#3498db',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          opacity: loading ? 0.7 : 1
+        }}
+      >
+        {loading ? 'Signing In...' : 'Sign In'}
+      </button>
+      
+      <div style={{ marginBottom: '15px', textAlign: 'center' }}>
+        <button 
+          type="button" 
+          onClick={() => setView('reset')}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#3498db',
+            cursor: 'pointer',
+            textDecoration: 'underline',
+            fontSize: '0.9rem'
+          }}
+        >
+          Forgot Password?
+        </button>
+      </div>
+      
+      <div className="separator" style={{ display: 'flex', alignItems: 'center', margin: '20px 0' }}>
+        <div style={{ flex: 1, height: '1px', backgroundColor: '#ddd' }}></div>
+        <span style={{ margin: '0 10px', color: '#777', fontSize: '0.9rem' }}>OR</span>
+        <div style={{ flex: 1, height: '1px', backgroundColor: '#ddd' }}></div>
+      </div>
+      
+      <button 
+        type="button" 
         onClick={handleGoogleSignIn}
         disabled={loading}
-        style={{
+        style={{ 
+          width: '100%', 
+          padding: '12px', 
+          marginBottom: '20px',
+          border: '1px solid #ddd',
+          borderRadius: '5px',
+          backgroundColor: 'white',
+          color: '#333',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '10px',
-          backgroundColor: 'white',
-          color: '#757575',
-          border: '1px solid #dadce0',
-          padding: '12px 24px',
-          borderRadius: '4px',
-          fontWeight: '500',
-          width: '100%',
-          marginTop: '20px'
+          cursor: loading ? 'not-allowed' : 'pointer'
         }}
       >
-        <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-          <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
-          <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
-          <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z" />
-          <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
+        <svg width="20" height="20" viewBox="0 0 48 48" style={{ marginRight: '10px' }}>
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
         </svg>
-        {loading ? 'Signing in...' : 'Sign in with Google'}
+        Continue with Google
       </button>
-
+      
+      <div style={{ textAlign: 'center' }}>
+        <p style={{ fontSize: '0.9rem', color: '#333' }}>
+          Don't have an account?{' '}
+          <button 
+            type="button" 
+            onClick={() => setView('signup')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#3498db',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              fontSize: '0.9rem',
+              padding: 0
+            }}
+          >
+            Sign Up
+          </button>
+        </p>
+      </div>
+      
       {allowSkip && (
-        <button
-          className="button skip-button"
-          onClick={handleSkip}
+        <div style={{ textAlign: 'center', marginTop: '15px' }}>
+          <button 
+            type="button" 
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#777',
+              cursor: 'pointer',
+              fontSize: '0.9rem'
+            }}
+          >
+            Skip for now
+          </button>
+        </div>
+      )}
+    </form>
+  );
+  
+  // Render signup view
+  const renderSignup = () => (
+    <form onSubmit={handleSignup}>
+      <h2>Create Account</h2>
+      
+      <div style={{ marginBottom: '15px' }}>
+        <label htmlFor="displayName" style={{ display: 'block', marginBottom: '5px' }}>Name (optional)</label>
+        <input
+          type="text"
+          id="displayName"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
+          placeholder="Your name"
+        />
+      </div>
+      
+      <div style={{ marginBottom: '15px' }}>
+        <label htmlFor="email" style={{ display: 'block', marginBottom: '5px' }}>Email</label>
+        <input
+          type="email"
+          id="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
+        />
+      </div>
+      
+      <div style={{ marginBottom: '15px' }}>
+        <label htmlFor="password" style={{ display: 'block', marginBottom: '5px' }}>Password</label>
+        <input
+          type="password"
+          id="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
+          placeholder="At least 6 characters"
+        />
+      </div>
+      
+      <div style={{ marginBottom: '15px' }}>
+        <label htmlFor="confirmPassword" style={{ display: 'block', marginBottom: '5px' }}>Confirm Password</label>
+        <input
+          type="password"
+          id="confirmPassword"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
+        />
+      </div>
+      
+      <button 
+        type="submit" 
+        disabled={loading}
+        className="button"
+        style={{ 
+          width: '100%', 
+          padding: '12px', 
+          marginBottom: '20px',
+          backgroundColor: '#3498db',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          opacity: loading ? 0.7 : 1
+        }}
+      >
+        {loading ? 'Creating Account...' : 'Create Account'}
+      </button>
+      
+      <div style={{ textAlign: 'center' }}>
+        <p style={{ fontSize: '0.9rem', color: '#333' }}>
+          Already have an account?{' '}
+          <button 
+            type="button" 
+            onClick={() => setView('login')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#3498db',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              fontSize: '0.9rem',
+              padding: 0
+            }}
+          >
+            Sign In
+          </button>
+        </p>
+      </div>
+    </form>
+  );
+  
+  // Render password reset view
+  const renderReset = () => (
+    <form onSubmit={handleResetPassword}>
+      <h2>Reset Password</h2>
+      <p style={{ marginBottom: '15px', fontSize: '0.9rem', color: '#555' }}>
+        Enter your email address and we'll send you a link to reset your password.
+      </p>
+      
+      <div style={{ marginBottom: '15px' }}>
+        <label htmlFor="email" style={{ display: 'block', marginBottom: '5px' }}>Email</label>
+        <input
+          type="email"
+          id="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
+        />
+      </div>
+      
+      <button 
+        type="submit" 
+        disabled={loading}
+        className="button"
+        style={{ 
+          width: '100%', 
+          padding: '12px', 
+          marginBottom: '20px',
+          backgroundColor: '#3498db',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          opacity: loading ? 0.7 : 1
+        }}
+      >
+        {loading ? 'Sending...' : 'Reset Password'}
+      </button>
+      
+      <div style={{ textAlign: 'center' }}>
+        <button 
+          type="button" 
+          onClick={() => setView('login')}
           style={{
-            marginTop: '10px',
-            backgroundColor: 'transparent',
-            color: '#666',
-            border: '1px solid #dadce0',
-            width: '100%',
-            padding: '12px 24px',
+            background: 'none',
+            border: 'none',
+            color: '#3498db',
+            cursor: 'pointer',
+            textDecoration: 'underline',
+            fontSize: '0.9rem'
           }}
         >
-          Skip for now
+          Back to Sign In
         </button>
-      )}
-
-      <div className="login-footer" style={{ marginTop: '20px', textAlign: 'center' }}>
-        <p>By signing in, you agree to our Terms of Service and Privacy Policy</p>
       </div>
+    </form>
+  );
+  
+  return (
+    <div>
+      {error && (
+        <div style={{ 
+          backgroundColor: '#f8d7da', 
+          color: '#721c24', 
+          padding: '10px', 
+          borderRadius: '5px', 
+          marginBottom: '15px',
+          fontSize: '0.95rem'
+        }}>
+          {error}
+        </div>
+      )}
+      
+      {message && (
+        <div style={{ 
+          backgroundColor: '#d4edda', 
+          color: '#155724', 
+          padding: '10px', 
+          borderRadius: '5px', 
+          marginBottom: '15px',
+          fontSize: '0.95rem'
+        }}>
+          {message}
+        </div>
+      )}
+      
+      {view === 'login' && renderLogin()}
+      {view === 'signup' && renderSignup()}
+      {view === 'reset' && renderReset()}
     </div>
   );
 };

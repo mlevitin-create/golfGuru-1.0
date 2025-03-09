@@ -292,7 +292,16 @@ const navigateTo = (page, params = null) => {
           alignItems: 'center', 
           width: '100%' 
         }}>
-          <h1>GOLF GURU</h1>
+          <h1 
+            onClick={() => navigateTo('dashboard')}
+            style={{
+              cursor: 'pointer',
+              margin: 0,
+              userSelect: 'none' // Prevents text selection when clicking
+            }}
+          >
+            GOLF GURU
+          </h1>
           
           {currentUser ? (
             <div 

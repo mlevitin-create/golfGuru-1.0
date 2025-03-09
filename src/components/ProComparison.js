@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 const ProComparison = ({ swingData }) => {
   const [selectedPro, setSelectedPro] = useState('tiger_woods');
+  const [thumbnailUrl, setThumbnailUrl] = useState(null);
+  const videoRef = useRef(null);
   
   // Mock pro golfer data
   const proGolfers = {
@@ -79,6 +81,67 @@ const ProComparison = ({ swingData }) => {
     }
   };
 
+  // Generate thumbnail from video when swingData changes
+  useEffect(() => {
+    if (swingData && swingData.videoUrl) {
+      generateThumbnail(swingData.videoUrl);
+    }
+  }, [swingData]);
+
+  // Function to generate thumbnail from video URL
+  const generateThumbnail = (videoUrl) => {
+    const videoElement = document.createElement('video');
+    videoElement.preload = 'metadata';
+    videoElement.muted = true;
+    videoElement.playsInline = true;
+    videoElement.src = videoUrl;
+    
+    // When video data is loaded, create thumbnail
+    videoElement.onloadeddata = () => {
+      // Seek to 1 second or 1/4 through the video, whichever is less
+      videoElement.currentTime = 1;
+    };
+    
+    // Once we've seeked to the right place, capture the frame
+    videoElement.onseeked = () => {
+      const canvas = document.createElement('canvas');
+      // Set canvas dimensions to match video
+      canvas.width = videoElement.videoWidth;
+      canvas.height = videoElement.videoHeight;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      
+      // Create thumbnail URL from canvas
+      try {
+        const thumbnailUrl = canvas.toDataURL('image/jpeg');
+        setThumbnailUrl(thumbnailUrl);
+      } catch (err) {
+        console.error('Error generating thumbnail:', err);
+        // If thumbnail generation fails, we'll still have the video element
+      }
+    };
+    
+    // Handle errors
+    videoElement.onerror = (err) => {
+      console.error('Error loading video for thumbnail:', err);
+    };
+    
+    // Explicitly trigger load
+    videoElement.load();
+  };
+
+  // Handle playing the video when thumbnail is clicked
+  const handleThumbnailClick = () => {
+    if (videoRef.current) {
+      videoRef.current.style.display = 'block';
+      if (thumbnailUrl) {
+        setThumbnailUrl(null);
+      }
+      videoRef.current.play();
+    }
+  };
+
   if (!swingData) {
     return (
       <div className="card">
@@ -124,18 +187,60 @@ const ProComparison = ({ swingData }) => {
       </div>
       
       <div className="pro-comparison-container">
-        <div className="your-swing">
+        <div className="your-swing" style={{ marginBottom: '20px' }}>
           <h3>Your Swing</h3>
-          <div className="video-container">
+          <div className="video-container" style={{ maxWidth: '100%', margin: '0 auto 20px' }}>
+            {thumbnailUrl ? (
+              <div style={{ position: 'relative', marginBottom: '10px' }}>
+                <img 
+                  src={thumbnailUrl} 
+                  alt="Video preview" 
+                  style={{ 
+                    width: '100%', 
+                    borderRadius: '8px',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                    cursor: 'pointer'
+                  }}
+                  onClick={handleThumbnailClick}
+                />
+                <div 
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    borderRadius: '50%',
+                    width: '50px',
+                    height: '50px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                  onClick={handleThumbnailClick}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 5V19L19 12L8 5Z" fill="white" />
+                  </svg>
+                </div>
+              </div>
+            ) : null}
             <video 
+              ref={videoRef}
               src={swingData.videoUrl} 
               controls 
               width="100%"
+              style={{ 
+                borderRadius: '8px', 
+                boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                display: thumbnailUrl ? 'none' : 'block'
+              }}
             />
           </div>
         </div>
         
-        <div className="pro-swing">
+        <div className="pro-swing" style={{ marginBottom: '20px' }}>
           <h3>{proData.name}'s Swing</h3>
           <div className="pro-image">
             <img 
@@ -159,41 +264,66 @@ const ProComparison = ({ swingData }) => {
           const proValue = proData.metrics[key] || 0;
           
           return (
-            <div key={key} className="metric-comparison-item" style={{ marginBottom: '15px' }}>
-              <div className="metric-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div key={key} className="metric-comparison-item" style={{ marginBottom: '20px' }}>
+              <div className="metric-label" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                 <span>{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
                 <span>
-                  You: {value} / Pro: {proValue}
+                  <span style={{ color: '#3498db', fontWeight: 'bold' }}>You: {value}</span> / 
+                  <span style={{ color: '#e74c3c', fontWeight: 'bold' }}> Pro: {proValue}</span>
                 </span>
               </div>
               
-              <div className="comparison-bars" style={{ display: 'flex', alignItems: 'center', height: '20px', marginTop: '5px' }}>
+              {/* Stacked bars instead of side-by-side */}
+              <div className="comparison-stacked-bars" style={{ 
+                width: '100%', 
+                position: 'relative', 
+                height: '40px', 
+                backgroundColor: '#f5f5f5',
+                borderRadius: '5px',
+                overflow: 'hidden'
+              }}>
+                {/* Background bar (100%) */}
                 <div style={{ 
-                  flex: `0 0 ${value}%`, 
-                  height: '100%', 
-                  backgroundColor: '#3498db',
-                  borderRadius: '5px 0 0 5px',
-                  position: 'relative',
+                  position: 'absolute',
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: '#f5f5f5',
                   zIndex: 1
-                }} />
+                }}></div>
                 
+                {/* Pro value bar */}
                 <div style={{ 
-                  width: '4px', 
-                  height: '30px', 
-                  backgroundColor: getComparisonColor(value, proValue),
-                  position: 'relative',
-                  zIndex: 3
-                }} />
-                
-                <div style={{ 
-                  flex: `0 0 ${proValue}%`, 
-                  height: '100%', 
+                  position: 'absolute',
+                  width: `${proValue}%`,
+                  height: '20px',
                   backgroundColor: '#e74c3c',
-                  borderRadius: '0 5px 5px 0',
-                  opacity: 0.7,
-                  position: 'relative',
-                  zIndex: 2
-                }} />
+                  borderRadius: '5px',
+                  zIndex: 2,
+                  opacity: 0.8,
+                  bottom: '0'
+                }}></div>
+                
+                {/* User value bar */}
+                <div style={{ 
+                  position: 'absolute',
+                  width: `${value}%`,
+                  height: '20px',
+                  backgroundColor: '#3498db',
+                  borderRadius: '5px',
+                  zIndex: 3,
+                  top: '0'
+                }}></div>
+                
+                {/* Comparison indicator */}
+                <div style={{
+                  position: 'absolute',
+                  left: `${value}%`,
+                  top: '0',
+                  bottom: '0',
+                  width: '2px',
+                  backgroundColor: getComparisonColor(value, proValue),
+                  zIndex: 4
+                }}></div>
               </div>
             </div>
           );
