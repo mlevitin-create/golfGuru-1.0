@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import ClubBag from './ClubBag';
 import ClubAnalytics from './ClubAnalytics';
+import ProgressAnalysis from './ProgressAnalysis'; // Import the new component
 import firestoreService from '../services/firestoreService';
 import DateSelector from './DateSelector';
 
@@ -70,8 +71,11 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
 
   // Handle input changes
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setUserData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setUserData(prev => ({ 
+      ...prev, 
+      [name]: type === 'checkbox' ? checked : value 
+    }));
   };
 
   // Save profile changes
@@ -138,7 +142,7 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
 
   return (
     <div className="profile-container">
-      {/* Profile Tabs */}
+      {/* Profile Tabs - Added new Progress tab */}
       <div className="profile-tabs">
         <div
           className={`profile-tab ${activeTab === 'profile' ? 'active' : ''}`}
@@ -172,6 +176,17 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
           }}
         >
           Club Analytics
+        </div>
+        <div
+          className={`profile-tab ${activeTab === 'progress' ? 'active' : ''}`}
+          onClick={() => setActiveTab('progress')}
+          style={{
+            padding: '10px 20px',
+            cursor: 'pointer',
+            borderBottom: activeTab === 'progress' ? '2px solid #3498db' : 'none'
+          }}
+        >
+          Progress Analysis
         </div>
         <div
           className={`profile-tab ${activeTab === 'stats' ? 'active' : ''}`}
@@ -344,6 +359,11 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
             </div>
           )}
         </div>
+      )}
+
+      {/* New Progress Analysis Tab */}
+      {activeTab === 'progress' && (
+        <ProgressAnalysis swingHistory={swingHistory} userClubs={userClubs} />
       )}
 
       {activeTab === 'stats' && (

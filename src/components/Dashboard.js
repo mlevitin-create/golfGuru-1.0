@@ -203,6 +203,20 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
             >
               Compare with Pros
             </button>
+            {/* New Progress Analysis button */}
+            <button 
+              className="button" 
+              onClick={() => navigateTo('profile', { setupClubs: false, activeTab: 'progress' })}
+              style={{ 
+                width: '100%',
+                marginBottom: '10px',
+                backgroundColor: '#f39c12',
+                opacity: hasHistory > 1 ? 1 : 0.5  /* Require at least 2 swings */
+              }}
+              disabled={swingHistory.length < 2}
+            >
+              Progress Analysis
+            </button>
             {/* Quick actions for Club Analytics and Stats */}
             <button 
               className="button" 
@@ -258,29 +272,29 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
           }}>
             {swingHistory.slice(0, 5).map((swing, index) => (
               <div 
-                key={swing.id || index} 
-                className="swing-history-item"
-                onClick={() => {
-                  // Navigate to analysis page with this specific swing data
-                  navigateTo('analysis', { swingData: swing });
-                }}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '15px',
-                  borderBottom: index < swingHistory.length - 1 ? '1px solid #ecf0f1' : 'none',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s ease',
-                  backgroundColor: 'transparent',
-                  borderRadius: index === 0 ? '10px 10px 0 0' : index === swingHistory.length - 1 ? '0 0 10px 10px' : '0'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '1.1rem' }}>{formatDate(swing.date)}</strong>
+              key={swing.id || index} 
+              className="swing-history-item"
+              onClick={() => {
+                // Navigate to analysis page with this specific swing data
+                navigateTo('analysis', { swingData: swing });
+              }}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '15px',
+                borderBottom: index < swingHistory.length - 1 ? '1px solid #ecf0f1' : 'none',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s ease',
+                backgroundColor: 'transparent',
+                borderRadius: index === 0 ? '10px 10px 0 0' : index === swingHistory.length - 1 ? '0 0 10px 10px' : '0'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                  <strong style={{ fontSize: '1.1rem' }}>{formatDate(swing.recordedDate)}</strong>
                     {swing.clubName && (
                       <span style={{ 
                         backgroundColor: '#e8f4fd', 

@@ -1,0 +1,98 @@
+/* src/components/ProgressAnalysis.css */
+.progress-analysis-container {
+    max-width: 100%;
+    margin: 0 auto;
+  }
+  
+  .progress-section, 
+  .insights-section, 
+  .club-progress-section, 
+  .metric-progress-section,
+  .correlations-section,
+  .frequent-clubs-section {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Time range selector */
+  .time-range-selector button {
+    transition: background-color 0.3s, color 0.3s;
+  }
+  
+  .time-range-selector button:hover {
+    background-color: #e1f5fe !important;
+    color: #2980b9 !important;
+  }
+  
+  /* Club progress items */
+  .club-progress-section > div > div {
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  
+  .club-progress-section > div > div:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Metric cards */
+  .metric-progress-section > div > div {
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  
+  .metric-progress-section > div > div:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Mobile optimizations */
+  @media (max-width: 768px) {
+    .time-range-selector {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    .time-range-selector label {
+      margin-bottom: 10px;
+    }
+    
+    .time-range-selector > div {
+      width: 100%;
+    }
+    
+    .time-range-selector button {
+      flex: 1;
+      text-align: center;
+    }
+    
+    /* Overall progress section */
+    .progress-section > div {
+      flex-direction: column;
+    }
+    
+    .progress-section > div > div:first-child {
+      margin-bottom: 20px;
+    }
+    
+    /* Club progress items */
+    .club-progress-section > div > div {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    .club-progress-section > div > div > div:last-child {
+      width: 100%;
+      margin-top: 15px;
+      display: flex;
+      justify-content: space-between;
+    }
+  }
