@@ -1,9 +1,23 @@
 // src/components/Dashboard.js
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
   const { currentUser } = useAuth();
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  
+  // Check if the screen is mobile size
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+  
   // Calculate latest score and improvement if history exists
   const hasHistory = swingHistory && swingHistory.length > 0;
   const latestSwing = hasHistory ? swingHistory[0] : null;
@@ -75,7 +89,29 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
         <h2>{currentUser ? `Welcome back, ${currentUser.displayName?.split(' ')[0] || 'Golfer'}!` : 'Welcome to Golf Guru'}</h2>
         <p>Your personal AI golf coach to help improve your swing</p>
 
-        {!hasHistory && (
+        {/* Mobile Upload Button - Always show at top on mobile */}
+        {isMobile && (
+          <button 
+            className="button" 
+            onClick={() => navigateTo('upload')}
+            style={{ 
+              width: '100%',
+              marginTop: '15px',
+              padding: '12px',
+              fontSize: '1rem',
+              backgroundColor: '#3498db',
+              borderRadius: '8px',
+              border: 'none',
+              color: 'white',
+              fontWeight: 'bold',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }}
+          >
+            Upload Swing Video
+          </button>
+        )}
+
+        {!hasHistory && !isMobile && (
           <div className="get-started">
             <p>Upload your first swing video to get started!</p>
             <button 
@@ -158,32 +194,36 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
               {userStats && userStats.consecutiveDays ? userStats.consecutiveDays : '0'} days
             </div>
             <p>Current practice streak</p>
-            <button 
-              className="button" 
-              onClick={() => navigateTo('upload')}
-              style={{ marginTop: '10px', fontSize: '0.9rem' }}
-            >
-              Practice Now
-            </button>
+            {!isMobile && (
+              <button 
+                className="button" 
+                onClick={() => navigateTo('upload')}
+                style={{ marginTop: '10px', fontSize: '0.9rem' }}
+              >
+                Practice Now
+              </button>
+            )}
           </div>
         </section>
       )}
 
       {hasHistory && (
-        <section className="dashboard-cards" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+        <section className="dashboard-cards" style={{ gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)' }}>
           <div className="dashboard-card">
             <h3>Quick Actions</h3>
-            <button 
-              className="button" 
-              onClick={() => navigateTo('upload')}
-              style={{ 
-                marginTop: '15px', 
-                width: '100%',
-                marginBottom: '10px'
-              }}
-            >
-              Upload New Swing
-            </button>
+            {!isMobile && (
+              <button 
+                className="button" 
+                onClick={() => navigateTo('upload')}
+                style={{ 
+                  marginTop: '15px', 
+                  width: '100%',
+                  marginBottom: '10px'
+                }}
+              >
+                Upload New Swing
+              </button>
+            )}
             <button 
               className="button" 
               onClick={() => navigateTo('comparison')}
@@ -255,7 +295,6 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
                 className="swing-history-item"
                 onClick={() => {
                   // Navigate to analysis page with this swing data
-                  // In a real implementation, you would pass the swing ID and fetch the data
                   navigateTo('analysis');
                 }}
               >

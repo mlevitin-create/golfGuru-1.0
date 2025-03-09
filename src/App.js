@@ -1,16 +1,16 @@
+// src/App.js
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import VideoUpload from './components/VideoUpload';
 import SwingAnalysis from './components/SwingAnalysis';
 import SwingTracker from './components/SwingTracker';
 import Navigation from './components/Navigation';
+import MobileNavDropdown from './components/MobileNavDropdown';
 import ProComparison from './components/ProComparison';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
-import ClubBag from './components/ClubBag';
 import WelcomeModal from './components/WelcomeModal';
-import SetupFlow from './components/SetupFlow';
 import geminiService from './services/geminiService';
 import firestoreService from './services/firestoreService';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -66,9 +66,21 @@ const AppContent = () => {
   const [error, setError] = useState(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
-  const [isSetupFlowOpen, setIsSetupFlowOpen] = useState(false);
   const [userStats, setUserStats] = useState(null);
   const [userClubs, setUserClubs] = useState([]);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  
+  // Check if the screen is mobile size
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
   
   // Check if this is the user's first visit or login
   useEffect(() => {
@@ -79,7 +91,7 @@ const AppContent = () => {
           const userData = await firestoreService.getUserData(currentUser.uid);
           
           if (!userData || !userData.setupCompleted) {
-            setIsSetupFlowOpen(true);
+            setIsWelcomeModalOpen(true);
           }
         } catch (error) {
           console.error('Error checking user setup status:', error);
@@ -190,45 +202,17 @@ const AppContent = () => {
     }
   };
 
-  // Handle setup flow completion
-  const handleSetupComplete = async (userData) => {
-    if (currentUser) {
-      try {
-        // Save user profile data to Firestore
-        await firestoreService.saveUserProfile(currentUser.uid, {
-          ...userData,
-          setupCompleted: true
-        });
-        
-        // Update clubs state
-        setUserClubs(userData.clubs);
-        
-        // Close setup flow modal
-        setIsSetupFlowOpen(false);
-      } catch (error) {
-        console.error("Error saving user profile:", error);
-        setError("Failed to save your profile. Please try again.");
-      }
-    } else {
-      // For non-authenticated users, just close the modal
-      setIsSetupFlowOpen(false);
-    }
-  };
-
-  // Enhanced navigation handler with optional parameters
-  // In the navigateTo function in App.js
+  // Enhanced navigation handler with scroll to top functionality
   const navigateTo = (page, params = null) => {
     setCurrentPage(page);
     setPageParams(params);
     setError(null);
     
-    // Track page view in Google Analytics
-    if (typeof window.gtag === 'function') {
-      window.gtag('event', 'page_view', {
-        page_title: page.charAt(0).toUpperCase() + page.slice(1),
-        page_path: `/${page}`
-      });
-    }
+    // Scroll to the top of the page
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth' // Use 'auto' for instant scrolling
+    });
   };
 
   // Render appropriate component based on current page
@@ -263,18 +247,14 @@ const AppContent = () => {
         return <ProComparison 
           swingData={swingData} 
         />;
-        case 'profile':
-          return <UserProfile 
-            navigateTo={navigateTo}
-            userStats={userStats}
-            userClubs={userClubs}
-            setUserClubs={setUserClubs}
-            setupClubsTab={pageParams?.setupClubs}
-            pageParams={pageParams}
-          />;
-      case 'clubs':
-        return <ClubBag 
-          onComplete={() => navigateTo('profile')}
+      case 'profile':
+        return <UserProfile 
+          navigateTo={navigateTo}
+          userStats={userStats}
+          userClubs={userClubs}
+          setUserClubs={setUserClubs}
+          setupClubsTab={pageParams?.setupClubs}
+          pageParams={pageParams}
         />;
       default:
         return <Dashboard 
@@ -288,26 +268,14 @@ const AppContent = () => {
 
   return (
     <div className="App">
-      <header className="App-header" style={{
-        padding: '10px',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
+      <header className="App-header">
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center', 
           width: '100%' 
         }}>
-          <h1 
-            onClick={() => navigateTo('dashboard')}
-            style={{ 
-              cursor: 'pointer',
-              fontSize: 'clamp(1.5rem, 5vw, 2.5rem)' // Responsive font size
-            }}
-          >
-            GOLF GURU
-          </h1>
+          <h1>GOLF GURU</h1>
           
           {currentUser ? (
             <div 
@@ -322,10 +290,7 @@ const AppContent = () => {
               <span style={{ 
                 marginRight: '10px', 
                 color: 'white',
-                display: 'none',  // Hide name on small screens
-                '@media (min-width: 480px)': {
-                  display: 'block'
-                }
+                display: isMobile ? 'none' : 'inline' 
               }}>
                 {currentUser.displayName?.split(' ')[0] || 'User'}
               </span>
@@ -345,26 +310,40 @@ const AppContent = () => {
               className="button" 
               onClick={() => setIsLoginModalOpen(true)}
               style={{
-                padding: '8px 16px',
-                fontSize: '0.9rem'
+                padding: isMobile ? '6px 12px' : '8px 16px',
+                fontSize: isMobile ? '0.8rem' : '0.9rem'
               }}
             >
               Sign In
             </button>
           )}
         </div>
-        <p style={{ fontSize: 'clamp(0.8rem, 3vw, 1rem)' }}>AI-Powered Swing Analysis</p>
+        <p>AI-Powered Swing Analysis</p>
+        
+        {/* Mobile Dropdown Navigation */}
+        {isMobile && (
+          <div style={{ marginTop: '10px', width: '100%' }}>
+            <MobileNavDropdown 
+              currentPage={currentPage} 
+              navigateTo={navigateTo} 
+              showProfile={!!currentUser}
+            />
+          </div>
+        )}
       </header>
       
       <main className="App-main">
         {renderPage()}
       </main>
       
-      <Navigation 
-        currentPage={currentPage} 
-        navigateTo={navigateTo} 
-        showProfile={!!currentUser}
-      />
+      {/* Only show desktop navigation on non-mobile screens */}
+      {!isMobile && (
+        <Navigation 
+          currentPage={currentPage} 
+          navigateTo={navigateTo} 
+          showProfile={!!currentUser}
+        />
+      )}
       
       {/* Modals */}
       <Modal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)}>
@@ -372,14 +351,7 @@ const AppContent = () => {
       </Modal>
 
       <Modal isOpen={isWelcomeModalOpen} onClose={() => setIsWelcomeModalOpen(false)}>
-        <WelcomeModal onClose={() => setIsWelcomeModalOpen(false)} onSetup={() => setIsSetupFlowOpen(true)} />
-      </Modal>
-      
-      <Modal 
-        isOpen={isSetupFlowOpen} 
-        onClose={() => currentUser ? null : setIsSetupFlowOpen(false)} // Only allow closing for non-auth users
-      >
-        <SetupFlow onComplete={handleSetupComplete} />
+        <WelcomeModal onClose={() => setIsWelcomeModalOpen(false)} />
       </Modal>
     </div>
   );
