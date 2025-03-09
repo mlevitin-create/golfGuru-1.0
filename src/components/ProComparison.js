@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 const ProComparison = ({ swingData }) => {
   const [selectedPro, setSelectedPro] = useState('tiger_woods');
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef(null);
   
   // Mock pro golfer data
@@ -86,6 +87,16 @@ const ProComparison = ({ swingData }) => {
     if (swingData && swingData.videoUrl) {
       generateThumbnail(swingData.videoUrl);
     }
+    
+    // Reset playing state when swing data changes
+    setIsPlaying(false);
+    
+    // Clean up function for when component unmounts or swingData changes
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.pause();
+      }
+    };
   }, [swingData]);
 
   // Function to generate thumbnail from video URL
@@ -99,7 +110,8 @@ const ProComparison = ({ swingData }) => {
     // When video data is loaded, create thumbnail
     videoElement.onloadeddata = () => {
       // Seek to 1 second or 1/4 through the video, whichever is less
-      videoElement.currentTime = 1;
+      const seekTime = Math.min(1, videoElement.duration * 0.25);
+      videoElement.currentTime = seekTime;
     };
     
     // Once we've seeked to the right place, capture the frame
@@ -114,17 +126,22 @@ const ProComparison = ({ swingData }) => {
       
       // Create thumbnail URL from canvas
       try {
-        const thumbnailUrl = canvas.toDataURL('image/jpeg');
+        const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
         setThumbnailUrl(thumbnailUrl);
       } catch (err) {
         console.error('Error generating thumbnail:', err);
-        // If thumbnail generation fails, we'll still have the video element
+        // If thumbnail generation fails, fall back to showing the video element
+        setThumbnailUrl(null);
+      } finally {
+        // Clean up by releasing the video element
+        URL.revokeObjectURL(videoUrl);
       }
     };
     
     // Handle errors
     videoElement.onerror = (err) => {
       console.error('Error loading video for thumbnail:', err);
+      setThumbnailUrl(null);
     };
     
     // Explicitly trigger load
@@ -134,14 +151,20 @@ const ProComparison = ({ swingData }) => {
   // Handle playing the video when thumbnail is clicked
   const handleThumbnailClick = () => {
     if (videoRef.current) {
-      videoRef.current.style.display = 'block';
-      if (thumbnailUrl) {
-        setThumbnailUrl(null);
-      }
-      videoRef.current.play();
+      // Show and play the video
+      setIsPlaying(true);
+      
+      // Small timeout to ensure state update happens before trying to play
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.play()
+            .catch(error => console.error("Error playing video:", error));
+        }
+      }, 50);
     }
   };
 
+  // Handle error display when no swing data available
   if (!swingData) {
     return (
       <div className="card">
@@ -186,20 +209,45 @@ const ProComparison = ({ swingData }) => {
         </select>
       </div>
       
-      <div className="pro-comparison-container">
-        <div className="your-swing" style={{ marginBottom: '20px' }}>
+      <div className="pro-comparison-container" style={{ 
+        display: 'flex', 
+        flexDirection: 'row', 
+        flexWrap: 'wrap',
+        gap: '20px',
+        justifyContent: 'center' 
+      }}>
+        <div className="your-swing" style={{ 
+          marginBottom: '20px',
+          flex: '1',
+          minWidth: '280px',
+          maxWidth: '500px'
+        }}>
           <h3>Your Swing</h3>
-          <div className="video-container" style={{ maxWidth: '100%', margin: '0 auto 20px' }}>
-            {thumbnailUrl ? (
-              <div style={{ position: 'relative', marginBottom: '10px' }}>
+          <div className="video-container" style={{ 
+            width: '100%', 
+            margin: '0 auto',
+            backgroundColor: '#333',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            position: 'relative',
+            paddingBottom: '56.25%', /* 16:9 aspect ratio */
+            height: 0
+          }}>
+            {!isPlaying && thumbnailUrl ? (
+              <div style={{ position: 'relative', height: '100%', width: '100%' }}>
                 <img 
                   src={thumbnailUrl} 
                   alt="Video preview" 
                   style={{ 
-                    width: '100%', 
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
                     borderRadius: '8px',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    backgroundColor: '#333' 
                   }}
                   onClick={handleThumbnailClick}
                 />
@@ -209,47 +257,70 @@ const ProComparison = ({ swingData }) => {
                     top: '50%',
                     left: '50%',
                     transform: 'translate(-50%, -50%)',
-                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    backgroundColor: 'rgba(52, 152, 219, 0.7)',
                     borderRadius: '50%',
-                    width: '50px',
-                    height: '50px',
+                    width: '60px',
+                    height: '60px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 8px rgba(0,0,0,0.3)'
                   }}
                   onClick={handleThumbnailClick}
                 >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M8 5V19L19 12L8 5Z" fill="white" />
                   </svg>
                 </div>
               </div>
-            ) : null}
-            <video 
-              ref={videoRef}
-              src={swingData.videoUrl} 
-              controls 
-              width="100%"
-              style={{ 
-                borderRadius: '8px', 
-                boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-                display: thumbnailUrl ? 'none' : 'block'
-              }}
-            />
+            ) : (
+              <video 
+                ref={videoRef}
+                src={swingData.videoUrl} 
+                controls 
+                style={{ 
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '8px',
+                  objectFit: 'contain',
+                  backgroundColor: '#333',
+                  display: 'block'
+                }}
+              />
+            )}
           </div>
         </div>
         
-        <div className="pro-swing" style={{ marginBottom: '20px' }}>
+        <div className="pro-swing" style={{ 
+          marginBottom: '20px',
+          flex: '1',
+          minWidth: '280px',
+          maxWidth: '500px'
+        }}>
           <h3>{proData.name}'s Swing</h3>
-          <div className="pro-image">
-            <img 
+          <div className="pro-image" style={{
+            width: '100%',
+            paddingBottom: '56.25%', /* 16:9 aspect ratio */
+            height: 0,
+            backgroundColor: '#333',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            position: 'relative'
+          }}>
+                          <img 
               src={proData.imageUrl} 
               alt={`${proData.name} swing`} 
               style={{ 
-                width: '100%', 
-                borderRadius: '10px',
-                height: '200px',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                borderRadius: '8px',
                 objectFit: 'cover'
               }}
             />
@@ -273,7 +344,7 @@ const ProComparison = ({ swingData }) => {
                 </span>
               </div>
               
-              {/* Stacked bars instead of side-by-side */}
+              {/* Stacked bars for comparison */}
               <div className="comparison-stacked-bars" style={{ 
                 width: '100%', 
                 position: 'relative', 
@@ -359,6 +430,18 @@ const ProComparison = ({ swingData }) => {
                 </li>
               );
             })}
+          
+          {/* Show a default tip if no specific metrics are far below */}
+          {Object.entries(swingData.metrics)
+            .filter(([key, value]) => {
+              const proValue = proData.metrics[key] || 0;
+              return proValue - value > 15;
+            }).length === 0 && (
+              <li>
+                <strong>Overall:</strong> Your swing metrics are relatively close to {proData.name}'s! 
+                Continue practicing your technique and focus on consistency.
+              </li>
+            )}
         </ul>
       </div>
     </div>
