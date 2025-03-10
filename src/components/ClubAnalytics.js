@@ -179,7 +179,14 @@ const ClubAnalytics = ({ userClubs, swingHistory }) => {
     return (
       <div className="card">
         <h2>Club Performance</h2>
-        <p>You haven't set up your clubs yet. Add clubs to your bag to see club-specific analytics.</p>
+        <p>You haven't set up your clubs yet. Visit the "My Clubs" tab to customize your club bag.</p>
+        <button 
+          className="button"
+          onClick={() => currentUser ? window.location.hash = "#clubs" : null}
+          style={{ marginTop: '10px' }}
+        >
+          Go to My Clubs
+        </button>
       </div>
     );
   }

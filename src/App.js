@@ -83,6 +83,7 @@ const AppContent = () => {
   }, []);
   
   // Check if this is the user's first visit or login
+  // Check if this is the user's first visit or login
   useEffect(() => {
     const checkFirstTimeUser = async () => {
       if (currentUser) {
@@ -92,6 +93,17 @@ const AppContent = () => {
           
           if (!userData || !userData.setupCompleted) {
             setIsWelcomeModalOpen(true);
+          } else {
+            // Check if user has any clubs set up
+            const userClubs = await firestoreService.getUserClubs(currentUser.uid);
+            if (!userClubs || userClubs.length === 0) {
+              // User doesn't have clubs set up yet, pre-populate with defaults
+              // This acts as a backup in case the ClubBag component doesn't load defaults
+              console.log("No clubs found for user, will use defaults");
+              
+              // We don't need to actually save the defaults here since
+              // ClubBag component will handle showing the defaults
+            }
           }
         } catch (error) {
           console.error('Error checking user setup status:', error);

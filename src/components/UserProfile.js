@@ -23,6 +23,7 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
   const [swingHistory, setSwingHistory] = useState([]);
 
   // Set the active tab based on incoming parameters
+  // Set the active tab based on incoming parameters
   useEffect(() => {
     console.log("Received page params:", pageParams);
     console.log("Setup clubs tab:", setupClubsTab);
@@ -32,6 +33,9 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
     } else if (pageParams && pageParams.activeTab) {
       console.log("Setting active tab to:", pageParams.activeTab);
       setActiveTab(pageParams.activeTab);
+    } else if (window.location.hash === "#clubs") {
+      // Handle direct navigation to clubs tab via URL hash
+      setActiveTab('clubs');
     }
   }, [setupClubsTab, pageParams]);
 

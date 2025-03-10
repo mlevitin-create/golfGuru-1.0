@@ -45,6 +45,7 @@ const ClubBag = ({ isFirstTimeSetup = false, onComplete }) => {
   const [customClubType, setCustomClubType] = useState('Iron');
 
   // Load clubs from Firestore if the user is authenticated
+  // Load clubs from Firestore if the user is authenticated
   useEffect(() => {
     const loadClubs = async () => {
       setLoading(true);
@@ -55,15 +56,16 @@ const ClubBag = ({ isFirstTimeSetup = false, onComplete }) => {
           
           if (userClubs && userClubs.length > 0) {
             setClubs(userClubs);
-          } else if (isFirstTimeSetup) {
-            // If first time and no clubs, use default set
-            setClubs(DEFAULT_CLUBS);
           } else {
-            // If returning user with no clubs, use empty array
-            setClubs([]);
+            // If no clubs found (regardless if first time or returning), use default set
+            // This ensures users always have some clubs to work with
+            setClubs(DEFAULT_CLUBS);
           }
         } else if (isFirstTimeSetup) {
           // For non-authenticated users during first setup
+          setClubs(DEFAULT_CLUBS);
+        } else {
+          // For non-authenticated returning users, still show defaults
           setClubs(DEFAULT_CLUBS);
         }
         

@@ -18,6 +18,15 @@ const UserAvatar = ({ user, size = 35 }) => {
   const handleImageError = () => {
     setImageError(true);
   };
+
+  const [profileData, setProfileData] = useState({
+    name: currentUserData.name || '',
+    experience: currentUserData.experience || 'intermediate',
+    playFrequency: currentUserData.playFrequency || 'monthly',
+    handicap: currentUserData.handicap || '',
+    allowHistoricalSwings: currentUserData.allowHistoricalSwings !== false, // Default to true
+    setupClubs: true // Default to true to ensure clubs are set up
+  });
   
   // If no photo URL or image failed to load, show initial avatar
   if (!user.photoURL || imageError) {
