@@ -81,30 +81,117 @@ const AppContent = () => {
       window.removeEventListener('resize', handleResize);
     };
   }, []);
-  
-  // Check if this is the user's first visit or login
-  // Check if this is the user's first visit or login
+
+  // Enhanced navigation handler with robust scroll to top functionality
+  const navigateTo = (page, params = null) => {
+    setCurrentPage(page);
+    setPageParams(params);
+    
+    // If navigating to analysis page with specific swing data, update current swing data
+    if (page === 'analysis' && params && params.swingData) {
+      setSwingData(params.swingData);
+    }
+    
+    setError(null);
+    
+    // Scroll to the top of the page
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
+  // Check user login status and redirect to profile setup if needed
   useEffect(() => {
-    const checkFirstTimeUser = async () => {
+    const checkUserSetupStatus = async () => {
       if (currentUser) {
         try {
-          // Check if the user has completed setup
+          // First check localStorage flag set during login/signup
+          const needsProfileSetup = localStorage.getItem('needsProfileSetup');
+          
+          if (needsProfileSetup === 'true') {
+            console.log("User needs profile setup, redirecting to profile page");
+            
+            // First, ensure they have default clubs
+            try {
+              // Define default clubs
+              const DEFAULT_CLUBS = [
+                { id: 'driver', name: 'Driver', type: 'Wood', confidence: 5, distance: 230 },
+                { id: '3-wood', name: '3 Wood', type: 'Wood', confidence: 5, distance: 210 },
+                { id: '5-wood', name: '5 Wood', type: 'Wood', confidence: 5, distance: 195 },
+                { id: '4-iron', name: '4 Iron', type: 'Iron', confidence: 5, distance: 180 },
+                { id: '5-iron', name: '5 Iron', type: 'Iron', confidence: 5, distance: 170 },
+                { id: '6-iron', name: '6 Iron', type: 'Iron', confidence: 5, distance: 160 },
+                { id: '7-iron', name: '7 Iron', type: 'Iron', confidence: 5, distance: 150 },
+                { id: '8-iron', name: '8 Iron', type: 'Iron', confidence: 5, distance: 140 },
+                { id: '9-iron', name: '9 Iron', type: 'Iron', confidence: 5, distance: 130 },
+                { id: 'pw', name: 'Pitching Wedge', type: 'Wedge', confidence: 5, distance: 120 },
+                { id: 'sw', name: 'Sand Wedge', type: 'Wedge', confidence: 5, distance: 100 },
+                { id: 'lw', name: 'Lob Wedge', type: 'Wedge', confidence: 5, distance: 80 },
+                { id: 'putter', name: 'Putter', type: 'Putter', confidence: 5, distance: 0 }
+              ];
+              
+              // Save default clubs to user profile
+              await firestoreService.saveUserClubs(currentUser.uid, DEFAULT_CLUBS);
+              console.log("Default clubs saved for user during setup");
+            } catch (clubError) {
+              console.error("Error saving default clubs:", clubError);
+              // Continue even if this fails
+            }
+            
+            // Redirect to profile setup page
+            // Note: We don't clear the flag here so it persists until setup is completed
+            navigateTo('profile');
+            return;
+          }
+          
+          // Double check Firestore for setup status (as a backup)
           const userData = await firestoreService.getUserData(currentUser.uid);
           
-          if (!userData || !userData.setupCompleted) {
-            setIsWelcomeModalOpen(true);
+          if (userData) {
+            if (userData.setupCompleted === false) {
+              // User needs to complete setup - set flag and redirect
+              localStorage.setItem('needsProfileSetup', 'true');
+              navigateTo('profile');
+              return;
+            }
           } else {
-            // Check if user has any clubs set up
-            const userClubs = await firestoreService.getUserClubs(currentUser.uid);
-            if (!userClubs || userClubs.length === 0) {
-              // User doesn't have clubs set up yet, pre-populate with defaults
-              // This acts as a backup in case the ClubBag component doesn't load defaults
-              console.log("No clubs found for user, will use defaults");
-              
-              // We don't need to actually save the defaults here since
-              // ClubBag component will handle showing the defaults
+            // No user data found, they likely need to complete setup
+            localStorage.setItem('needsProfileSetup', 'true');
+            navigateTo('profile');
+            return;
+          }
+          
+          // If we got here, the user has completed setup
+          console.log("User has completed setup, proceeding to dashboard");
+          
+          // Ensure they have clubs (just in case)
+          const userClubs = await firestoreService.getUserClubs(currentUser.uid);
+          if (!userClubs || userClubs.length === 0) {
+            // Add default clubs in the background
+            try {
+              const DEFAULT_CLUBS = [
+                { id: 'driver', name: 'Driver', type: 'Wood', confidence: 5, distance: 230 },
+                { id: '3-wood', name: '3 Wood', type: 'Wood', confidence: 5, distance: 210 },
+                { id: '5-wood', name: '5 Wood', type: 'Wood', confidence: 5, distance: 195 },
+                { id: '4-iron', name: '4 Iron', type: 'Iron', confidence: 5, distance: 180 },
+                { id: '5-iron', name: '5 Iron', type: 'Iron', confidence: 5, distance: 170 },
+                { id: '6-iron', name: '6 Iron', type: 'Iron', confidence: 5, distance: 160 },
+                { id: '7-iron', name: '7 Iron', type: 'Iron', confidence: 5, distance: 150 },
+                { id: '8-iron', name: '8 Iron', type: 'Iron', confidence: 5, distance: 140 },
+                { id: '9-iron', name: '9 Iron', type: 'Iron', confidence: 5, distance: 130 },
+                { id: 'pw', name: 'Pitching Wedge', type: 'Wedge', confidence: 5, distance: 120 },
+                { id: 'sw', name: 'Sand Wedge', type: 'Wedge', confidence: 5, distance: 100 },
+                { id: 'lw', name: 'Lob Wedge', type: 'Wedge', confidence: 5, distance: 80 },
+                { id: 'putter', name: 'Putter', type: 'Putter', confidence: 5, distance: 0 }
+              ];
+              await firestoreService.saveUserClubs(currentUser.uid, DEFAULT_CLUBS);
+              console.log("Default clubs saved as a backup measure");
+            } catch (clubSaveError) {
+              console.error("Error saving default clubs:", clubSaveError);
             }
           }
+          
         } catch (error) {
           console.error('Error checking user setup status:', error);
         }
@@ -118,8 +205,8 @@ const AppContent = () => {
       }
     };
     
-    checkFirstTimeUser();
-  }, [currentUser]);
+    checkUserSetupStatus();
+  }, [currentUser, navigateTo]);
   
   // Load user data when authenticated
   useEffect(() => {
@@ -215,26 +302,6 @@ const AppContent = () => {
       setIsAnalyzing(false);
     }
   };
-
-// Enhanced navigation handler with robust scroll to top functionality
-// Update the navigateTo function in App.js to handle navigation with specific swing data
-    const navigateTo = (page, params = null) => {
-      setCurrentPage(page);
-      setPageParams(params);
-      
-      // If navigating to analysis page with specific swing data, update current swing data
-      if (page === 'analysis' && params && params.swingData) {
-        setSwingData(params.swingData);
-      }
-      
-      setError(null);
-      
-      // Scroll to the top of the page
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
-    };
 
   // Render appropriate component based on current page
   const renderPage = () => {

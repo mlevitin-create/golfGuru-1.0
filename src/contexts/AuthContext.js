@@ -10,10 +10,19 @@ import {
   sendPasswordResetEmail,
   updateProfile
 } from 'firebase/auth';
-import { auth } from '../firebase/firebase';
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { auth, db } from '../firebase/firebase';
 
 // Create the authentication context
 const AuthContext = createContext();
+
+// Collection name constants
+const USERS_COLLECTION = 'users';
 
 // Custom hook to use the auth context
 export const useAuth = () => {
@@ -32,7 +41,35 @@ export const AuthProvider = ({ children }) => {
       googleProvider.setCustomParameters({
         prompt: 'select_account'
       });
-      return await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      
+      // Check if this user already exists in our database
+      try {
+        const userRef = doc(db, USERS_COLLECTION, result.user.uid);
+        const userDoc = await getDoc(userRef);
+        
+        if (!userDoc.exists()) {
+          // New Google user, create profile and flag for setup
+          await setDoc(userRef, {
+            email: result.user.email || '',
+            displayName: result.user.displayName || '',
+            setupCompleted: false,
+            createdAt: serverTimestamp()
+          });
+          localStorage.setItem('needsProfileSetup', 'true');
+        } else {
+          // Existing user - check if they've completed setup
+          const userData = userDoc.data();
+          if (userData.setupCompleted === false) {
+            localStorage.setItem('needsProfileSetup', 'true');
+          }
+        }
+      } catch (firestoreError) {
+        console.error("Error handling Google sign-in user data:", firestoreError);
+        // Continue even if this fails
+      }
+      
+      return result;
     } catch (error) {
       console.error("Error signing in with Google", error);
       throw error;
@@ -51,6 +88,23 @@ export const AuthProvider = ({ children }) => {
         });
       }
       
+      // Mark this as a new user for profile setup
+      localStorage.setItem('needsProfileSetup', 'true');
+      
+      // Add a custom claim or user property in Firestore to track setup status
+      try {
+        const userRef = doc(db, USERS_COLLECTION, result.user.uid);
+        await setDoc(userRef, {
+          email: email,
+          displayName: displayName || '',
+          setupCompleted: false,
+          createdAt: serverTimestamp()
+        }, { merge: true });
+      } catch (firestoreError) {
+        console.error("Error setting initial user data:", firestoreError);
+        // Continue even if this fails
+      }
+      
       return result;
     } catch (error) {
       console.error("Error signing up with email/password", error);
@@ -61,7 +115,35 @@ export const AuthProvider = ({ children }) => {
   // Sign in with email and password
   const login = async (email, password) => {
     try {
-      return await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Check if this user has completed profile setup
+      try {
+        const userDoc = await getDoc(doc(db, USERS_COLLECTION, result.user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.setupCompleted === false) {
+            // User hasn't completed setup yet, flag for redirection
+            localStorage.setItem('needsProfileSetup', 'true');
+          }
+        } else {
+          // No user document exists yet, should create one and flag for setup
+          localStorage.setItem('needsProfileSetup', 'true');
+          
+          // Create a user document to track setup status
+          await setDoc(doc(db, USERS_COLLECTION, result.user.uid), {
+            email: result.user.email || '',
+            displayName: result.user.displayName || '',
+            setupCompleted: false,
+            createdAt: serverTimestamp()
+          });
+        }
+      } catch (firestoreError) {
+        console.error("Error checking user setup status:", firestoreError);
+        // Continue even if this fails
+      }
+      
+      return result;
     } catch (error) {
       console.error("Error logging in with email/password", error);
       throw error;

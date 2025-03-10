@@ -5,7 +5,7 @@ import ClubBag from './ClubBag';
 import ClubAnalytics from './ClubAnalytics';
 import ProgressAnalysis from './ProgressAnalysis'; // Import the new component
 import firestoreService from '../services/firestoreService';
-import DateSelector from './DateSelector';
+// DateSelector is used in ProfileSetup, but not directly in this component
 
 const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClubsTab = false, pageParams }) => {
   const { currentUser, logout } = useAuth();
@@ -22,7 +22,6 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
   const [error, setError] = useState(null);
   const [swingHistory, setSwingHistory] = useState([]);
 
-  // Set the active tab based on incoming parameters
   // Set the active tab based on incoming parameters
   useEffect(() => {
     console.log("Received page params:", pageParams);
@@ -52,7 +51,8 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
               name: profile.name || currentUser.displayName || '',
               experience: profile.experience || 'intermediate',
               playFrequency: profile.playFrequency || 'monthly',
-              handicap: profile.handicap || ''
+              handicap: profile.handicap || '',
+              allowHistoricalSwings: profile.allowHistoricalSwings !== false
             });
           }
 
@@ -61,7 +61,7 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
           setSwingHistory(swings || []);
         } catch (error) {
           console.error('Error loading user profile:', error);
-          setError('Failed to load your profile. Please refresh the page.');
+          setError({ type: 'error', message: 'Failed to load your profile. Please refresh the page.' });
         } finally {
           setLoading(false);
         }
@@ -90,13 +90,29 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
     try {
       await firestoreService.saveUserProfile(currentUser.uid, {
         ...userData,
+        setupCompleted: true, // Mark setup as completed
         updatedAt: new Date()
       });
 
-      // Display success message or update UI
+      // Clear the setup flag from localStorage
+      localStorage.removeItem('needsProfileSetup');
+      
+      // Display success message
+      setError(null);
+      setActiveTab('profile'); // Go back to profile tab after saving
+      
+      // Show success message (using error state with a different style)
+      const successMessage = 'Profile saved successfully!';
+      setError({ type: 'success', message: successMessage });
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setError(null);
+      }, 3000);
+      
     } catch (error) {
       console.error('Error saving profile:', error);
-      setError('Failed to save profile changes. Please try again.');
+      setError({ type: 'error', message: 'Failed to save profile changes. Please try again.' });
     } finally {
       setSaving(false);
     }
@@ -109,7 +125,7 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
       navigateTo('dashboard');
     } catch (error) {
       console.error('Error logging out:', error);
-      setError('Failed to log out. Please try again.');
+      setError({ type: 'error', message: 'Failed to log out. Please try again.' });
     }
   };
 
@@ -211,8 +227,14 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
           <h2>My Profile</h2>
 
           {error && (
-            <div style={{ backgroundColor: '#f8d7da', color: '#721c24', padding: '10px', borderRadius: '5px', marginBottom: '15px' }}>
-              {error}
+            <div style={{ 
+              backgroundColor: error.type === 'success' ? '#d4edda' : '#f8d7da', 
+              color: error.type === 'success' ? '#155724' : '#721c24', 
+              padding: '10px', 
+              borderRadius: '5px', 
+              marginBottom: '15px' 
+            }}>
+              {error.message || error}
             </div>
           )}
 

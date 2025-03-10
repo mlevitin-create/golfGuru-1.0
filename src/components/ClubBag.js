@@ -46,6 +46,7 @@ const ClubBag = ({ isFirstTimeSetup = false, onComplete }) => {
 
   // Load clubs from Firestore if the user is authenticated
   // Load clubs from Firestore if the user is authenticated
+  // Load clubs from Firestore if the user is authenticated
   useEffect(() => {
     const loadClubs = async () => {
       setLoading(true);
@@ -55,11 +56,23 @@ const ClubBag = ({ isFirstTimeSetup = false, onComplete }) => {
           const userClubs = await firestoreService.getUserClubs(currentUser.uid);
           
           if (userClubs && userClubs.length > 0) {
+            // User has saved clubs, use them
             setClubs(userClubs);
           } else {
-            // If no clubs found (regardless if first time or returning), use default set
-            // This ensures users always have some clubs to work with
+            // No clubs found for this user, automatically use default set
+            console.log("No saved clubs found for user, using default clubs");
             setClubs(DEFAULT_CLUBS);
+            
+            // If this is a returning user (not first time setup), save default clubs to their profile
+            if (!isFirstTimeSetup) {
+              try {
+                console.log("Saving default clubs to user profile");
+                await firestoreService.saveUserClubs(currentUser.uid, DEFAULT_CLUBS);
+              } catch (saveError) {
+                console.error('Error saving default clubs:', saveError);
+                // Continue even if save fails - at least we're showing clubs
+              }
+            }
           }
         } else if (isFirstTimeSetup) {
           // For non-authenticated users during first setup
@@ -74,6 +87,8 @@ const ClubBag = ({ isFirstTimeSetup = false, onComplete }) => {
       } catch (error) {
         console.error('Error loading clubs:', error);
         setError('Failed to load your clubs. Please try again.');
+        // Still show defaults even on error
+        setClubs(DEFAULT_CLUBS);
       } finally {
         setLoading(false);
       }

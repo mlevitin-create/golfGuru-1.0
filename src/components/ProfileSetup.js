@@ -8,7 +8,8 @@ const ProfileSetup = ({ onComplete, currentUserData = {} }) => {
     experience: currentUserData.experience || 'intermediate',
     playFrequency: currentUserData.playFrequency || 'monthly',
     handicap: currentUserData.handicap || '',
-    allowHistoricalSwings: currentUserData.allowHistoricalSwings !== false // Default to true
+    allowHistoricalSwings: currentUserData.allowHistoricalSwings !== false, // Default to true
+    setupClubs: true // Default to true to ensure clubs are set up
   });
   
   const [defaultSwingDate, setDefaultSwingDate] = useState(new Date());

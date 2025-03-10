@@ -53,7 +53,6 @@ const Login = ({ onClose, allowSkip = false }) => {
     }
   };
   
-  // Handle signup
   const handleSignup = async (e) => {
     e.preventDefault();
     
@@ -76,8 +75,45 @@ const Login = ({ onClose, allowSkip = false }) => {
     setLoading(true);
     
     try {
-      await signup(email, password, displayName.trim() || null);
+      const result = await signup(email, password, displayName.trim() || null);
       setMessage('Account created successfully! You are now logged in.');
+      
+      // Trigger profile setup flow for new users by setting custom flag
+      // We'll need to check this flag in App.js
+      localStorage.setItem('needsProfileSetup', 'true');
+      
+      // Save default clubs for the new user
+      try {
+        // Get the DEFAULT_CLUBS from a module
+        const DEFAULT_CLUBS = [
+          { id: 'driver', name: 'Driver', type: 'Wood', confidence: 5, distance: 230 },
+          { id: '3-wood', name: '3 Wood', type: 'Wood', confidence: 5, distance: 210 },
+          { id: '5-wood', name: '5 Wood', type: 'Wood', confidence: 5, distance: 195 },
+          { id: '4-iron', name: '4 Iron', type: 'Iron', confidence: 5, distance: 180 },
+          { id: '5-iron', name: '5 Iron', type: 'Iron', confidence: 5, distance: 170 },
+          { id: '6-iron', name: '6 Iron', type: 'Iron', confidence: 5, distance: 160 },
+          { id: '7-iron', name: '7 Iron', type: 'Iron', confidence: 5, distance: 150 },
+          { id: '8-iron', name: '8 Iron', type: 'Iron', confidence: 5, distance: 140 },
+          { id: '9-iron', name: '9 Iron', type: 'Iron', confidence: 5, distance: 130 },
+          { id: 'pw', name: 'Pitching Wedge', type: 'Wedge', confidence: 5, distance: 120 },
+          { id: 'sw', name: 'Sand Wedge', type: 'Wedge', confidence: 5, distance: 100 },
+          { id: 'lw', name: 'Lob Wedge', type: 'Wedge', confidence: 5, distance: 80 },
+          { id: 'putter', name: 'Putter', type: 'Putter', confidence: 5, distance: 0 }
+        ];
+        
+        // Import firestoreService dynamically
+        const firestoreService = await import('../services/firestoreService').then(module => module.default);
+        
+        // Save the default clubs
+        if (result && result.user) {
+          await firestoreService.saveUserClubs(result.user.uid, DEFAULT_CLUBS);
+          console.log("Default clubs saved for new user");
+        }
+      } catch (clubError) {
+        console.error("Error saving default clubs for new user:", clubError);
+        // Continue even if this fails
+      }
+      
       onClose();
     } catch (error) {
       setError(formatError(error.message));
