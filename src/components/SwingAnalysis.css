@@ -26,3 +26,120 @@
       max-width: 600px; /* Maximum width on desktop */
     }
   }
+
+  /* Add these styles to your SwingAnalysis.css file */
+
+/* Styling for the new feel tips section */
+.feel-tips {
+  margin-top: 15px;
+  background-color: #f0f7ff;
+  padding: 12px 15px;
+  border-radius: 8px;
+  border-left: 4px solid #3498db;
+  transition: all 0.3s ease;
+}
+
+.feel-tips:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.feel-tips h4 {
+  margin-top: 0;
+  color: #2c3e50;
+  margin-bottom: 10px;
+  font-size: 1.1rem;
+}
+
+.feel-tips ul {
+  margin-bottom: 0;
+}
+
+.feel-tips li {
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+/* Enhanced styling for all insight sections */
+.metric-insights h4 {
+  position: relative;
+  padding-left: 20px;
+  font-size: 1.1rem;
+  margin-top: 16px;
+  margin-bottom: 10px;
+}
+
+/* Add icons for each section */
+.metric-insights .goodAspects h4:before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: #27ae60;
+}
+
+.metric-insights .improvementAreas h4:before {
+  content: "△";
+  position: absolute;
+  left: 0;
+  color: #e74c3c;
+}
+
+.metric-insights .technicalBreakdown h4:before {
+  content: "⚙";
+  position: absolute;
+  left: 0;
+  color: #3498db;
+}
+
+.metric-insights .recommendations h4:before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: #f39c12;
+}
+
+.feel-tips h4:before {
+  content: "⟳";
+  position: absolute;
+  left: 0;
+  color: #3498db;
+}
+
+/* Animation for loading state */
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.insights-loading {
+  animation: pulse 1.5s infinite;
+}
+
+/* Make insights expandable/collapsible on mobile */
+@media (max-width: 768px) {
+  .metric-insights h4 {
+    cursor: pointer;
+  }
+  
+  .metric-insights h4:after {
+    content: "+";
+    position: absolute;
+    right: 0;
+    transition: transform 0.3s ease;
+  }
+  
+  .metric-insights h4.expanded:after {
+    transform: rotate(45deg);
+  }
+  
+  .metric-insights ul {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  
+  .metric-insights h4.expanded + ul {
+    max-height: 500px;
+  }
+}

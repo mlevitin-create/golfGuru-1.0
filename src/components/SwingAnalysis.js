@@ -38,20 +38,24 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
   };
 
   // Fetch insights for a specific metric
-  const fetchMetricInsights = async (metricKey) => {
+  const fetchMetricInsights = async (metricKey, enhancedSwingData) => {
     // If insights already exist or are currently loading, do nothing
     if (metricInsights[metricKey] || loadingInsights[metricKey]) return;
-
+  
     // Set loading state
     setLoadingInsights(prev => ({
       ...prev,
       [metricKey]: true
     }));
-
+  
     try {
-      // Generate insights using Gemini service
-      const insights = await metricInsightsGenerator.generateMetricInsights(swingData, metricKey);
-
+      // Log that we're passing video for enhanced analysis
+      console.log(`Fetching insights for ${metricKey} with video analysis`);
+      
+      // Generate insights using the enhanced Gemini service
+      // This now passes the swing data WITH video
+      const insights = await metricInsightsGenerator.generateMetricInsights(enhancedSwingData, metricKey);
+  
       // Update insights state
       setMetricInsights(prev => ({
         ...prev,
@@ -95,10 +99,18 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
       ...prev,
       [metricKey]: !prev[metricKey]
     }));
-
+  
     // Fetch insights when expanding
     if (!expandedMetrics[metricKey]) {
-      fetchMetricInsights(metricKey);
+      // Create a copy of the swing data with the current video element reference
+      const swingDataWithVideo = {
+        ...swingData,
+        // Ensure the videoUrl is current and accessible
+        videoUrl: swingData.videoUrl || (videoRef.current ? videoRef.current.src : null)
+      };
+      
+      // Pass the enhanced swing data with video reference
+      fetchMetricInsights(metricKey, swingDataWithVideo);
     }
   };
 
@@ -106,10 +118,10 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
   const renderMetricInsights = (metricKey, score) => {
     const insights = metricInsights[metricKey];
     const isLoading = loadingInsights[metricKey];
-
+  
     // Determine insight tone based on score
     const insightTone = score >= 80 ? 'positive' : score >= 60 ? 'neutral' : 'needs-improvement';
-
+  
     // If loading, show loading spinner
     if (isLoading) {
       return (
@@ -139,16 +151,16 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
         </div>
       );
     }
-
+  
     // If no insights yet, return null
     if (!insights) return null;
-
+  
     // Validate insights structure before rendering
     if (!insights.goodAspects || !insights.improvementAreas || !insights.technicalBreakdown || !insights.recommendations) {
       console.error("Invalid insights structure:", insights);
       return <div>Error loading insights.</div>; // Or a more user-friendly message
     }
-
+  
     return (
       <div
         className="metric-insights"
@@ -180,6 +192,24 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
             </ul>
           </div>
         ))}
+        
+        {/* New section for Feel Tips */}
+        {insights.feelTips && insights.feelTips.length > 0 && (
+          <div className="feel-tips" style={{
+            marginTop: '15px',
+            backgroundColor: '#f0f7ff',
+            padding: '12px',
+            borderRadius: '8px',
+            borderLeft: '4px solid #3498db'
+          }}>
+            <h4 style={{ marginTop: 0, color: '#2c3e50', marginBottom: '10px' }}>How It Should Feel</h4>
+            <ul style={{ paddingLeft: '20px', marginBottom: '0' }}>
+              {insights.feelTips.map((tip, index) => (
+                <li key={index} style={{ marginBottom: '5px' }}>{tip}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     );
   };
