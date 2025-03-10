@@ -352,6 +352,7 @@ const ClubAnalytics = ({ userClubs, swingHistory }) => {
 
         {/* Progress Chart */}
         {sortedSwings.length >= 2 && (
+          // Improved Progress Over Time chart
           <div className="progress-chart" style={{ marginTop: '30px' }}>
             <h3>Progress Over Time</h3>
 
@@ -371,55 +372,140 @@ const ClubAnalytics = ({ userClubs, swingHistory }) => {
               </select>
             </div>
 
-            <div className="chart-container" style={{ position: 'relative', height: '250px', marginTop: '15px' }}>
-              {/* Y-axis labels */}
-              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingRight: '10px' }}>
-                <span>100</span>
-                <span>75</span>
-                <span>50</span>
-                <span>25</span>
-                <span>0</span>
+            {/* Responsive chart container */}
+            <div className="chart-container" style={{ 
+              position: 'relative', 
+              height: '300px',
+              marginTop: '15px',
+              overflowX: 'auto', // Allow horizontal scrolling on mobile if needed
+              paddingBottom: '20px' // Space for dates
+            }}>
+              {/* Y-axis labels - fixed on the left */}
+              <div style={{ 
+                position: 'absolute', 
+                left: 0, 
+                top: 0, 
+                bottom: '20px', 
+                width: '40px', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                justifyContent: 'space-between',
+                borderRight: '1px solid #eee',
+                paddingRight: '5px'
+              }}>
+                <span style={{ fontSize: '12px', color: '#666' }}>100</span>
+                <span style={{ fontSize: '12px', color: '#666' }}>75</span>
+                <span style={{ fontSize: '12px', color: '#666' }}>50</span>
+                <span style={{ fontSize: '12px', color: '#666' }}>25</span>
+                <span style={{ fontSize: '12px', color: '#666' }}>0</span>
               </div>
 
-              {/* Chart area */}
-              <div style={{ marginLeft: '40px', height: '100%', display: 'flex', alignItems: 'flex-end', borderBottom: '2px solid #ddd' }}>
+              {/* Chart grid lines for better readability */}
+              <div style={{ 
+                position: 'absolute', 
+                left: '40px', 
+                right: 0, 
+                top: 0, 
+                bottom: '20px',
+                pointerEvents: 'none'
+              }}>
+                {[0, 25, 50, 75, 100].map((value, index) => (
+                  <div key={index} style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    bottom: `${value}%`,
+                    borderBottom: '1px dashed #eee',
+                    height: 1
+                  }} />
+                ))}
+              </div>
+
+              {/* Chart area with flex display for bars */}
+              <div style={{ 
+                marginLeft: '40px', 
+                height: 'calc(100% - 20px)', 
+                display: 'flex',
+                alignItems: 'flex-end',
+                minWidth: `${Math.max(350, progressChartData.length * 80)}px` // Ensure minimum width
+              }}>
                 {progressChartData.map((data, index) => {
-                  const barHeight = (data.value / 100) * 100; // Calculate bar height
+                  const barHeight = (data.value / 100) * 100; // Calculate bar height percentage
+                  const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  });
+                  
                   return (
                     <div key={index} style={{
                       flex: '1',
+                      minWidth: '60px', // Minimum width for each bar
+                      maxWidth: '120px', // Maximum width to prevent too-wide bars
                       textAlign: 'center',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      height: '100%'
+                      height: '100%',
+                      position: 'relative',
+                      padding: '0 5px'
                     }}>
-                      <div
-                        style={{
-                          width: '30px',
-                          height: `${barHeight}%`,
-                          backgroundColor: '#3498db',
-                          marginBottom: '10px',
-                          borderRadius: '5px 5px 0 0',
-                          position: 'relative',
-                          marginTop: 'auto' // Align bars to the bottom
-                        }}
-                      >
-                        <span style={{
-                          position: 'absolute',
-                          top: '-25px',
-                          left: '50%',
-                          transform: 'translateX(-50%)',
-                          fontWeight: 'bold'
-                        }}>
-                          {data.value}
-                        </span>
+                      {/* Score label above bar */}
+                      <div style={{
+                        position: 'absolute',
+                        top: `calc(${100 - barHeight}% - 25px)`,
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        color: '#3498db'
+                      }}>
+                        {data.value}
                       </div>
-                      <span style={{ fontSize: '0.8rem' }}>{data.date}</span>
+                      
+                      {/* The bar itself */}
+                      <div style={{
+                        width: '70%',
+                        height: `${barHeight}%`,
+                        backgroundColor: '#3498db',
+                        borderRadius: '4px 4px 0 0',
+                        position: 'relative',
+                        marginTop: 'auto', // Align to bottom
+                        transition: 'height 0.5s ease',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                      }} />
+                      
+                      {/* Date label below */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '-20px',
+                        fontSize: '11px',
+                        fontWeight: 'normal',
+                        color: '#666',
+                        width: '100%',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        textAlign: 'center'
+                      }}>
+                        {formattedDate}
+                      </div>
                     </div>
                   );
                 })}
               </div>
+            </div>
+            
+            {/* Legend and explanation */}
+            <div style={{ 
+              marginTop: '30px', 
+              fontSize: '13px', 
+              color: '#666', 
+              textAlign: 'center' 
+            }}>
+              This chart shows your progress over time for the selected metric.
+              {progressChartData.length > 0 && 
+                (progressChartData[progressChartData.length-1].value - progressChartData[0].value > 0 ? 
+                  ` You've improved by ${(progressChartData[progressChartData.length-1].value - progressChartData[0].value).toFixed(1)} points!` : 
+                  '')}
             </div>
           </div>
         )}

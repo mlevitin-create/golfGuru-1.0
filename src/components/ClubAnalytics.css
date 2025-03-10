@@ -1,0 +1,57 @@
+/* CSS for improved chart */
+.chart-container {
+    position: relative;
+    height: 300px;
+    margin-top: 15px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 15px 5px 25px 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  }
+  
+  /* Mobile optimizations */
+  @media (max-width: 768px) {
+    .chart-container {
+      height: 250px;
+    }
+    
+    .metric-selector {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    
+    .metric-selector select {
+      width: 100%;
+    }
+  }
+  
+  /* Styling for scrollbar in chart container */
+  .chart-container::-webkit-scrollbar {
+    height: 6px;
+  }
+  
+  .chart-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+  }
+  
+  .chart-container::-webkit-scrollbar-thumb {
+    background: #bbb;
+    border-radius: 10px;
+  }
+  
+  .chart-container::-webkit-scrollbar-thumb:hover {
+    background: #999;
+  }
+  
+  /* Print media query */
+  @media print {
+    .chart-container {
+      overflow: visible;
+      height: auto;
+      page-break-inside: avoid;
+    }
+  }
