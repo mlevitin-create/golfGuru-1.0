@@ -56,17 +56,26 @@ export const AuthProvider = ({ children }) => {
             setupCompleted: false,
             createdAt: serverTimestamp()
           });
+          
+          // Set flag to indicate profile setup is needed
           localStorage.setItem('needsProfileSetup', 'true');
+          console.log("New Google user - set needsProfileSetup flag");
         } else {
           // Existing user - check if they've completed setup
           const userData = userDoc.data();
           if (userData.setupCompleted === false) {
             localStorage.setItem('needsProfileSetup', 'true');
+            console.log("Existing Google user without completed setup - set needsProfileSetup flag");
+          } else {
+            // User with completed setup - make sure the flag is cleared
+            localStorage.removeItem('needsProfileSetup');
+            console.log("Existing Google user with completed setup - cleared needsProfileSetup flag");
           }
         }
       } catch (firestoreError) {
         console.error("Error handling Google sign-in user data:", firestoreError);
-        // Continue even if this fails
+        // Set flag anyway as a precaution
+        localStorage.setItem('needsProfileSetup', 'true');
       }
       
       return result;
@@ -76,41 +85,42 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Sign up with email and password
-  const signup = async (email, password, displayName) => {
-    try {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      
-      // Update profile with display name
-      if (displayName) {
-        await updateProfile(result.user, {
-          displayName: displayName
-        });
-      }
-      
-      // Mark this as a new user for profile setup
-      localStorage.setItem('needsProfileSetup', 'true');
-      
-      // Add a custom claim or user property in Firestore to track setup status
+  // Update the signup function to ensure consistent handling
+    const signup = async (email, password, displayName) => {
       try {
-        const userRef = doc(db, USERS_COLLECTION, result.user.uid);
-        await setDoc(userRef, {
-          email: email,
-          displayName: displayName || '',
-          setupCompleted: false,
-          createdAt: serverTimestamp()
-        }, { merge: true });
-      } catch (firestoreError) {
-        console.error("Error setting initial user data:", firestoreError);
-        // Continue even if this fails
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        
+        // Update profile with display name
+        if (displayName) {
+          await updateProfile(result.user, {
+            displayName: displayName
+          });
+        }
+        
+        // Always mark this as a new user for profile setup
+        localStorage.setItem('needsProfileSetup', 'true');
+        console.log("Signup: New user created, setting needsProfileSetup flag");
+        
+        // Add a user document in Firestore to track setup status
+        try {
+          const userRef = doc(db, USERS_COLLECTION, result.user.uid);
+          await setDoc(userRef, {
+            email: email,
+            displayName: displayName || '',
+            setupCompleted: false,
+            createdAt: serverTimestamp()
+          });
+        } catch (firestoreError) {
+          console.error("Error setting initial user data:", firestoreError);
+          // Continue even if this fails since we set the localStorage flag
+        }
+        
+        return result;
+      } catch (error) {
+        console.error("Error signing up with email/password", error);
+        throw error;
       }
-      
-      return result;
-    } catch (error) {
-      console.error("Error signing up with email/password", error);
-      throw error;
-    }
-  };
+    };
   
   // Sign in with email and password
   const login = async (email, password) => {
@@ -125,10 +135,16 @@ export const AuthProvider = ({ children }) => {
           if (userData.setupCompleted === false) {
             // User hasn't completed setup yet, flag for redirection
             localStorage.setItem('needsProfileSetup', 'true');
+            console.log("Login: User needs profile setup, setting flag");
+          } else {
+            // User with completed setup - clear the flag
+            localStorage.removeItem('needsProfileSetup');
+            console.log("Login: User has completed setup, clearing flag");
           }
         } else {
           // No user document exists yet, should create one and flag for setup
           localStorage.setItem('needsProfileSetup', 'true');
+          console.log("Login: No user document exists, setting flag");
           
           // Create a user document to track setup status
           await setDoc(doc(db, USERS_COLLECTION, result.user.uid), {
@@ -140,7 +156,8 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (firestoreError) {
         console.error("Error checking user setup status:", firestoreError);
-        // Continue even if this fails
+        // Set flag anyway as a precaution
+        localStorage.setItem('needsProfileSetup', 'true');
       }
       
       return result;

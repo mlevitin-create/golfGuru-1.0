@@ -11,18 +11,19 @@ import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
 import WelcomeModal from './components/WelcomeModal';
+import ProfileSetupModal from './components/ProfileSetupModal';
 import geminiService from './services/geminiService';
 import firestoreService from './services/firestoreService';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Modal component for login and other modal content
-const Modal = ({ isOpen, onClose, children }) => {
+const Modal = ({ isOpen, onClose, children, canClose = true }) => {
   if (!isOpen) return null;
 
   return (
     <div 
       className="modal-overlay" 
-      onClick={onClose}
+      onClick={canClose ? onClose : undefined}
       style={{
         position: 'fixed',
         top: 0,
@@ -66,6 +67,7 @@ const AppContent = () => {
   const [error, setError] = useState(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
+  const [isProfileSetupModalOpen, setIsProfileSetupModalOpen] = useState(false);
   const [userStats, setUserStats] = useState(null);
   const [userClubs, setUserClubs] = useState([]);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -101,117 +103,88 @@ const AppContent = () => {
     });
   };
 
-  // Check user login status and redirect to profile setup if needed
-  useEffect(() => {
-    const checkUserSetupStatus = async () => {
-      if (currentUser) {
-        try {
-          // First check localStorage flag set during login/signup
-          const needsProfileSetup = localStorage.getItem('needsProfileSetup');
-          
-          if (needsProfileSetup === 'true') {
-            console.log("User needs profile setup, redirecting to profile page");
-            
-            // First, ensure they have default clubs
-            try {
-              // Define default clubs
-              const DEFAULT_CLUBS = [
-                { id: 'driver', name: 'Driver', type: 'Wood', confidence: 5, distance: 230 },
-                { id: '3-wood', name: '3 Wood', type: 'Wood', confidence: 5, distance: 210 },
-                { id: '5-wood', name: '5 Wood', type: 'Wood', confidence: 5, distance: 195 },
-                { id: '4-iron', name: '4 Iron', type: 'Iron', confidence: 5, distance: 180 },
-                { id: '5-iron', name: '5 Iron', type: 'Iron', confidence: 5, distance: 170 },
-                { id: '6-iron', name: '6 Iron', type: 'Iron', confidence: 5, distance: 160 },
-                { id: '7-iron', name: '7 Iron', type: 'Iron', confidence: 5, distance: 150 },
-                { id: '8-iron', name: '8 Iron', type: 'Iron', confidence: 5, distance: 140 },
-                { id: '9-iron', name: '9 Iron', type: 'Iron', confidence: 5, distance: 130 },
-                { id: 'pw', name: 'Pitching Wedge', type: 'Wedge', confidence: 5, distance: 120 },
-                { id: 'sw', name: 'Sand Wedge', type: 'Wedge', confidence: 5, distance: 100 },
-                { id: 'lw', name: 'Lob Wedge', type: 'Wedge', confidence: 5, distance: 80 },
-                { id: 'putter', name: 'Putter', type: 'Putter', confidence: 5, distance: 0 }
-              ];
-              
-              // Save default clubs to user profile
-              await firestoreService.saveUserClubs(currentUser.uid, DEFAULT_CLUBS);
-              console.log("Default clubs saved for user during setup");
-            } catch (clubError) {
-              console.error("Error saving default clubs:", clubError);
-              // Continue even if this fails
-            }
-            
-            // Redirect to profile setup page
-            // Note: We don't clear the flag here so it persists until setup is completed
-            navigateTo('profile');
-            return;
-          }
-          
-          // Double check Firestore for setup status (as a backup)
-          const userData = await firestoreService.getUserData(currentUser.uid);
-          
-          if (userData) {
-            if (userData.setupCompleted === false) {
-              // User needs to complete setup - set flag and redirect
-              localStorage.setItem('needsProfileSetup', 'true');
-              navigateTo('profile');
-              return;
-            }
-          } else {
-            // No user data found, they likely need to complete setup
+  // User setup status check - defined outside useEffect to avoid recreation
+  const checkUserSetupStatus = async () => {
+    if (currentUser) {
+      try {
+        // First check localStorage flag set during login/signup
+        const needsProfileSetup = localStorage.getItem('needsProfileSetup');
+        
+        if (needsProfileSetup === 'true') {
+          console.log("User needs profile setup, showing setup modal");
+          setIsProfileSetupModalOpen(true);
+          return;
+        }
+        
+        // Double check Firestore for setup status (as a backup)
+        const userData = await firestoreService.getUserData(currentUser.uid);
+        
+        if (userData) {
+          if (userData.setupCompleted === false) {
+            // User needs to complete setup - set flag and show setup modal
             localStorage.setItem('needsProfileSetup', 'true');
-            navigateTo('profile');
+            setIsProfileSetupModalOpen(true);
             return;
           }
-          
-          // If we got here, the user has completed setup
-          console.log("User has completed setup, proceeding to dashboard");
-          
-          // Ensure they have clubs (just in case)
-          const userClubs = await firestoreService.getUserClubs(currentUser.uid);
-          if (!userClubs || userClubs.length === 0) {
-            // Add default clubs in the background
-            try {
-              const DEFAULT_CLUBS = [
-                { id: 'driver', name: 'Driver', type: 'Wood', confidence: 5, distance: 230 },
-                { id: '3-wood', name: '3 Wood', type: 'Wood', confidence: 5, distance: 210 },
-                { id: '5-wood', name: '5 Wood', type: 'Wood', confidence: 5, distance: 195 },
-                { id: '4-iron', name: '4 Iron', type: 'Iron', confidence: 5, distance: 180 },
-                { id: '5-iron', name: '5 Iron', type: 'Iron', confidence: 5, distance: 170 },
-                { id: '6-iron', name: '6 Iron', type: 'Iron', confidence: 5, distance: 160 },
-                { id: '7-iron', name: '7 Iron', type: 'Iron', confidence: 5, distance: 150 },
-                { id: '8-iron', name: '8 Iron', type: 'Iron', confidence: 5, distance: 140 },
-                { id: '9-iron', name: '9 Iron', type: 'Iron', confidence: 5, distance: 130 },
-                { id: 'pw', name: 'Pitching Wedge', type: 'Wedge', confidence: 5, distance: 120 },
-                { id: 'sw', name: 'Sand Wedge', type: 'Wedge', confidence: 5, distance: 100 },
-                { id: 'lw', name: 'Lob Wedge', type: 'Wedge', confidence: 5, distance: 80 },
-                { id: 'putter', name: 'Putter', type: 'Putter', confidence: 5, distance: 0 }
-              ];
-              await firestoreService.saveUserClubs(currentUser.uid, DEFAULT_CLUBS);
-              console.log("Default clubs saved as a backup measure");
-            } catch (clubSaveError) {
-              console.error("Error saving default clubs:", clubSaveError);
-            }
+        } else {
+          // No user data found, they likely need to complete setup
+          localStorage.setItem('needsProfileSetup', 'true');
+          setIsProfileSetupModalOpen(true);
+          return;
+        }
+        
+        // If we got here, the user has completed setup
+        console.log("User has completed setup, proceeding to dashboard");
+        
+        // Ensure they have clubs (just in case)
+        const userClubs = await firestoreService.getUserClubs(currentUser.uid);
+        if (!userClubs || userClubs.length === 0) {
+          // Add default clubs in the background
+          try {
+            const DEFAULT_CLUBS = [
+              { id: 'driver', name: 'Driver', type: 'Wood', confidence: 5, distance: 230 },
+              { id: '3-wood', name: '3 Wood', type: 'Wood', confidence: 5, distance: 210 },
+              { id: '5-wood', name: '5 Wood', type: 'Wood', confidence: 5, distance: 195 },
+              { id: '4-iron', name: '4 Iron', type: 'Iron', confidence: 5, distance: 180 },
+              { id: '5-iron', name: '5 Iron', type: 'Iron', confidence: 5, distance: 170 },
+              { id: '6-iron', name: '6 Iron', type: 'Iron', confidence: 5, distance: 160 },
+              { id: '7-iron', name: '7 Iron', type: 'Iron', confidence: 5, distance: 150 },
+              { id: '8-iron', name: '8 Iron', type: 'Iron', confidence: 5, distance: 140 },
+              { id: '9-iron', name: '9 Iron', type: 'Iron', confidence: 5, distance: 130 },
+              { id: 'pw', name: 'Pitching Wedge', type: 'Wedge', confidence: 5, distance: 120 },
+              { id: 'sw', name: 'Sand Wedge', type: 'Wedge', confidence: 5, distance: 100 },
+              { id: 'lw', name: 'Lob Wedge', type: 'Wedge', confidence: 5, distance: 80 },
+              { id: 'putter', name: 'Putter', type: 'Putter', confidence: 5, distance: 0 }
+            ];
+            await firestoreService.saveUserClubs(currentUser.uid, DEFAULT_CLUBS);
+            console.log("Default clubs saved as a backup measure");
+          } catch (clubSaveError) {
+            console.error("Error saving default clubs:", clubSaveError);
           }
-          
-        } catch (error) {
-          console.error('Error checking user setup status:', error);
         }
-      } else {
-        // For non-authenticated users, check localStorage
-        const hasVisitedBefore = localStorage.getItem('hasVisitedBefore');
-        if (!hasVisitedBefore) {
-          setIsWelcomeModalOpen(true);
-          localStorage.setItem('hasVisitedBefore', 'true');
-        }
+        
+      } catch (error) {
+        console.error('Error checking user setup status:', error);
       }
-    };
-    
+    } else {
+      // For non-authenticated users, check localStorage
+      const hasVisitedBefore = localStorage.getItem('hasVisitedBefore');
+      if (!hasVisitedBefore) {
+        setIsWelcomeModalOpen(true);
+        localStorage.setItem('hasVisitedBefore', 'true');
+      }
+    }
+  };
+
+  // Run the user setup check when the current user changes
+  useEffect(() => {
     checkUserSetupStatus();
-  }, [currentUser, navigateTo]);
+  }, [currentUser]); // Depend only on currentUser, not navigateTo
   
   // Load user data when authenticated
   useEffect(() => {
     const loadUserData = async () => {
-      console.log('Loading user data.  CurrentUser:', currentUser); // Add line here to see 
+      console.log('Loading user data. CurrentUser:', currentUser);
       if (currentUser) {
         try {
           // Fetch user's swing history
@@ -239,6 +212,7 @@ const AppContent = () => {
         // Clear user data when logged out
         setSwingHistory([]);
         setUserStats(null);
+        setUserClubs([]);
       }
     };
     
@@ -256,9 +230,8 @@ const AppContent = () => {
       
       // Save to Firestore if user is logged in
       if (currentUser) {
-        // Modified code in App.js:
         const savedSwing = await firestoreService.saveSwingAnalysis(
-          analysisResult, // Correct: Pass the entire analysisResult (containing overallScore)
+          analysisResult,
           currentUser.uid,
           videoFile,
           clubData
@@ -448,6 +421,24 @@ const AppContent = () => {
 
       <Modal isOpen={isWelcomeModalOpen} onClose={() => setIsWelcomeModalOpen(false)}>
         <WelcomeModal onClose={() => setIsWelcomeModalOpen(false)} />
+      </Modal>
+      
+      {/* Profile Setup Modal - canClose is false to force completion */}
+      <Modal isOpen={isProfileSetupModalOpen} onClose={() => setIsProfileSetupModalOpen(false)} canClose={false}>
+        <ProfileSetupModal 
+          onClose={() => {
+            setIsProfileSetupModalOpen(false);
+            // After profile setup is complete, refresh user data
+            // This ensures we have the latest club data, etc.
+            if (currentUser) {
+              firestoreService.getUserClubs(currentUser.uid)
+                .then(clubs => setUserClubs(clubs || []))
+                .catch(err => console.error("Error refreshing clubs after setup:", err));
+            }
+          }} 
+          currentUser={currentUser}
+          currentUserData={{}} // Pass any existing user data here
+        />
       </Modal>
     </div>
   );
