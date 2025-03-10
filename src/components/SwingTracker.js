@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firestoreService from '../services/firestoreService';
+import { getMetricInfo, getCategoryColor, getScoreColor } from '../utils/swingUtils';
+
 
 const SwingTracker = ({ swingHistory, setSwingHistory, navigateTo }) => {
   const { currentUser } = useAuth();

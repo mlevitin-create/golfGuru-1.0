@@ -297,6 +297,159 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     );
   };
 
+    // Add this helper function to get more descriptive section titles based on the swing recipe
+    const getMetricDisplayInfo = (metricKey) => {
+      // Map internal metric keys to display-friendly information
+      const metricInfo = {
+        // Existing metrics
+        backswing: {
+          title: "Backswing",
+          description: "Your takeaway and club position during the backswing phase",
+          category: "Club",
+          difficulty: 8
+        },
+        stance: {
+          title: "Stance",
+          description: "Your foot position, width, alignment, and posture",
+          category: "Setup",
+          difficulty: 2
+        },
+        grip: {
+          title: "Grip",
+          description: "How you hold the club and hand positioning",
+          category: "Setup",
+          difficulty: 3
+        },
+        swingBack: {
+          title: "Backswing Club Path",
+          description: "The path your club takes on the way back",
+          category: "Club",
+          difficulty: 8
+        },
+        swingForward: {
+          title: "Downswing Club Path",
+          description: "The path your club takes on the way down to impact",
+          category: "Club",
+          difficulty: 8
+        },
+        hipRotation: {
+          title: "Hip Rotation",
+          description: "How your hips rotate throughout the swing",
+          category: "Body",
+          difficulty: 6
+        },
+        swingSpeed: {
+          title: "Swing Speed",
+          description: "The velocity and acceleration through your swing",
+          category: "Club",
+          difficulty: 7
+        },
+        shallowing: {
+          title: "Shallowing",
+          description: "How well your club drops into the proper path during downswing",
+          category: "Club",
+          difficulty: 9
+        },
+        pacing: {
+          title: "Tempo & Rhythm",
+          description: "The timing and rhythm throughout your swing",
+          category: "Body",
+          difficulty: 6
+        },
+        confidence: {
+          title: "Confidence",
+          description: "Your mental composure and commitment to the swing",
+          category: "Mental",
+          difficulty: 7
+        },
+        focus: {
+          title: "Focus",
+          description: "Your concentration and attention during setup and swing",
+          category: "Mental",
+          difficulty: 4
+        },
+        headPosition: {
+          title: "Head Position",
+          description: "The stability and position of your head during the swing",
+          category: "Body",
+          difficulty: 4
+        },
+        shoulderPosition: {
+          title: "Shoulder Position",
+          description: "How your shoulders move and position throughout the swing",
+          category: "Body",
+          difficulty: 6
+        },
+        armPosition: {
+          title: "Arm Position",
+          description: "The positioning of your arms throughout the swing",
+          category: "Body", 
+          difficulty: 6
+        },
+        followThrough: {
+          title: "Follow Through",
+          description: "Your swing completion after ball contact",
+          category: "Body",
+          difficulty: 4
+        },
+        
+        // Additional metrics from Swing Recipe
+        stiffness: {
+          title: "Stiffness",
+          description: "Your ability to remove tension from your body during your swing",
+          category: "Body",
+          difficulty: 5
+        },
+        ballPosition: {
+          title: "Ball Position",
+          description: "The position of the ball relative to your stance and club type",
+          category: "Setup",
+          difficulty: 1
+        },
+        impactPosition: {
+          title: "Impact Position",
+          description: "The position and angle of the club at the moment of impact",
+          category: "Club",
+          difficulty: 10
+        },
+        
+        // Variants with different naming conventions that might appear in the data
+        clubTrajectoryBackswing: {
+          title: "Backswing",
+          description: "Your takeaway and club position during the backswing phase",
+          category: "Club",
+          difficulty: 8
+        },
+        clubTrajectoryForswing: {
+          title: "Downswing",
+          description: "The path your club takes on the way down to impact",
+          category: "Club",
+          difficulty: 8
+        }
+      };
+    
+      // Default display info if not found
+      const defaultInfo = {
+        title: metricKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+        description: "An important aspect of your golf swing",
+        category: "General",
+        difficulty: 5
+      };
+    
+      return metricInfo[metricKey] || defaultInfo;
+    };
+
+      // Add this helper function for category colors
+    const getCategoryColor = (category) => {
+      switch(category) {
+        case 'Mental': return '#9b59b6'; // Purple
+        case 'Body': return '#e67e22';   // Orange
+        case 'Setup': return '#3498db';  // Blue
+        case 'Club': return '#2ecc71';   // Green
+        default: return '#95a5a6';       // Gray
+      }
+    };
+
   if (!swingData) {
     return (
       <div className="card">
@@ -385,11 +538,55 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                 onClick={(e) => toggleMetricExpansion(key, e)}
                 onTouchEnd={(e) => toggleMetricExpansion(key, e)}
               >
-                <span>
-                  {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                </span>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontWeight: 'bold' }}>
+                    {getMetricDisplayInfo(key).title}
+                  </span>
+                  <div style={{ 
+                    fontSize: '0.8rem', 
+                    color: '#777',
+                    marginTop: '2px',
+                    display: expandedMetrics[key] ? 'none' : 'block'
+                  }}>
+                    {getMetricDisplayInfo(key).description}
+                  </div>
+                  <div style={{
+                    fontSize: '0.75rem',
+                    color: '#555',
+                    display: expandedMetrics[key] ? 'flex' : 'none',
+                    marginTop: '3px',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span style={{
+                      backgroundColor: getCategoryColor(getMetricDisplayInfo(key).category),
+                      color: 'white',
+                      padding: '2px 6px',
+                      borderRadius: '10px',
+                      fontSize: '0.7rem'
+                    }}>
+                      {getMetricDisplayInfo(key).category}
+                    </span>
+                    <span>
+                      Difficulty: {getMetricDisplayInfo(key).difficulty}/10
+                    </span>
+                  </div>
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span style={{ marginRight: '10px' }}>{value}/100</span>
+                  <div style={{ 
+                    width: '42px', 
+                    height: '42px', 
+                    borderRadius: '50%', 
+                    backgroundColor: getScoreColor(value),
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 'bold',
+                    marginRight: '8px'
+                  }}>
+                    {value}
+                  </div>
                   <svg
                     width="20"
                     height="20"

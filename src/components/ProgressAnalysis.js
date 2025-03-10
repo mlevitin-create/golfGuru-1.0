@@ -4,6 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import firestoreService from '../services/firestoreService';
 import clubUtils from '../utils/clubUtils';
 import './ProgressAnalysis.css';
+// Also add the import at the top of ProgressAnalysis.js
+import { getMetricInfo, getCategoryColor, getScoreColor } from '../utils/swingUtils';
+
 
 const ProgressAnalysis = ({ swingHistory, userClubs }) => {
   const { currentUser } = useAuth();

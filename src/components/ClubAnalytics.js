@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firestoreService from '../services/firestoreService';
 import clubUtils from '../utils/clubUtils';
+// 6. SIXTH: Update ClubAnalytics.js similarly
+import { getMetricInfo, getCategoryColor, getScoreColor } from '../utils/swingUtils';
 
 const ClubAnalytics = ({ userClubs, swingHistory }) => {
   const { currentUser } = useAuth();

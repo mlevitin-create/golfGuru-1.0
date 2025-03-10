@@ -88,6 +88,13 @@ const analyzeGolfSwing = async (videoFile, metadata = null) => {
    - pacing: Rate the overall rhythm and timing of the swing
    - confidence: Assess the decisiveness and commitment to the swing
    - focus: Evaluate setup routine and swing execution
+   - stiffness: Evaluate the tension/relaxation in the body during the swing
+   - ballPosition: Assess the position of the ball relative to stance
+   - impactPosition: Evaluate the club position at moment of impact
+   - followThrough: Assess the completion of the swing after impact
+   - headPosition: Evaluate the stability of head position
+   - shoulderPosition: Assess shoulder turn and position throughout swing
+   - armPosition: Evaluate arm extension and position during the swing
 
 3. Provide three specific, actionable recommendations for improvement.${clubInfo}
 
@@ -342,6 +349,8 @@ export default { analyzeGolfSwing, createMockAnalysis };
 // Add this to the existing geminiService.js
 
 // Enhanced metric descriptions and prompts from the Swing Recipe document
+// Update to metricDetails object in geminiService.js
+
 const metricDetails = {
   confidence: {
     category: "Mental",
@@ -396,71 +405,100 @@ const metricDetails = {
     category: "Club",
     weighting: "5.88%",
     difficulty: 8,
-    description: "The path and position of the club during the forward swing phase, as you begin to swing towards the ball."
+    description: "The path and position of the club during the forward swing phase, as you begin to swing towards the ball.",
+    exampleUrl: "https://www.youtube.com/watch?v=ASH-gJXbMSU" // Added example URL
   },
   swingSpeed: {
     category: "Club",
     weighting: "5.88%",
     difficulty: 7,
-    description: "The velocity and acceleration of the club throughout the swing, particularly at impact."
+    description: "The velocity and acceleration of the club throughout the swing, particularly at impact.",
+    exampleUrl: "https://www.youtube.com/watch?v=vZ5pMtD2wKQ" // Added example URL
   },
   shallowing: {
     category: "Club",
     weighting: "5.88%",
     difficulty: 9,
-    description: "How well the club 'shallows' or drops into the correct path during the downswing."
+    description: "How well the club 'shallows' or drops into the correct path during the downswing.",
+    exampleUrl: "https://www.youtube.com/watch?v=V2PtvBiYWNM" // Added example URL
   },
   impactPosition: {
     category: "Club",
     weighting: "5.88%",
     difficulty: 10,
-    description: "The position and angle of the club at the moment of impact with the ball."
+    description: "The position and angle of the club at the moment of impact with the ball.",
+    exampleUrl: "https://www.youtube.com/watch?v=gXD-uxUloos" // Added example URL
   },
   hipRotation: {
     category: "Body",
     weighting: "5.88%",
     difficulty: 6,
-    description: "How effectively the hips rotate during the entire swing."
+    description: "How effectively the hips rotate during the entire swing.",
+    exampleUrl: "https://www.youtube.com/watch?v=iEyIDzGjyRE" // Added example URL
   },
   pacing: {
     category: "Body",
     weighting: "5.88%",
     difficulty: 6,
-    description: "The overall rhythm and timing of your swing to ensure proper technique."
+    description: "The overall rhythm and timing of your swing to ensure proper technique.",
+    exampleUrl: "https://www.youtube.com/watch?v=AzdeJrIdkU4" // Added example URL
   },
   followThrough: {
     category: "Body",
     weighting: "5.88%",
     difficulty: 4,
-    description: "The completion of the swing after impact with the ball."
+    description: "The completion of the swing after impact with the ball.",
+    exampleUrl: "https://www.youtube.com/watch?v=o9H0T_n2KIQ" // Added example URL
   },
   headPosition: {
     category: "Body",
     weighting: "5.88%",
     difficulty: 4,
-    description: "The position and stability of your head throughout the entire swing."
+    description: "The position and stability of your head throughout the entire swing.",
+    exampleUrl: "https://www.youtube.com/watch?v=y_PNrUtxSxE" // Added example URL
   },
   shoulderPosition: {
     category: "Body",
     weighting: "5.88%",
     difficulty: 6,
-    description: "The position and movement of your shoulders through the swing."
+    description: "The position and movement of your shoulders through the swing.",
+    exampleUrl: "https://www.youtube.com/watch?v=dhOvT8cXp_c" // Added example URL
   },
   armPosition: {
     category: "Body",
     weighting: "5.88%",
     difficulty: 6,
-    description: "The proper positioning of your arms throughout the entire swing."
+    description: "The proper positioning of your arms throughout the entire swing.",
+    exampleUrl: "https://www.youtube.com/watch?v=ASoOQdQJ4m0" // Added example URL
   }
 };
 
 // Map from our code's metric keys to the swing recipe metrics
+// Enhanced metric key mapping to ensure all metrics are properly mapped
 const metricKeyMapping = {
+  // Current mappings
   backswing: "clubTrajectoryBackswing",
   swingBack: "clubTrajectoryBackswing",
   swingForward: "clubTrajectoryForswing",
-  // Add other mappings as needed based on your actual metric names
+  
+  // Additional mappings for consistency
+  hipRotation: "hipRotation",
+  swingSpeed: "swingSpeed",
+  shallowing: "shallowing",
+  pacing: "pacing",
+  confidence: "confidence",
+  focus: "focus",
+  stance: "stance",
+  grip: "grip",
+  shoulderPosition: "shoulderPosition",
+  armPosition: "armPosition",
+  headPosition: "headPosition",
+  followThrough: "followThrough",
+  impactPosition: "impactPosition",
+  ballPosition: "ballPosition",
+  stiffness: "stiffness"
 };
+
 
 /**
  * Enhanced metric insights generator that uses the Swing Recipe information
