@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import firestoreService from '../services/firestoreService';
 import { metricInsightsGenerator } from '../services/geminiService';
 import './SwingAnalysis.css'; // Import a CSS file for styling
+import FeedbackWidget from './FeedbackWidget';
 
 const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
   const { currentUser } = useAuth();
@@ -663,6 +664,17 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
             Delete This Swing
           </button>
         )}
+      </div>
+            {/* Feedback Collection */}
+      <div className="feedback-section" style={{ marginTop: '30px' }}>
+        <FeedbackWidget 
+          swingData={swingData} 
+          onFeedbackGiven={() => {
+            // Optionally handle feedback submission completion
+            // For example, show a thank you message
+            console.log('Feedback submitted');
+          }} 
+        />
       </div>
     </div>
   );

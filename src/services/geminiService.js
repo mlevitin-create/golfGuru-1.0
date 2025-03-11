@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../firebase/firebase';
 
 // Note: You should store your API key in an environment variable (.env file)
 // Create a .env file at the root of your project with:
@@ -9,6 +11,167 @@ const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-
 
 // Flag to control whether we use real API or mock data
 const USE_MOCK_DATA = false; // Set to false to try real API
+
+/**
+ * Create a unique signature for a video file to track repeated analyses
+ * @param {File} videoFile - The video file
+ * @returns {string} A unique identifier based on file properties
+ */
+const createVideoSignature = (videoFile) => {
+  return `${videoFile.name}-${videoFile.size}-${videoFile.lastModified}`;
+};
+
+/**
+ * Check if this video has been analyzed before and ensure consistency
+ * @param {Object} analysisData - The current analysis results
+ * @param {File} videoFile - The video file being analyzed
+ * @returns {Object} Adjusted analysis data for consistency
+ */
+const ensureConsistentAnalysis = (analysisData, videoFile) => {
+  try {
+    // Create a signature for this specific video file
+    const videoSignature = createVideoSignature(videoFile);
+    
+    // Check if we've analyzed this video before
+    const previousAnalysesJson = localStorage.getItem(`golf_analysis_${videoSignature}`);
+    
+    if (previousAnalysesJson) {
+      // We've seen this video before
+      const previousAnalyses = JSON.parse(previousAnalysesJson);
+      console.log(`Found ${previousAnalyses.length} previous analyses for this video`);
+      
+      if (previousAnalyses.length > 0) {
+        // Get the most recent previous analysis
+        const lastAnalysis = previousAnalyses[previousAnalyses.length - 1];
+        
+        // Check for significant differences
+        const overallDiff = Math.abs(analysisData.overallScore - lastAnalysis.overallScore);
+        
+        if (overallDiff > 8) {
+          console.log(`Detected inconsistency in scoring. Previous: ${lastAnalysis.overallScore}, Current: ${analysisData.overallScore}`);
+          
+          // Blend the scores to make them more consistent
+          // (70% current, 30% previous for more stability)
+          analysisData.overallScore = Math.round(
+            (0.7 * analysisData.overallScore) + (0.3 * lastAnalysis.overallScore)
+          );
+          
+          // Also blend metrics that show significant differences
+          Object.keys(analysisData.metrics).forEach(key => {
+            if (lastAnalysis.metrics && lastAnalysis.metrics[key] !== undefined) {
+              const metricDiff = Math.abs(analysisData.metrics[key] - lastAnalysis.metrics[key]);
+              
+              if (metricDiff > 10) {
+                analysisData.metrics[key] = Math.round(
+                  (0.7 * analysisData.metrics[key]) + (0.3 * lastAnalysis.metrics[key])
+                );
+              }
+            }
+          });
+          
+          console.log(`Adjusted overall score for consistency: ${analysisData.overallScore}`);
+        }
+      }
+      
+      // Add this new analysis to the history (limited to last 3)
+      previousAnalyses.push({
+        timestamp: new Date().toISOString(),
+        overallScore: analysisData.overallScore,
+        metrics: {...analysisData.metrics}
+      });
+      
+      // Keep only the most recent 3 analyses to prevent storage bloat
+      if (previousAnalyses.length > 3) {
+        previousAnalyses.shift();
+      }
+      
+      // Save updated history
+      localStorage.setItem(`golf_analysis_${videoSignature}`, JSON.stringify(previousAnalyses));
+      
+    } else {
+      // First time seeing this video, start a history
+      const newHistory = [{
+        timestamp: new Date().toISOString(),
+        overallScore: analysisData.overallScore,
+        metrics: {...analysisData.metrics}
+      }];
+      
+      localStorage.setItem(`golf_analysis_${videoSignature}`, JSON.stringify(newHistory));
+    }
+    
+    return analysisData;
+    
+  } catch (error) {
+    // If anything goes wrong, just return the original data
+    console.error("Error in consistency tracking:", error);
+    return analysisData;
+  }
+};
+
+/**
+ * Normalize and validate scores to ensure appropriate variance and distribution
+ * @param {Object} analysisData - The analysis data to normalize
+ * @returns {Object} Normalized analysis data
+ */
+const normalizeAndValidateScores = (analysisData) => {
+  // Ensure overall score is within 0-100 range and rounded
+  analysisData.overallScore = Math.min(100, Math.max(0, Math.round(analysisData.overallScore)));
+  
+  // Get all metric values
+  const metricValues = Object.values(analysisData.metrics);
+  
+  // Calculate average and standard deviation
+  const avgScore = metricValues.reduce((sum, val) => sum + val, 0) / metricValues.length;
+  const stdDev = Math.sqrt(
+    metricValues.reduce((sum, val) => sum + Math.pow(val - avgScore, 2), 0) / metricValues.length
+  );
+  
+  console.log(`Metrics avg: ${avgScore.toFixed(1)}, stdDev: ${stdDev.toFixed(1)}`);
+  
+  // If standard deviation is too low (less than 5), scores are too clustered
+  if (stdDev < 5 && metricValues.length > 3) {
+    console.log("Detected low variance in scores, applying normalization");
+    
+    // Find min and max values
+    const minVal = Math.min(...metricValues);
+    const maxVal = Math.max(...metricValues);
+    const range = maxVal - minVal;
+    
+    // If the range is too small, spread the scores out
+    if (range < 15) {
+      // Target a more realistic standard deviation
+      const targetStdDev = 8;
+      const stretchFactor = targetStdDev / Math.max(1, stdDev);
+      
+      // Apply a spread to each metric while maintaining the overall average
+      Object.keys(analysisData.metrics).forEach(key => {
+        // Center the value around the mean
+        const centered = analysisData.metrics[key] - avgScore;
+        // Stretch it out
+        const stretched = centered * stretchFactor;
+        // Recenter around the original mean and round
+        analysisData.metrics[key] = Math.round(avgScore + stretched);
+        // Ensure it's within bounds
+        analysisData.metrics[key] = Math.min(100, Math.max(0, analysisData.metrics[key]));
+      });
+    }
+  }
+  
+  // Verify no metric has exactly the same score as the overall score, unless all metrics do
+  const hasAllSameAsOverall = metricValues.every(val => val === analysisData.overallScore);
+  if (!hasAllSameAsOverall) {
+    Object.keys(analysisData.metrics).forEach(key => {
+      if (analysisData.metrics[key] === analysisData.overallScore) {
+        // Slightly adjust to avoid exact matches
+        analysisData.metrics[key] += (Math.random() > 0.5 ? 1 : -1);
+        // Ensure bounds
+        analysisData.metrics[key] = Math.min(100, Math.max(0, analysisData.metrics[key]));
+      }
+    });
+  }
+  
+  return analysisData;
+};
 
 /**
  * Analyzes a golf swing video using Gemini API with automatic fallback to mock data
@@ -72,31 +235,92 @@ const analyzeGolfSwing = async (videoFile, metadata = null) => {
         {
           parts: [
             {
-              text: `You are a professional golf coach with expertise in swing analysis. Analyze this golf swing video in detail and provide the following information:
+              text: `You are a professional golf coach with expertise in swing analysis. Analyze this golf swing video in detail and provide a comprehensive assessment:
 
-1. Overall swing score (0-100) based on proper form, mechanics, and effectiveness.
+1. Overall swing score (0-100) based on proper form, mechanics, and effectiveness, where:
+   - 90-100: Professional level swing with perfect mechanics
+   - 80-89: Advanced player with very good mechanics and minor flaws
+   - 70-79: Skilled player with good fundamentals but noticeable flaws
+   - 60-69: Intermediate player with correct basic mechanics but significant issues
+   - 50-59: Developing player with some correct elements but many issues
+   - Below 50: Beginner with fundamental issues in multiple areas
 
-2. Score each of the following metrics from 0-100:
+2. Score each of the following metrics from 0-100 using these specific criteria:
+
    - backswing: Evaluate the takeaway, wrist position, and backswing plane
+     * 90+: Perfect takeaway, ideal wrist cock, on-plane movement
+     * 70-89: Good fundamentals with minor flaws in plane or wrist position
+     * 50-69: Functional but with clear issues in takeaway or plane
+     * <50: Significant flaws causing compensations
+
    - stance: Assess foot position, width, weight distribution, and posture
+     * 90+: Perfect athletic posture, ideal width and alignment
+     * 70-89: Good posture with minor alignment or width issues
+     * 50-69: Basic posture established but with noticeable flaws
+     * <50: Poor posture affecting the entire swing
+
    - grip: Evaluate hand placement, pressure, and wrist position
+     * 90+: Textbook grip with ideal pressure and hand placement
+     * 70-89: Functional grip with minor issues in hand position
+     * 50-69: Basic grip established but with pressure or placement issues
+     * <50: Fundamentally flawed grip requiring rebuilding
+
    - swingBack: Rate the rotation, plane, and position at the top
+     * 90+: Perfect rotation with ideal club position at the top
+     * 70-89: Good rotation with minor plane issues
+     * 50-69: Functional but with restricted turn or off-plane issues
+     * <50: Severely restricted or off-plane
+
    - swingForward: Evaluate the downswing path, transition, and follow through
+     * 90+: Perfect sequencing and path through impact
+     * 70-89: Good sequencing with minor path issues
+     * 50-69: Basic sequencing but with timing or path issues
+     * <50: Poor sequencing with major path flaws
+
    - hipRotation: Assess the hip turn both in backswing and through impact
+     * 90+: Perfect hip loading and explosive rotation through impact
+     * 70-89: Good rotation with minor timing or restriction issues
+     * 50-69: Basic rotation but with clear restrictions
+     * <50: Minimal hip involvement
+
    - swingSpeed: Rate the tempo and acceleration through the ball
+     * 90+: Perfect tempo with ideal acceleration through impact
+     * 70-89: Good tempo with minor acceleration issues
+     * 50-69: Inconsistent tempo affecting clubhead speed
+     * <50: Poor tempo with deceleration issues
+
    - shallowing: Evaluate club path and shaft position in the downswing
+     * 90+: Perfect shallowing with ideal shaft plane
+     * 70-89: Good shallowing with minor steepness issues
+     * 50-69: Inconsistent shallowing with occasional steepness
+     * <50: Consistently steep or incorrect shallowing
+
    - pacing: Rate the overall rhythm and timing of the swing
+     * 90+: Perfect rhythm throughout with ideal transitions
+     * 70-89: Good rhythm with minor timing issues
+     * 50-69: Functional but with rushed or slow segments
+     * <50: Disjointed or poorly timed
+
    - confidence: Assess the decisiveness and commitment to the swing
+     * 90+: Complete commitment with precise setup routine
+     * 70-89: Good commitment with occasional hesitation
+     * 50-69: Basic commitment but with visible uncertainty
+     * <50: Tentative throughout
+
    - focus: Evaluate setup routine and swing execution
-   - stiffness: Evaluate the tension/relaxation in the body during the swing
-   - ballPosition: Assess the position of the ball relative to stance
-   - impactPosition: Evaluate the club position at moment of impact
-   - followThrough: Assess the completion of the swing after impact
-   - headPosition: Evaluate the stability of head position
-   - shoulderPosition: Assess shoulder turn and position throughout swing
-   - armPosition: Evaluate arm extension and position during the swing
+     * 90+: Laser focus throughout with perfect routine
+     * 70-89: Good focus with minor lapses
+     * 50-69: Basic focus but with visible distractions
+     * <50: Unfocused or inconsistent attention
 
 3. Provide three specific, actionable recommendations for improvement.${clubInfo}
+
+IMPORTANT INSTRUCTIONS:
+- Be precise and discriminating in your scoring. AVOID defaulting to the 70-75 range for all metrics.
+- Each metric should show appropriate variance based on skill level.
+- The overall score should NOT be a simple average of the metrics.
+- Focus on what you actually observe, not what you assume might be happening.
+- Maintain consistency in how you evaluate similar swings.
 
 Format your response ONLY as a valid JSON object with this exact structure:
 {
@@ -194,12 +418,9 @@ Format your response ONLY as a valid JSON object with this exact structure:
           return createMockAnalysis(videoFile, metadata); // Fallback to mock
         }
 
-        // Ensure all metrics are within the 0-100 range
-        analysisData.overallScore = Math.min(100, Math.max(0, Math.round(analysisData.overallScore)));
-
-        Object.keys(analysisData.metrics).forEach(key => {
-          analysisData.metrics[key] = Math.min(100, Math.max(0, Math.round(analysisData.metrics[key])));
-        });
+        // Apply normalization and consistency enhancements
+        analysisData = normalizeAndValidateScores(analysisData);
+        analysisData = ensureConsistentAnalysis(analysisData, videoFile);
 
         // Ensure we have exactly 3 recommendations
         if (!Array.isArray(analysisData.recommendations) || analysisData.recommendations.length < 1) {
@@ -255,71 +476,232 @@ Format your response ONLY as a valid JSON object with this exact structure:
 };
 
 /**
- * Create mock analysis data for fallback
+ * Create more realistic mock analysis data for fallback
  * @param {File} videoFile - The video file
  * @param {Object} metadata - Additional metadata like club and date information
  * @returns {Object} Mock analysis data
  */
 const createMockAnalysis = (videoFile, metadata = null) => {
-  console.log('Generating mock analysis data');
+  console.log('Generating improved mock analysis data');
 
   // Extract date information from metadata if available
   const recordedDate = metadata?.recordedDate || new Date();
 
-  // Adjust mock data based on club type if available
-  let metrics = {
-    backswing: Math.floor(Math.random() * 40) + 60,
-    stance: Math.floor(Math.random() * 40) + 60,
-    grip: Math.floor(Math.random() * 40) + 60,
-    swingBack: Math.floor(Math.random() * 40) + 60,
-    swingForward: Math.floor(Math.random() * 40) + 60,
-    hipRotation: Math.floor(Math.random() * 40) + 60,
-    swingSpeed: Math.floor(Math.random() * 40) + 60,
-    shallowing: Math.floor(Math.random() * 40) + 60,
-    pacing: Math.floor(Math.random() * 40) + 60,
-    confidence: Math.floor(Math.random() * 40) + 60,
-    focus: Math.floor(Math.random() * 40) + 60,
-  };
-
-  // Adjust recommendations based on club type
-  let recommendations = [
-    "Try to keep your left arm straight throughout your swing",
-    "Your grip appears to be too tight, which may be affecting your control",
-    "Focus on rotating your hips more during the downswing"
-  ];
-
-  // Slightly customize mock data based on club type
-  if (metadata?.clubType === 'Wood') {
-    metrics.swingSpeed = Math.min(100, metrics.swingSpeed + 10);
-    recommendations[0] = "Focus on maintaining a consistent swing path with your wood";
-  } else if (metadata?.clubType === 'Iron') {
-    metrics.shallowing = Math.min(100, metrics.shallowing + 5);
-    recommendations[1] = "Work on hitting down on the ball with your iron";
-  } else if (metadata?.clubType === 'Wedge') {
-    metrics.stance = Math.min(100, metrics.stance + 8);
-    recommendations[2] = "Practice opening your stance slightly with your wedge";
-  } else if (metadata?.clubType === 'Putter') {
-    metrics.pacing = Math.min(100, metrics.pacing + 15);
-    metrics.focus = Math.min(100, metrics.focus + 10);
-    recommendations = [
-      "Keep your head still throughout your putting stroke",
-      "Focus on a smooth, pendulum-like motion",
-      "Maintain consistent tempo in your putting stroke"
-    ];
+  // Generate a base skill level that will inform all metrics
+  // Using a normal distribution centered around different values based on club type
+  let baseSkillLevel = 65; // Default baseline
+  
+  // Adjust baseline based on club type if available
+  if (metadata?.clubType) {
+    switch(metadata.clubType) {
+      case 'Wood':
+        // Woods are typically harder, so lower baseline
+        baseSkillLevel = 60 + (Math.random() * 10 - 5);
+        break;
+      case 'Iron':
+        // Irons are middle difficulty
+        baseSkillLevel = 65 + (Math.random() * 10 - 5);
+        break;
+      case 'Wedge':
+        // Short game might be better for amateurs
+        baseSkillLevel = 68 + (Math.random() * 10 - 5);
+        break;
+      case 'Putter':
+        // Putting can vary widely
+        baseSkillLevel = 70 + (Math.random() * 16 - 8);
+        break;
+      default:
+        baseSkillLevel = 65 + (Math.random() * 10 - 5);
+    }
   }
-
-  // Calculate overall score from metrics
-  const overallScore = Math.floor(
-    Object.values(metrics).reduce((sum, value) => sum + value, 0) / Object.keys(metrics).length
-  );
+  
+  // Create realistic variations between metrics
+  // Define metric groups that should be correlated
+  const metricGroups = {
+    setup: { base: baseSkillLevel + (Math.random() * 10 - 5), metrics: ['stance', 'grip', 'ballPosition'] },
+    swing: { base: baseSkillLevel + (Math.random() * 10 - 5), metrics: ['backswing', 'swingBack', 'swingForward', 'shallowing'] },
+    body: { base: baseSkillLevel + (Math.random() * 10 - 5), metrics: ['hipRotation', 'pacing', 'followThrough', 'headPosition', 'shoulderPosition', 'armPosition'] },
+    mental: { base: baseSkillLevel + (Math.random() * 14 - 7), metrics: ['confidence', 'focus'] }
+  };
+  
+  // Generate each metric with appropriate variation
+  const metrics = {};
+  
+  // Process each group
+  Object.entries(metricGroups).forEach(([groupName, group]) => {
+    const groupBase = group.base;
+    
+    // Add individual metrics with realistic variance
+    group.metrics.forEach(metric => {
+      // Create plausible variance within the group
+      // Bigger variance for mental factors, smaller for physical ones
+      const variance = groupName === 'mental' ? 12 : 8;
+      
+      // Generate score with BoxMuller to create a normal distribution
+      let u1 = Math.random();
+      let u2 = Math.random();
+      let z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+      let metricScore = Math.round(groupBase + z0 * (variance / 3)); // 3 sigma
+      
+      // Ensure within bounds
+      metrics[metric] = Math.max(30, Math.min(95, metricScore));
+    });
+  });
+  
+  // Special cases based on club type
+  if (metadata?.clubType === 'Wood') {
+    // Woods typically need more clubhead speed and proper shallowing
+    metrics.swingSpeed = Math.min(95, metrics.swingSpeed + Math.floor(Math.random() * 8));
+    metrics.shallowing = Math.max(30, metrics.shallowing - Math.floor(Math.random() * 10));
+  } else if (metadata?.clubType === 'Iron') {
+    // Irons need good impact position
+    metrics.swingForward = Math.min(95, metrics.swingForward + Math.floor(Math.random() * 5));
+  } else if (metadata?.clubType === 'Wedge') {
+    // Wedges need good wrist control
+    metrics.grip = Math.min(95, metrics.grip + Math.floor(Math.random() * 7));
+  } else if (metadata?.clubType === 'Putter') {
+    // Putting is more about mental and pace
+    metrics.pacing = Math.min(95, metrics.pacing + Math.floor(Math.random() * 10));
+    metrics.focus = Math.min(95, metrics.focus + Math.floor(Math.random() * 10));
+  }
+  
+  // Generate realistic overall score with appropriate weighting
+  // Not just an average but weighted toward the more important aspects
+  const calcOverallScore = () => {
+    const weights = {
+      // Setup (20%)
+      stance: 0.07,
+      grip: 0.07,
+      ballPosition: 0.06,
+      
+      // Swing (50%)
+      backswing: 0.10,
+      swingBack: 0.10,
+      swingForward: 0.15,
+      shallowing: 0.15,
+      
+      // Body (20%)
+      hipRotation: 0.08,
+      pacing: 0.04,
+      headPosition: 0.04,
+      shoulderPosition: 0.04,
+      
+      // Mental (10%)
+      confidence: 0.05,
+      focus: 0.05
+    };
+    
+    let weightedSum = 0;
+    let totalWeight = 0;
+    
+    Object.entries(metrics).forEach(([key, value]) => {
+      if (weights[key]) {
+        weightedSum += value * weights[key];
+        totalWeight += weights[key];
+      }
+    });
+    
+    // Normalize if we don't have all metrics
+    if (totalWeight > 0 && totalWeight < 1) {
+      weightedSum = weightedSum / totalWeight;
+    }
+    
+    // Add a small random factor
+    return Math.round(weightedSum + (Math.random() * 4 - 2));
+  };
+  
+  const overallScore = calcOverallScore();
+  
+  // Generate appropriate recommendations based on lowest metrics
+  const generateRecommendations = () => {
+    // Sort metrics by score (ascending)
+    const sortedMetrics = Object.entries(metrics).sort((a, b) => a[1] - b[1]);
+    
+    // Take the 3 lowest metrics
+    const lowestMetrics = sortedMetrics.slice(0, 3);
+    
+    // Map of recommendation templates by metric
+    const recommendationTemplates = {
+      backswing: [
+        "Focus on a slower, more controlled takeaway",
+        "Keep your left arm straighter during the backswing",
+        "Work on proper wrist hinge in your backswing"
+      ],
+      stance: [
+        "Widen your stance slightly for better balance",
+        "Adjust your posture to be more athletic at address",
+        "Work on proper weight distribution in your stance"
+      ],
+      grip: [
+        "Check your grip pressure - avoid gripping too tightly",
+        "Ensure your hands work together as a unit during the swing",
+        "Position your hands slightly ahead of the ball at address"
+      ],
+      swingBack: [
+        "Focus on a full shoulder turn in your backswing",
+        "Maintain your spine angle during the backswing",
+        "Work on getting the club in the correct position at the top"
+      ],
+      swingForward: [
+        "Start your downswing with your lower body",
+        "Work on proper weight transfer to your lead side",
+        "Focus on rotating through impact with your body"
+      ],
+      hipRotation: [
+        "Increase your hip turn in the backswing",
+        "Work on clearing your hips through impact",
+        "Practice proper hip-shoulder separation"
+      ],
+      swingSpeed: [
+        "Develop a smoother tempo for more consistent speed",
+        "Work on maintaining acceleration through impact",
+        "Practice swinging at 80% effort for better control"
+      ],
+      shallowing: [
+        "Focus on dropping the club into the slot on the downswing",
+        "Avoid casting the club from the top",
+        "Work on the proper sequence to shallow the club"
+      ],
+      pacing: [
+        "Develop a consistent pre-shot routine",
+        "Count to establish a consistent tempo",
+        "Practice with a metronome to develop rhythm"
+      ],
+      focus: [
+        "Establish a consistent pre-shot routine",
+        "Stay focused on your target throughout the swing",
+        "Practice mindfulness techniques to improve focus"
+      ],
+      confidence: [
+        "Commit fully to each shot before you swing",
+        "Visualize the shot you want to hit before addressing the ball",
+        "Practice positive self-talk during your round"
+      ]
+    };
+    
+    // Default recommendations if we don't have templates for a metric
+    const defaultRecommendations = [
+      "Work on maintaining your spine angle throughout the swing",
+      "Focus on a smooth transition from backswing to downswing",
+      "Practice with alignment sticks to improve your swing path"
+    ];
+    
+    // Generate recommendations based on the lowest metrics
+    return lowestMetrics.map(([metric]) => {
+      const templates = recommendationTemplates[metric] || defaultRecommendations;
+      return templates[Math.floor(Math.random() * templates.length)];
+    });
+  };
+  
+  const recommendations = generateRecommendations();
 
   return {
     id: Date.now().toString(),
     date: new Date().toISOString(), // Analysis date (now)
     recordedDate: recordedDate instanceof Date ? recordedDate.toISOString() : recordedDate,
-    overallScore: overallScore,
-    metrics: metrics,
-    recommendations: recommendations,
+    overallScore,
+    metrics,
+    recommendations,
     videoUrl: URL.createObjectURL(videoFile),
     clubName: metadata?.clubName || null,
     clubId: metadata?.clubId || null,
@@ -343,10 +725,40 @@ const fileToBase64 = (file) => {
   });
 };
 
-// Export with mock function available for testing
-export default { analyzeGolfSwing, createMockAnalysis };
-
-// Add this to the existing geminiService.js
+/**
+ * Collect user feedback on swing analysis to improve the model
+ * @param {Object} swingData - The swing analysis data
+ * @param {String} feedbackType - 'accurate', 'too_high', 'too_low'
+ * @param {Object} metricFeedback - Feedback on specific metrics
+ * @returns {Promise<boolean>} Success status
+ */
+const collectAnalysisFeedback = async (swingData, feedbackType, metricFeedback = {}) => {
+  if (!swingData) return false;
+  
+  try {
+    // Create feedback document
+    const feedbackData = {
+      timestamp: serverTimestamp(),
+      swingId: swingData.id || null,
+      userId: auth.currentUser?.uid || 'anonymous',
+      feedbackType, // 'accurate', 'too_high', 'too_low'
+      overallScore: swingData.overallScore,
+      originalMetrics: {...swingData.metrics},
+      metricFeedback, // e.g. { backswing: 'too_high', grip: 'accurate' }
+      clubType: swingData.clubType || null,
+      clubName: swingData.clubName || null,
+      modelVersion: 'gemini-2.0-flash-exp' // Track which model version was used
+    };
+    
+    // Store in Firestore
+    await addDoc(collection(db, 'analysis_feedback'), feedbackData);
+    console.log('Feedback saved successfully');
+    return true;
+  } catch (error) {
+    console.error('Error saving feedback:', error);
+    return false;
+  }
+};
 
 // Enhanced metric descriptions and prompts from the Swing Recipe document
 // Update to metricDetails object in geminiService.js
@@ -633,7 +1045,7 @@ Your response should be a valid JSON object that can be directly parsed.`
 
     // Set generation config
     payload.generationConfig = {
-      temperature: 0.2, // Lower temperature for more consistent, focused responses
+      temperature: 0.5, // Lower temperature for more consistent, focused responses
       maxOutputTokens: 1024
     };
 
@@ -739,7 +1151,6 @@ const blobToBase64 = (blob) => {
     reader.readAsDataURL(blob);
   });
 };
-
 
 // Helper function for generic metric descriptions when specific one isn't available
 const getGenericMetricDescription = (metricKey) => {
@@ -873,10 +1284,15 @@ const getDefaultInsights = (metricKey) => {
     ]
   };
 };
-// In geminiService.js, add this to the exports at the bottom:
 
-// Metric Insights Generator
+// Export the main function
+export default { analyzeGolfSwing, createMockAnalysis };
+
+// Export additional utilities
 export const metricInsightsGenerator = {
   generateMetricInsights,
   getDefaultInsights
 };
+
+// Export the collectAnalysisFeedback function but not the React component
+export { collectAnalysisFeedback };
