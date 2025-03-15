@@ -589,6 +589,9 @@ Format your response ONLY as a valid JSON object with this exact structure:
   }
 };
 
+// Fix for createMockAnalysis function in geminiService.js
+// Add a mockResult object
+
 /**
  * Create mock analysis data that handles both file and YouTube inputs
  * @param {File|null} videoFile - The video file or null for YouTube
@@ -631,20 +634,6 @@ const createMockAnalysis = (videoFile, metadata = null) => {
         baseSkillLevel = 65 + (Math.random() * 10 - 5);
     }
   }
-
-  if (isYouTubeAnalysis) {
-    return {
-      ...mockResult,
-      videoUrl: metadata.youtubeVideo.embedUrl,
-      youtubeVideoId: metadata.youtubeVideo.videoId,
-      isYouTubeVideo: true
-    };
-  } else {
-    return {
-      ...mockResult,
-      videoUrl: URL.createObjectURL(videoFile)
-    };
-  }
   
   // Create realistic variations between metrics
   // Define metric groups that should be correlated
@@ -679,6 +668,16 @@ const createMockAnalysis = (videoFile, metadata = null) => {
     });
   });
   
+  // If some key metrics are missing, add them with default values
+  const essentialMetrics = ['backswing', 'stance', 'grip', 'swingBack', 'swingForward', 
+                           'hipRotation', 'swingSpeed', 'shallowing', 'pacing', 'confidence', 'focus'];
+  
+  essentialMetrics.forEach(metric => {
+    if (!metrics[metric]) {
+      metrics[metric] = Math.max(30, Math.min(95, Math.round(baseSkillLevel + (Math.random() * 20 - 10))));
+    }
+  });
+  
   // Special cases based on club type
   if (metadata?.clubType === 'Wood') {
     // Woods typically need more clubhead speed and proper shallowing
@@ -698,148 +697,124 @@ const createMockAnalysis = (videoFile, metadata = null) => {
   
   // Generate realistic overall score with appropriate weighting
   // Not just an average but weighted toward the more important aspects
-  const calcOverallScore = () => {
-    const weights = {
-      // Setup (20%)
-      stance: 0.07,
-      grip: 0.07,
-      ballPosition: 0.06,
-      
-      // Swing (50%)
-      backswing: 0.10,
-      swingBack: 0.10,
-      swingForward: 0.15,
-      shallowing: 0.15,
-      
-      // Body (20%)
-      hipRotation: 0.08,
-      pacing: 0.04,
-      headPosition: 0.04,
-      shoulderPosition: 0.04,
-      
-      // Mental (10%)
-      confidence: 0.05,
-      focus: 0.05
-    };
-    
-    let weightedSum = 0;
-    let totalWeight = 0;
-    
-    Object.entries(metrics).forEach(([key, value]) => {
-      if (weights[key]) {
-        weightedSum += value * weights[key];
-        totalWeight += weights[key];
-      }
-    });
-    
-    // Normalize if we don't have all metrics
-    if (totalWeight > 0 && totalWeight < 1) {
-      weightedSum = weightedSum / totalWeight;
-    }
-    
-    // Add a small random factor
-    return Math.round(weightedSum + (Math.random() * 4 - 2));
+  const overallScore = calculateWeightedOverallScore ? 
+    calculateWeightedOverallScore(metrics) :
+    Math.round(Object.values(metrics).reduce((sum, val) => sum + val, 0) / Object.keys(metrics).length);
+  
+  // Default recommendations if generateRecommendations is not defined
+  const defaultRecommendations = [
+    "Focus on a slower, more controlled takeaway",
+    "Keep your left arm straighter during the backswing",
+    "Work on maintaining your spine angle throughout the swing"
+  ];
+  
+  // Generate recommendations based on low metrics if possible
+  let recommendations = defaultRecommendations;
+  
+  // Create sorted list of metrics by score
+  const sortedMetrics = Object.entries(metrics).sort((a, b) => a[1] - b[1]);
+  
+  // Take lowest metrics for recommendations
+  const lowestMetrics = sortedMetrics.slice(0, 3);
+  
+  // Map of recommendation templates by metric
+  const recommendationTemplates = {
+    backswing: [
+      "Focus on a slower, more controlled takeaway",
+      "Keep your left arm straighter during the backswing",
+      "Work on proper wrist hinge in your backswing"
+    ],
+    stance: [
+      "Widen your stance slightly for better balance",
+      "Adjust your posture to be more athletic at address",
+      "Work on proper weight distribution in your stance"
+    ],
+    grip: [
+      "Check your grip pressure - avoid gripping too tightly",
+      "Ensure your hands work together as a unit during the swing",
+      "Position your hands slightly ahead of the ball at address"
+    ],
+    swingBack: [
+      "Focus on a full shoulder turn in your backswing",
+      "Maintain your spine angle during the backswing",
+      "Work on getting the club in the correct position at the top"
+    ],
+    swingForward: [
+      "Start your downswing with your lower body",
+      "Work on proper weight transfer to your lead side",
+      "Focus on rotating through impact with your body"
+    ],
+    hipRotation: [
+      "Increase your hip turn in the backswing",
+      "Work on clearing your hips through impact",
+      "Practice proper hip-shoulder separation"
+    ],
+    swingSpeed: [
+      "Develop a smoother tempo for more consistent speed",
+      "Work on maintaining acceleration through impact",
+      "Practice swinging at 80% effort for better control"
+    ],
+    shallowing: [
+      "Focus on dropping the club into the slot on the downswing",
+      "Avoid casting the club from the top",
+      "Work on the proper sequence to shallow the club"
+    ],
+    pacing: [
+      "Develop a consistent pre-shot routine",
+      "Count to establish a consistent tempo",
+      "Practice with a metronome to develop rhythm"
+    ],
+    focus: [
+      "Establish a consistent pre-shot routine",
+      "Stay focused on your target throughout the swing",
+      "Practice mindfulness techniques to improve focus"
+    ],
+    confidence: [
+      "Commit fully to each shot before you swing",
+      "Visualize the shot you want to hit before addressing the ball",
+      "Practice positive self-talk during your round"
+    ]
   };
   
-  const overallScore = calculateWeightedOverallScore(metrics);
-  
-  // Generate appropriate recommendations based on lowest metrics
-  const generateRecommendations = () => {
-    // Sort metrics by score (ascending)
-    const sortedMetrics = Object.entries(metrics).sort((a, b) => a[1] - b[1]);
-    
-    // Take the 3 lowest metrics
-    const lowestMetrics = sortedMetrics.slice(0, 3);
-    
-    // Map of recommendation templates by metric
-    const recommendationTemplates = {
-      backswing: [
-        "Focus on a slower, more controlled takeaway",
-        "Keep your left arm straighter during the backswing",
-        "Work on proper wrist hinge in your backswing"
-      ],
-      stance: [
-        "Widen your stance slightly for better balance",
-        "Adjust your posture to be more athletic at address",
-        "Work on proper weight distribution in your stance"
-      ],
-      grip: [
-        "Check your grip pressure - avoid gripping too tightly",
-        "Ensure your hands work together as a unit during the swing",
-        "Position your hands slightly ahead of the ball at address"
-      ],
-      swingBack: [
-        "Focus on a full shoulder turn in your backswing",
-        "Maintain your spine angle during the backswing",
-        "Work on getting the club in the correct position at the top"
-      ],
-      swingForward: [
-        "Start your downswing with your lower body",
-        "Work on proper weight transfer to your lead side",
-        "Focus on rotating through impact with your body"
-      ],
-      hipRotation: [
-        "Increase your hip turn in the backswing",
-        "Work on clearing your hips through impact",
-        "Practice proper hip-shoulder separation"
-      ],
-      swingSpeed: [
-        "Develop a smoother tempo for more consistent speed",
-        "Work on maintaining acceleration through impact",
-        "Practice swinging at 80% effort for better control"
-      ],
-      shallowing: [
-        "Focus on dropping the club into the slot on the downswing",
-        "Avoid casting the club from the top",
-        "Work on the proper sequence to shallow the club"
-      ],
-      pacing: [
-        "Develop a consistent pre-shot routine",
-        "Count to establish a consistent tempo",
-        "Practice with a metronome to develop rhythm"
-      ],
-      focus: [
-        "Establish a consistent pre-shot routine",
-        "Stay focused on your target throughout the swing",
-        "Practice mindfulness techniques to improve focus"
-      ],
-      confidence: [
-        "Commit fully to each shot before you swing",
-        "Visualize the shot you want to hit before addressing the ball",
-        "Practice positive self-talk during your round"
-      ]
-    };
-    
-    // Default recommendations if we don't have templates for a metric
-    const defaultRecommendations = [
-      "Work on maintaining your spine angle throughout the swing",
-      "Focus on a smooth transition from backswing to downswing",
-      "Practice with alignment sticks to improve your swing path"
-    ];
-    
-    // Generate recommendations based on the lowest metrics
-    return lowestMetrics.map(([metric]) => {
+  // Try to generate recommendations from templates
+  try {
+    recommendations = lowestMetrics.map(([metric]) => {
       const templates = recommendationTemplates[metric] || defaultRecommendations;
       return templates[Math.floor(Math.random() * templates.length)];
     });
-  };
-  
-  const recommendations = generateRecommendations();
+  } catch (error) {
+    console.error('Error generating recommendations:', error);
+    recommendations = defaultRecommendations;
+  }
 
-  return {
+  // Create the mockResult object
+  const mockResult = {
     id: Date.now().toString(),
     date: new Date().toISOString(), // Analysis date (now)
     recordedDate: recordedDate instanceof Date ? recordedDate.toISOString() : recordedDate,
-    overallScore,
+    overallScore: Math.round(overallScore), // Ensure it's an integer
     metrics,
     recommendations,
-    videoUrl: URL.createObjectURL(videoFile),
     clubName: metadata?.clubName || null,
     clubId: metadata?.clubId || null,
     clubType: metadata?.clubType || null,
     outcome: metadata?.outcome || null,
     _isMockData: true // Flag to indicate this is mock data
   };
+
+  if (isYouTubeAnalysis) {
+    return {
+      ...mockResult,
+      videoUrl: metadata.youtubeVideo.embedUrl,
+      youtubeVideoId: metadata.youtubeVideo.videoId,
+      isYouTubeVideo: true
+    };
+  } else {
+    return {
+      ...mockResult,
+      videoUrl: URL.createObjectURL(videoFile)
+    };
+  }
 };
 
 /**

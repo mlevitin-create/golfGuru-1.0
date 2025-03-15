@@ -6,7 +6,7 @@ import clubUtils from '../utils/clubUtils';
 // 6. SIXTH: Update ClubAnalytics.js similarly
 import { getMetricInfo, getCategoryColor, getScoreColor } from '../utils/swingUtils';
 
-const ClubAnalytics = ({ userClubs, swingHistory }) => {
+const ClubAnalytics = ({ userClubs, swingHistory, navigateTo }) => {
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [clubs, setClubs] = useState([]);

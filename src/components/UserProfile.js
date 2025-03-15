@@ -363,29 +363,33 @@ const UserProfile = ({ navigateTo, userStats, userClubs, setUserClubs, setupClub
         <ClubBag onComplete={handleClubUpdateComplete} />
       )}
 
-      {activeTab === 'analytics' && (
-        <div className="card">
-          <h2>Club Analytics</h2>
-          {userClubs && userClubs.length > 0 ? (
-            <div className="club-analytics-content">
-              <p>This section provides analytics on your club performance based on your swing history.</p>
-              {/* Render ClubAnalytics component and pass necessary data */}
-              <ClubAnalytics userClubs={userClubs} swingHistory={swingHistory} />
-            </div>
-          ) : (
-            <div className="no-clubs-message">
-              <p>You don't have any clubs set up yet. Go to the "My Clubs" tab to add your clubs.</p>
-              <button
-                className="button"
-                onClick={() => setActiveTab('clubs')}
-                style={{ marginTop: '10px' }}
-              >
-                Set Up My Clubs
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+{activeTab === 'analytics' && (
+  <div className="card">
+    <h2>Club Analytics</h2>
+    {userClubs && userClubs.length > 0 ? (
+      <div className="club-analytics-content">
+        <p>This section provides analytics on your club performance based on your swing history.</p>
+        {/* Pass navigateTo prop to ClubAnalytics component */}
+        <ClubAnalytics 
+          userClubs={userClubs} 
+          swingHistory={swingHistory} 
+          navigateTo={navigateTo} 
+        />
+      </div>
+    ) : (
+      <div className="no-clubs-message">
+        <p>You don't have any clubs set up yet. Go to the "My Clubs" tab to add your clubs.</p>
+        <button
+          className="button"
+          onClick={() => setActiveTab('clubs')}
+          style={{ marginTop: '10px' }}
+        >
+          Set Up My Clubs
+        </button>
+      </div>
+    )}
+  </div>
+)}
 
       {/* New Progress Analysis Tab */}
       {activeTab === 'progress' && (
