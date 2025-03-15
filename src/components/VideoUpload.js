@@ -399,28 +399,18 @@ const handleClubSkip = (nextAction) => {
           {previewUrl && isUsingYouTube && (
             <div style={{ marginTop: '15px' }}>
               <h3>Video Preview</h3>
-              <div style={{ 
-                position: 'relative',
-                paddingBottom: '56.25%', // 16:9 aspect ratio
-                height: 0,
-                overflow: 'hidden',
-                borderRadius: '8px',
-                marginTop: '10px'
-              }}>
+              <div className="video-container" style={{ maxWidth: '300px', margin: '0 auto', width: '100%' }}>
                 {thumbnailUrl ? (
-                  <div style={{ position: 'relative', cursor: 'pointer' }} onClick={handleThumbnailClick}>
+                  <div style={{ position: 'relative', marginBottom: '10px' }}>
                     <img 
                       src={thumbnailUrl} 
                       alt="Video preview" 
                       style={{ 
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        borderRadius: '8px'
+                        width: '100%', 
+                        borderRadius: '8px',
+                        boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
                       }}
+                      onClick={handleThumbnailClick}
                     />
                     <div 
                       style={{
@@ -428,15 +418,16 @@ const handleClubSkip = (nextAction) => {
                         top: '50%',
                         left: '50%',
                         transform: 'translate(-50%, -50%)',
-                        backgroundColor: 'rgba(0,0,0,0.7)',
+                        backgroundColor: 'rgba(0,0,0,0.5)',
                         borderRadius: '50%',
-                        width: '60px',
-                        height: '60px',
+                        width: '50px',
+                        height: '50px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer'
                       }}
+                      onClick={handleThumbnailClick}
                     >
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M8 5V19L19 12L8 5Z" fill="white" />
@@ -444,21 +435,30 @@ const handleClubSkip = (nextAction) => {
                     </div>
                   </div>
                 ) : (
-                  <iframe
-                    src={previewUrl}
-                    title="YouTube video player"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      borderRadius: '8px'
-                    }}
-                  ></iframe>
+                  <div style={{ 
+                    position: 'relative',
+                    paddingBottom: '56.25%', // 16:9 aspect ratio
+                    height: 0,
+                    overflow: 'hidden',
+                    borderRadius: '8px',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                  }}>
+                    <iframe
+                      src={previewUrl}
+                      title="YouTube video player"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '8px'
+                      }}
+                    ></iframe>
+                  </div>
                 )}
               </div>
             </div>
