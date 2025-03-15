@@ -109,13 +109,75 @@ const ensureConsistentAnalysis = (analysisData, videoFile) => {
 };
 
 /**
- * Normalize and validate scores to ensure appropriate variance and distribution
- * @param {Object} analysisData - The analysis data to normalize
- * @returns {Object} Normalized analysis data
+ * Calculate a more accurate overall score based on weighted metrics
+ * @param {Object} metrics - Object containing metric scores
+ * @returns {number} Weighted overall score
  */
+const calculateWeightedOverallScore = (metrics) => {
+  // These weights are based on the Swing Recipe categories
+  const weights = {
+    // Setup (20%)
+    stance: 0.07,
+    grip: 0.07,
+    ballPosition: 0.06,
+    
+    // Swing (50%)
+    backswing: 0.10,
+    swingBack: 0.10,
+    swingForward: 0.15,
+    shallowing: 0.15,
+    impactPosition: 0.15,
+    
+    // Body (20%)
+    hipRotation: 0.08,
+    pacing: 0.04,
+    stiffness: 0.04,
+    headPosition: 0.04,
+    shoulderPosition: 0.04,
+    armPosition: 0.04,
+    followThrough: 0.04,
+    
+    // Mental (10%)
+    confidence: 0.05,
+    focus: 0.05
+  };
+  
+  let weightedSum = 0;
+  let totalWeight = 0;
+  
+  Object.entries(metrics).forEach(([key, value]) => {
+    if (weights[key]) {
+      weightedSum += value * weights[key];
+      totalWeight += weights[key];
+    } else {
+      // For metrics not in our predefined weights, use a default weight
+      weightedSum += value * 0.05;
+      totalWeight += 0.05;
+    }
+  });
+  
+  // Normalize if we don't have all metrics
+  if (totalWeight > 0 && totalWeight < 1) {
+    weightedSum = weightedSum / totalWeight;
+  }
+  
+  // Round to nearest integer
+  return Math.round(weightedSum);
+};
+
+// Modify the normalizeAndValidateScores function to include our new calculation
 const normalizeAndValidateScores = (analysisData) => {
-  // Ensure overall score is within 0-100 range and rounded
+  // First ensure overall score is within 0-100 range and rounded
   analysisData.overallScore = Math.min(100, Math.max(0, Math.round(analysisData.overallScore)));
+  
+  // Now recalculate based on weighted metrics
+  const recalculatedScore = calculateWeightedOverallScore(analysisData.metrics);
+  
+  // If there's a significant difference (more than 5 points), use the recalculated score
+  if (Math.abs(analysisData.overallScore - recalculatedScore) > 5) {
+    console.log(`Adjusting overall score from ${analysisData.overallScore} to ${recalculatedScore} based on weighted metrics`);
+    analysisData.overallScore = recalculatedScore;
+  }
   
   // Get all metric values
   const metricValues = Object.values(analysisData.metrics);
@@ -154,6 +216,9 @@ const normalizeAndValidateScores = (analysisData) => {
         // Ensure it's within bounds
         analysisData.metrics[key] = Math.min(100, Math.max(0, analysisData.metrics[key]));
       });
+      
+      // Recalculate overall score after adjusting metrics
+      analysisData.overallScore = calculateWeightedOverallScore(analysisData.metrics);
     }
   }
   
@@ -610,7 +675,7 @@ const createMockAnalysis = (videoFile, metadata = null) => {
     return Math.round(weightedSum + (Math.random() * 4 - 2));
   };
   
-  const overallScore = calcOverallScore();
+  const overallScore = calculateWeightedOverallScore(metrics);
   
   // Generate appropriate recommendations based on lowest metrics
   const generateRecommendations = () => {
