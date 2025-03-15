@@ -837,7 +837,7 @@ const collectAnalysisFeedback = async (swingData, feedbackType, metricFeedback =
     const feedbackData = {
       timestamp: serverTimestamp(),
       swingId: swingData.id || null,
-      userId: auth.currentUser?.uid || 'anonymous',
+      userId: auth.currentUser ? auth.currentUser.uid : null,
       feedbackType, // 'accurate', 'too_high', 'too_low'
       overallScore: swingData.overallScore,
       originalMetrics: {...swingData.metrics},
@@ -846,6 +846,11 @@ const collectAnalysisFeedback = async (swingData, feedbackType, metricFeedback =
       clubName: swingData.clubName || null,
       modelVersion: 'gemini-2.0-flash-exp' // Track which model version was used
     };
+
+    if (!auth.currentUser && !swingData._isLocalOnly) {
+      console.log('Cannot save feedback for unauthenticated users');
+      return true; // Pretend success but don't actually try to save
+    }
     
     // Store in Firestore
     await addDoc(collection(db, 'analysis_feedback'), feedbackData);

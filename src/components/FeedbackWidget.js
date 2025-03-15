@@ -13,16 +13,40 @@ const FeedbackWidget = ({ swingData, onFeedbackGiven }) => {
   const [feedback, setFeedback] = useState('accurate');
   const [metricFeedback, setMetricFeedback] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  
+  const [submitError, setSubmitError] = useState(null);
+
   const handleSubmit = async () => {
     setSubmitting(true);
-    const success = await collectAnalysisFeedback(swingData, feedback, metricFeedback);
-    setSubmitting(false);
-    if (success && onFeedbackGiven) {
-      onFeedbackGiven();
+    setSubmitError(null); // Reset error state before trying
+    
+    try {
+      const success = await collectAnalysisFeedback(swingData, feedback, metricFeedback);
+      
+      if (success) {
+        // Successfully saved feedback
+        if (onFeedbackGiven) {
+          onFeedbackGiven();
+        }
+        setShowForm(false);
+      } else {
+        // API returned false but didn't throw an error
+        setSubmitError("Couldn't save feedback. Please try again later.");
+        // Keep the form open so user can see the error
+      }
+    } catch (error) {
+      console.error("Error submitting feedback:", error);
+      
+      // Provide user-friendly error messages based on error type
+      if (error.name === "FirebaseError" && error.message.includes("permission")) {
+        setSubmitError("Authentication required. Please sign in to submit feedback.");
+      } else {
+        setSubmitError(`Error saving feedback: ${error.message}`);
+      }
+    } finally {
+      setSubmitting(false);
     }
-    setShowForm(false);
   };
+
   
   if (!showForm) {
     return (
@@ -73,6 +97,20 @@ const FeedbackWidget = ({ swingData, onFeedbackGiven }) => {
           ))}
         </div>
       </div>
+      
+      {/* Error message display */}
+      {submitError && (
+        <div style={{ 
+          backgroundColor: '#f8d7da', 
+          color: '#721c24', 
+          padding: '10px', 
+          borderRadius: '4px', 
+          marginBottom: '15px',
+          fontSize: '0.9rem'
+        }}>
+          {submitError}
+        </div>
+      )}
       
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         <button 
