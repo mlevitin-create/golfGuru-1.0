@@ -471,16 +471,39 @@ const ClubAnalytics = ({ userClubs, swingHistory }) => {
                       </div>
                       
                       {/* The bar itself */}
-                      <div style={{
-                        width: '70%',
-                        height: `${barHeight}%`,
-                        backgroundColor: '#3498db',
-                        borderRadius: '4px 4px 0 0',
-                        position: 'relative',
-                        marginTop: 'auto', // Align to bottom
-                        transition: 'height 0.5s ease',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                      }} />
+                      <div 
+                        style={{
+                          width: '70%',
+                          height: `${barHeight}%`,
+                          backgroundColor: '#3498db',
+                          borderRadius: '4px 4px 0 0',
+                          position: 'relative',
+                          marginTop: 'auto', // Align to bottom
+                          transition: 'height 0.5s ease',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                          cursor: 'pointer' // Add cursor pointer to indicate clickable
+                        }}
+                        onClick={() => {
+                          // Find the swing that corresponds to this data point
+                          const swingDate = new Date(data.date);
+                          const matchingSwing = sortedSwings.find(swing => {
+                            const swingDateTime = new Date(swing.recordedDate);
+                            return (
+                              swingDateTime.getFullYear() === swingDate.getFullYear() &&
+                              swingDateTime.getMonth() === swingDate.getMonth() &&
+                              swingDateTime.getDate() === swingDate.getDate()
+                            );
+                          });
+                          
+                          if (matchingSwing) {
+                            // Navigate to the swing analysis page with this swing
+                            navigateTo('analysis', { swingData: matchingSwing });
+                          } else {
+                            console.log('No matching swing found for date:', data.date);
+                          }
+                        }}
+                        title={`View swing from ${formattedDate}`} // Add tooltip
+                      />
                       
                       {/* Date label below */}
                       <div style={{

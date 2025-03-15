@@ -7,7 +7,7 @@ import { db, auth } from '../firebase/firebase';
 // REACT_APP_GEMINI_API_KEY=your_api_key_here
 
 const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
-const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
+const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-pro-exp-02-05:generateContent';
 
 // Flag to control whether we use real API or mock data
 const USE_MOCK_DATA = false; // Set to false to try real API
@@ -239,12 +239,15 @@ const normalizeAndValidateScores = (analysisData) => {
 };
 
 /**
- * Analyzes a golf swing video using Gemini API with automatic fallback to mock data
- * @param {File} videoFile - The video file to analyze
- * @param {Object} metadata - Additional metadata like club and date information
- * @returns {Promise} Promise that resolves to the analysis results (real or mock)
+ * Analyzes a golf swing using either a video file or YouTube URL
+ * @param {File|null} videoFile - The video file to analyze (null if using YouTube)
+ * @param {Object} metadata - Additional metadata including YouTube video info if applicable
+ * @returns {Promise} Promise that resolves to the analysis results
  */
 const analyzeGolfSwing = async (videoFile, metadata = null) => {
+  // Determine if this is a YouTube analysis
+  const isYouTubeAnalysis = !videoFile && metadata?.youtubeVideo;
+  
   // If USE_MOCK_DATA is true, skip API call and generate mock data
   if (USE_MOCK_DATA) {
     console.log('Using mock data instead of real API');
@@ -260,47 +263,14 @@ const analyzeGolfSwing = async (videoFile, metadata = null) => {
       return createMockAnalysis(videoFile, metadata); // Fallback to mock
     }
 
-    // Log file details but don't enforce a size limit
-    console.log('Starting video analysis, file type:', videoFile.type);
-    console.log('File details:', {
-      name: videoFile.name,
-      type: videoFile.type,
-      size: `${(videoFile.size / (1024 * 1024)).toFixed(2)}MB`,
-      lastModified: new Date(videoFile.lastModified).toISOString()
-    });
-
-    // Convert video to base64
-    let base64Video;
-    try {
-      base64Video = await fileToBase64(videoFile);
-      console.log('Successfully converted video to base64');
-    } catch (error) {
-      console.error('Error converting file to base64:', error);
-      return createMockAnalysis(videoFile, metadata); // Fallback to mock
-    }
-
-    // Get base64 data part
-    const base64Data = base64Video.split('base64,')[1];
-    if (!base64Data) {
-      console.error('Failed to extract base64 data from video');
-      return createMockAnalysis(videoFile, metadata); // Fallback to mock
-    }
-
-    console.log('Preparing API request payload...');
-
     // Add club information to the prompt if available
     let clubInfo = "";
     if (metadata?.clubName) {
       clubInfo = `\n\nThis swing was performed with a ${metadata.clubName}. Take this into account in your analysis.`;
     }
 
-    // Construct the request payload with a detailed prompt for better analysis
-    const payload = {
-      contents: [
-        {
-          parts: [
-            {
-              text: `You are a professional golf coach with expertise in swing analysis. Analyze this golf swing video in detail and provide a comprehensive assessment:
+    // Construct the base prompt text that will be used for both file and YouTube analysis
+    const promptText = `You are a professional golf coach with expertise in swing analysis. Analyze this golf swing video in detail and provide a comprehensive assessment:
 
 1. Overall swing score (0-100) based on proper form, mechanics, and effectiveness, where:
    - 90-100: Professional level swing with perfect mechanics
@@ -408,22 +378,82 @@ Format your response ONLY as a valid JSON object with this exact structure:
     "Rotate your hips more aggressively through impact",
     "Maintain a more consistent tempo throughout your swing"
   ]
-}`
-            },
-            {
-              inlineData: {
-                mimeType: videoFile.type,
-                data: base64Data
+}`;
+
+    // Prepare the payload based on whether we're using YouTube or a file upload
+    let payload;
+    
+    if (isYouTubeAnalysis) {
+      console.log('Analyzing YouTube video:', metadata.youtubeVideo.videoId);
+      
+      // Create payload for YouTube video analysis
+      payload = {
+        contents: [
+          {
+            parts: [
+              { text: promptText },
+              {
+                fileData: {
+                  mimeType: "video/*",
+                  fileUri: `https://youtu.be/${metadata.youtubeVideo.videoId}`,
+                },
               }
-            }
-          ]
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.5,
+          maxOutputTokens: 2048
         }
-      ],
-      generationConfig: {
-        temperature: 0.5, // Low temperature for more consistent, predictable responses
-        maxOutputTokens: 2048
+      };
+    } else {
+      // Regular file upload flow
+      console.log('Starting file video analysis, file type:', videoFile.type);
+      console.log('File details:', {
+        name: videoFile.name,
+        type: videoFile.type,
+        size: `${(videoFile.size / (1024 * 1024)).toFixed(2)}MB`,
+        lastModified: new Date(videoFile.lastModified).toISOString()
+      });
+
+      // Convert video to base64
+      let base64Video;
+      try {
+        base64Video = await fileToBase64(videoFile);
+        console.log('Successfully converted video to base64');
+      } catch (error) {
+        console.error('Error converting file to base64:', error);
+        return createMockAnalysis(videoFile, metadata); // Fallback to mock
       }
-    };
+
+      // Get base64 data part
+      const base64Data = base64Video.split('base64,')[1];
+      if (!base64Data) {
+        console.error('Failed to extract base64 data from video');
+        return createMockAnalysis(videoFile, metadata); // Fallback to mock
+      }
+
+      // Create payload for file upload analysis
+      payload = {
+        contents: [
+          {
+            parts: [
+              { text: promptText },
+              {
+                inlineData: {
+                  mimeType: videoFile.type,
+                  data: base64Data
+                }
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.5,
+          maxOutputTokens: 2048
+        }
+      };
+    }
 
     console.log('Sending request to Gemini API...');
 
@@ -436,7 +466,7 @@ Format your response ONLY as a valid JSON object with this exact structure:
           headers: {
             'Content-Type': 'application/json'
           },
-          timeout: 120000 // 120 second timeout for video processing (increased from 90s)
+          timeout: 120000 // 120 second timeout for video processing
         }
       );
 
@@ -484,8 +514,13 @@ Format your response ONLY as a valid JSON object with this exact structure:
         }
 
         // Apply normalization and consistency enhancements
-        analysisData = normalizeAndValidateScores(analysisData);
-        analysisData = ensureConsistentAnalysis(analysisData, videoFile);
+        if (videoFile) {
+          analysisData = normalizeAndValidateScores(analysisData);
+          analysisData = ensureConsistentAnalysis(analysisData, videoFile);
+        } else {
+          // For YouTube videos, just normalize the scores
+          analysisData = normalizeAndValidateScores(analysisData);
+        }
 
         // Ensure we have exactly 3 recommendations
         if (!Array.isArray(analysisData.recommendations) || analysisData.recommendations.length < 1) {
@@ -508,18 +543,33 @@ Format your response ONLY as a valid JSON object with this exact structure:
       // Extract date information from metadata if available
       const recordedDate = metadata?.recordedDate || new Date();
 
-      // Add metadata to the analysis
-      return {
+      // Prepare the final analysis result
+      let finalAnalysis = {
         ...analysisData,
         id: Date.now().toString(),
         date: new Date().toISOString(), // Analysis date (now)
         recordedDate: recordedDate instanceof Date ? recordedDate.toISOString() : recordedDate,
-        videoUrl: URL.createObjectURL(videoFile),
         clubName: metadata?.clubName || null,
         clubId: metadata?.clubId || null,
         clubType: metadata?.clubType || null,
         outcome: metadata?.outcome || null
       };
+      
+      // Add YouTube-specific properties if this is a YouTube analysis
+      if (isYouTubeAnalysis) {
+        finalAnalysis = {
+          ...finalAnalysis,
+          videoUrl: metadata.youtubeVideo.embedUrl, // Use embed URL
+          youtubeVideoId: metadata.youtubeVideo.videoId,
+          isYouTubeVideo: true
+        };
+      } else {
+        // For file uploads, use the blob URL
+        finalAnalysis.videoUrl = URL.createObjectURL(videoFile);
+      }
+      
+      return finalAnalysis;
+      
     } catch (error) {
       console.error('Error in API request:', error);
       console.error('Error details:', error.response?.data);
@@ -529,7 +579,6 @@ Format your response ONLY as a valid JSON object with this exact structure:
       if (error.response?.data?.error?.message?.includes('size') ||
         error.response?.status === 413) {
         console.error('The API rejected the file due to size limitations');
-        // Still fall back to mock data
       }
 
       return createMockAnalysis(videoFile, metadata); // Fallback to mock
@@ -541,13 +590,16 @@ Format your response ONLY as a valid JSON object with this exact structure:
 };
 
 /**
- * Create more realistic mock analysis data for fallback
- * @param {File} videoFile - The video file
- * @param {Object} metadata - Additional metadata like club and date information
+ * Create mock analysis data that handles both file and YouTube inputs
+ * @param {File|null} videoFile - The video file or null for YouTube
+ * @param {Object} metadata - Additional metadata including YouTube info if applicable
  * @returns {Object} Mock analysis data
  */
 const createMockAnalysis = (videoFile, metadata = null) => {
-  console.log('Generating improved mock analysis data');
+  console.log('Generating mock analysis data');
+  
+  // Determine if this is a YouTube analysis
+  const isYouTubeAnalysis = !videoFile && metadata?.youtubeVideo;
 
   // Extract date information from metadata if available
   const recordedDate = metadata?.recordedDate || new Date();
@@ -578,6 +630,20 @@ const createMockAnalysis = (videoFile, metadata = null) => {
       default:
         baseSkillLevel = 65 + (Math.random() * 10 - 5);
     }
+  }
+
+  if (isYouTubeAnalysis) {
+    return {
+      ...mockResult,
+      videoUrl: metadata.youtubeVideo.embedUrl,
+      youtubeVideoId: metadata.youtubeVideo.videoId,
+      isYouTubeVideo: true
+    };
+  } else {
+    return {
+      ...mockResult,
+      videoUrl: URL.createObjectURL(videoFile)
+    };
   }
   
   // Create realistic variations between metrics

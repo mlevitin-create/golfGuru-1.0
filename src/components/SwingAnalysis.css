@@ -223,3 +223,16 @@
     animation: spin 1s linear infinite;
   }
 }
+
+.metric-label, .section-header {
+  padding: 12px 8px;
+  margin-bottom: 8px;
+  transition: background-color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 768px) {
+  .metric-label, .section-header {
+    padding: 15px 10px;  /* Larger touch target on mobile */
+  }
+}

@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { extractYouTubeVideoId, getYouTubeEmbedUrl, getYouTubeThumbnailUrl } from '../utils/youtubeUtils';
 
 const ProComparison = ({ swingData }) => {
   const [selectedPro, setSelectedPro] = useState('tiger_woods');
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const videoRef = useRef(null);
-  
-  // Mock pro golfer data
-  const proGolfers = {
+  const [proYoutubeUrl, setProYoutubeUrl] = useState('');
+  const [showProYoutubeInput, setShowProYoutubeInput] = useState(false);
+  const [proYoutubeError, setProYoutubeError] = useState(null);
+  const [proGolfers, setProGolfers] = useState({
     tiger_woods: {
       name: 'Tiger Woods',
       metrics: {
@@ -30,7 +31,11 @@ const ProComparison = ({ swingData }) => {
         'Precise ball striking',
         'Great course management'
       ],
-      imageUrl: 'https://via.placeholder.com/300x200?text=Tiger+Woods'
+      imageUrl: 'https://via.placeholder.com/300x200?text=Tiger+Woods',
+      defaultYouTubeVideo: {
+        videoId: 'JoA1vvsWV68',
+        embedUrl: 'https://www.youtube.com/embed/JoA1vvsWV68'
+      }
     },
     rory_mcilroy: {
       name: 'Rory McIlroy',
@@ -54,7 +59,11 @@ const ProComparison = ({ swingData }) => {
         'Long off the tee',
         'Natural athletic movement'
       ],
-      imageUrl: 'https://via.placeholder.com/300x200?text=Rory+McIlroy'
+      imageUrl: 'https://via.placeholder.com/300x200?text=Rory+McIlroy',
+      defaultYouTubeVideo: {
+        videoId: 'k72MSCnSPIM',
+        embedUrl: 'https://www.youtube.com/embed/k72MSCnSPIM'
+      }
     },
     jordan_spieth: {
       name: 'Jordan Spieth',
@@ -78,14 +87,28 @@ const ProComparison = ({ swingData }) => {
         'Strong mental game',
         'Creative shot making'
       ],
-      imageUrl: 'https://via.placeholder.com/300x200?text=Jordan+Spieth'
+      imageUrl: 'https://via.placeholder.com/300x200?text=Jordan+Spieth',
+      defaultYouTubeVideo: {
+        videoId: 'ALqxk9Xyzsw',
+        embedUrl: 'https://www.youtube.com/embed/ALqxk9Xyzsw'
+      }
     }
-  };
+  });
+  
+  const videoRef = useRef(null);
 
   // Generate thumbnail from video when swingData changes
   useEffect(() => {
     if (swingData && swingData.videoUrl) {
-      generateThumbnail(swingData.videoUrl);
+      if (swingData.isYouTubeVideo) {
+        // Use YouTube thumbnail if available
+        if (swingData.youtubeVideoId) {
+          setThumbnailUrl(getYouTubeThumbnailUrl(swingData.youtubeVideoId));
+        }
+      } else {
+        // Generate thumbnail from video file
+        generateThumbnail(swingData.videoUrl);
+      }
     }
     
     // Reset playing state when swing data changes
@@ -164,6 +187,176 @@ const ProComparison = ({ swingData }) => {
     }
   };
 
+  // Handle loading a custom YouTube video for the pro
+  const handleProYoutubeSubmit = () => {
+    // Reset error state
+    setProYoutubeError(null);
+    
+    // Validate URL
+    const videoId = extractYouTubeVideoId(proYoutubeUrl);
+    if (!videoId) {
+      setProYoutubeError('Invalid YouTube URL. Please enter a valid YouTube video link.');
+      return;
+    }
+    
+    // Update the currently selected pro with custom YouTube video
+    const updatedProData = {
+      ...proGolfers[selectedPro],
+      customYoutubeVideo: {
+        videoId,
+        embedUrl: getYouTubeEmbedUrl(videoId)
+      }
+    };
+    
+    // Update pro golfers data
+    setProGolfers({
+      ...proGolfers,
+      [selectedPro]: updatedProData
+    });
+    
+    // Hide YouTube input
+    setShowProYoutubeInput(false);
+    setProYoutubeUrl('');
+  };
+
+  // Render pro swing content based on available media
+  const renderProSwing = () => {
+    const proData = proGolfers[selectedPro];
+    
+    // Use custom YouTube video if available, otherwise use default YouTube video if available, otherwise use image
+    if (proData.customYoutubeVideo) {
+      return (
+        <div className="pro-youtube-container" style={{
+          position: 'relative',
+          paddingBottom: '56.25%', // 16:9 aspect ratio
+          height: 0,
+          overflow: 'hidden',
+          borderRadius: '8px'
+        }}>
+          <iframe
+            src={proData.customYoutubeVideo.embedUrl}
+            title={`${proData.name}'s swing`}
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%'
+            }}
+          ></iframe>
+        </div>
+      );
+    } else if (proData.defaultYouTubeVideo) {
+      return (
+        <div className="pro-youtube-container" style={{
+          position: 'relative',
+          paddingBottom: '56.25%', // 16:9 aspect ratio
+          height: 0,
+          overflow: 'hidden',
+          borderRadius: '8px'
+        }}>
+          <iframe
+            src={proData.defaultYouTubeVideo.embedUrl}
+            title={`${proData.name}'s swing`}
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%'
+            }}
+          ></iframe>
+        </div>
+      );
+    } else {
+      return (
+        <div className="pro-image" style={{
+          width: '100%',
+          paddingBottom: '56.25%', // 16:9 aspect ratio
+          height: 0,
+          backgroundColor: '#333',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          position: 'relative'
+        }}>
+          <img 
+            src={proData.imageUrl} 
+            alt={`${proData.name} swing`} 
+            style={{ 
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              borderRadius: '8px',
+              objectFit: 'cover'
+            }}
+          />
+        </div>
+      );
+    }
+  };
+
+  // Render YouTube input field for pro videos
+  const renderYoutubeInput = () => (
+    <div style={{ marginTop: '15px' }}>
+      <input
+        type="text"
+        value={proYoutubeUrl}
+        onChange={(e) => setProYoutubeUrl(e.target.value)}
+        placeholder="Enter YouTube URL of pro golfer's swing"
+        style={{
+          width: '100%',
+          padding: '8px',
+          borderRadius: '5px',
+          border: '1px solid #ddd',
+          marginBottom: '10px'
+        }}
+      />
+      
+      {proYoutubeError && (
+        <div style={{ color: '#e74c3c', fontSize: '0.9rem', marginBottom: '10px' }}>
+          {proYoutubeError}
+        </div>
+      )}
+      
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button
+          onClick={() => setShowProYoutubeInput(false)}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#95a5a6',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleProYoutubeSubmit}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#3498db',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          Load Video
+        </button>
+      </div>
+    </div>
+  );
+
   // Handle error display when no swing data available
   if (!swingData) {
     return (
@@ -181,6 +374,98 @@ const ProComparison = ({ swingData }) => {
     if (diff >= -10) return '#27ae60'; // Green for close or better
     if (diff >= -20) return '#f39c12'; // Orange for moderately far
     return '#e74c3c'; // Red for far away
+  };
+
+  // Render user's swing content
+  const renderUserSwing = () => {
+    if (swingData.isYouTubeVideo) {
+      return (
+        <div className="video-container" style={{ 
+          position: 'relative', 
+          paddingBottom: '56.25%', // 16:9 aspect ratio
+          height: 0,
+          overflow: 'hidden',
+          borderRadius: '8px'
+        }}>
+          <iframe
+            src={swingData.videoUrl}
+            title="Your swing from YouTube"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%'
+            }}
+          ></iframe>
+        </div>
+      );
+    } else if (!isPlaying && thumbnailUrl) {
+      return (
+        <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+          <img 
+            src={thumbnailUrl} 
+            alt="Video preview" 
+            style={{ 
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              backgroundColor: '#333' 
+            }}
+            onClick={handleThumbnailClick}
+          />
+          <div 
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              backgroundColor: 'rgba(52, 152, 219, 0.7)',
+              borderRadius: '50%',
+              width: '60px',
+              height: '60px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 4px 8px rgba(0,0,0,0.3)'
+            }}
+            onClick={handleThumbnailClick}
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 5V19L19 12L8 5Z" fill="white" />
+            </svg>
+          </div>
+        </div>
+      );
+    } else {
+      return (
+        <video 
+          ref={videoRef}
+          src={swingData.videoUrl} 
+          controls 
+          style={{ 
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            borderRadius: '8px',
+            objectFit: 'contain',
+            backgroundColor: '#333',
+            display: 'block'
+          }}
+        />
+      );
+    }
   };
 
   return (
@@ -233,65 +518,7 @@ const ProComparison = ({ swingData }) => {
             paddingBottom: '56.25%', /* 16:9 aspect ratio */
             height: 0
           }}>
-            {!isPlaying && thumbnailUrl ? (
-              <div style={{ position: 'relative', height: '100%', width: '100%' }}>
-                <img 
-                  src={thumbnailUrl} 
-                  alt="Video preview" 
-                  style={{ 
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    backgroundColor: '#333' 
-                  }}
-                  onClick={handleThumbnailClick}
-                />
-                <div 
-                  style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    backgroundColor: 'rgba(52, 152, 219, 0.7)',
-                    borderRadius: '50%',
-                    width: '60px',
-                    height: '60px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.3)'
-                  }}
-                  onClick={handleThumbnailClick}
-                >
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M8 5V19L19 12L8 5Z" fill="white" />
-                  </svg>
-                </div>
-              </div>
-            ) : (
-              <video 
-                ref={videoRef}
-                src={swingData.videoUrl} 
-                controls 
-                style={{ 
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  borderRadius: '8px',
-                  objectFit: 'contain',
-                  backgroundColor: '#333',
-                  display: 'block'
-                }}
-              />
-            )}
+            {renderUserSwing()}
           </div>
         </div>
         
@@ -302,29 +529,29 @@ const ProComparison = ({ swingData }) => {
           maxWidth: '500px'
         }}>
           <h3>{proData.name}'s Swing</h3>
-          <div className="pro-image" style={{
-            width: '100%',
-            paddingBottom: '56.25%', /* 16:9 aspect ratio */
-            height: 0,
-            backgroundColor: '#333',
-            borderRadius: '8px',
-            overflow: 'hidden',
-            position: 'relative'
-          }}>
-                          <img 
-              src={proData.imageUrl} 
-              alt={`${proData.name} swing`} 
-              style={{ 
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                borderRadius: '8px',
-                objectFit: 'cover'
+          {renderProSwing()}
+          
+          {/* YouTube button */}
+          {!showProYoutubeInput && (
+            <button
+              onClick={() => setShowProYoutubeInput(true)}
+              style={{
+                display: 'block',
+                margin: '10px auto 0',
+                padding: '6px 12px',
+                backgroundColor: '#f8f9fa',
+                border: '1px solid #ddd',
+                borderRadius: '5px',
+                fontSize: '0.9rem',
+                cursor: 'pointer'
               }}
-            />
-          </div>
+            >
+              {proData.customYoutubeVideo ? 'Change YouTube video' : 'Use a YouTube video'}
+            </button>
+          )}
+          
+          {/* YouTube input form */}
+          {showProYoutubeInput && renderYoutubeInput()}
         </div>
       </div>
       

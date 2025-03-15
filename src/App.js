@@ -15,6 +15,7 @@ import ProfileSetupModal from './components/ProfileSetupModal';
 import geminiService from './services/geminiService';
 import firestoreService from './services/firestoreService';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import ClubAnalytics from './components/ClubAnalytics';
 
 // Modal component for login and other modal content
 const Modal = ({ isOpen, onClose, children, canClose = true }) => {

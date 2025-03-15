@@ -10,7 +10,6 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
   const [expandedMetrics, setExpandedMetrics] = useState({});
   const [metricInsights, setMetricInsights] = useState({});
   const [loadingInsights, setLoadingInsights] = useState({});
-  // Add this new state for section expansion
   const [expandedSections, setExpandedSections] = useState({});
   const videoRef = useRef(null); // Create a video reference
 
@@ -116,13 +115,21 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     }
   };
 
-  // Toggle metric expansion and fetch insights
+  // Toggle metric expansion and fetch insights with debounce to prevent double triggering
   const toggleMetricExpansion = (metricKey, event) => {
     // Prevent default behavior and stop propagation
     if (event) {
       event.preventDefault();
       event.stopPropagation();
     }
+    
+    // Add a delay flag to prevent double-triggering on mobile
+    if (window.lastToggleTime && (Date.now() - window.lastToggleTime < 300)) {
+      console.log('Ignoring rapid toggle');
+      return;
+    }
+    
+    window.lastToggleTime = Date.now();
     
     setExpandedMetrics(prev => ({
       ...prev,
@@ -143,7 +150,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     }
   };
 
-  // Toggle section expansion
+  // Toggle section expansion with debounce
   const toggleSection = (metricKey, section, event) => {
     // Prevent default behavior and stop propagation
     if (event) {
@@ -151,7 +158,13 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
       event.stopPropagation();
     }
     
-    console.log(`Toggling section ${section} for metric ${metricKey}`);
+    // Add a delay flag to prevent double-triggering on mobile
+    if (window.lastSectionToggleTime && (Date.now() - window.lastSectionToggleTime < 300)) {
+      console.log('Ignoring rapid section toggle');
+      return;
+    }
+    
+    window.lastSectionToggleTime = Date.now();
     
     setExpandedSections(prev => ({
       ...prev,
@@ -230,7 +243,14 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
             <div 
               className="section-header"
               onClick={(e) => toggleSection(metricKey, section, e)}
-              onTouchEnd={(e) => toggleSection(metricKey, section, e)}
+              role="button"
+              tabIndex={0}
+              aria-expanded={isSectionExpanded(metricKey, section) || false}
+              style={{
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+                userSelect: 'none'
+              }}
             >
               <h4>
                 {section === 'goodAspects' && 'What Went Well'}
@@ -270,7 +290,14 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
             <div 
               className="section-header"
               onClick={(e) => toggleSection(metricKey, 'feelTips', e)}
-              onTouchEnd={(e) => toggleSection(metricKey, 'feelTips', e)}
+              role="button"
+              tabIndex={0}
+              aria-expanded={isSectionExpanded(metricKey, 'feelTips') || false}
+              style={{
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+                userSelect: 'none'
+              }}
             >
               <h4>How It Should Feel</h4>
               <button 
@@ -298,158 +325,194 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     );
   };
 
-    // Add this helper function to get more descriptive section titles based on the swing recipe
-    const getMetricDisplayInfo = (metricKey) => {
-      // Map internal metric keys to display-friendly information
-      const metricInfo = {
-        // Existing metrics
-        backswing: {
-          title: "Backswing",
-          description: "Your takeaway and club position during the backswing phase",
-          category: "Club",
-          difficulty: 8
-        },
-        stance: {
-          title: "Stance",
-          description: "Your foot position, width, alignment, and posture",
-          category: "Setup",
-          difficulty: 2
-        },
-        grip: {
-          title: "Grip",
-          description: "How you hold the club and hand positioning",
-          category: "Setup",
-          difficulty: 3
-        },
-        swingBack: {
-          title: "Backswing Club Path",
-          description: "The path your club takes on the way back",
-          category: "Club",
-          difficulty: 8
-        },
-        swingForward: {
-          title: "Downswing Club Path",
-          description: "The path your club takes on the way down to impact",
-          category: "Club",
-          difficulty: 8
-        },
-        hipRotation: {
-          title: "Hip Rotation",
-          description: "How your hips rotate throughout the swing",
-          category: "Body",
-          difficulty: 6
-        },
-        swingSpeed: {
-          title: "Swing Speed",
-          description: "The velocity and acceleration through your swing",
-          category: "Club",
-          difficulty: 7
-        },
-        shallowing: {
-          title: "Shallowing",
-          description: "How well your club drops into the proper path during downswing",
-          category: "Club",
-          difficulty: 9
-        },
-        pacing: {
-          title: "Tempo & Rhythm",
-          description: "The timing and rhythm throughout your swing",
-          category: "Body",
-          difficulty: 6
-        },
-        confidence: {
-          title: "Confidence",
-          description: "Your mental composure and commitment to the swing",
-          category: "Mental",
-          difficulty: 7
-        },
-        focus: {
-          title: "Focus",
-          description: "Your concentration and attention during setup and swing",
-          category: "Mental",
-          difficulty: 4
-        },
-        headPosition: {
-          title: "Head Position",
-          description: "The stability and position of your head during the swing",
-          category: "Body",
-          difficulty: 4
-        },
-        shoulderPosition: {
-          title: "Shoulder Position",
-          description: "How your shoulders move and position throughout the swing",
-          category: "Body",
-          difficulty: 6
-        },
-        armPosition: {
-          title: "Arm Position",
-          description: "The positioning of your arms throughout the swing",
-          category: "Body", 
-          difficulty: 6
-        },
-        followThrough: {
-          title: "Follow Through",
-          description: "Your swing completion after ball contact",
-          category: "Body",
-          difficulty: 4
-        },
-        
-        // Additional metrics from Swing Recipe
-        stiffness: {
-          title: "Stiffness",
-          description: "Your ability to remove tension from your body during your swing",
-          category: "Body",
-          difficulty: 5
-        },
-        ballPosition: {
-          title: "Ball Position",
-          description: "The position of the ball relative to your stance and club type",
-          category: "Setup",
-          difficulty: 1
-        },
-        impactPosition: {
-          title: "Impact Position",
-          description: "The position and angle of the club at the moment of impact",
-          category: "Club",
-          difficulty: 10
-        },
-        
-        // Variants with different naming conventions that might appear in the data
-        clubTrajectoryBackswing: {
-          title: "Backswing",
-          description: "Your takeaway and club position during the backswing phase",
-          category: "Club",
-          difficulty: 8
-        },
-        clubTrajectoryForswing: {
-          title: "Downswing",
-          description: "The path your club takes on the way down to impact",
-          category: "Club",
-          difficulty: 8
-        }
-      };
-    
-      // Default display info if not found
-      const defaultInfo = {
-        title: metricKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
-        description: "An important aspect of your golf swing",
-        category: "General",
+  // Helper function to get more descriptive section titles based on the swing recipe
+  const getMetricDisplayInfo = (metricKey) => {
+    // Map internal metric keys to display-friendly information
+    const metricInfo = {
+      // Existing metrics
+      backswing: {
+        title: "Backswing",
+        description: "Your takeaway and club position during the backswing phase",
+        category: "Club",
+        difficulty: 8
+      },
+      stance: {
+        title: "Stance",
+        description: "Your foot position, width, alignment, and posture",
+        category: "Setup",
+        difficulty: 2
+      },
+      grip: {
+        title: "Grip",
+        description: "How you hold the club and hand positioning",
+        category: "Setup",
+        difficulty: 3
+      },
+      swingBack: {
+        title: "Backswing Club Path",
+        description: "The path your club takes on the way back",
+        category: "Club",
+        difficulty: 8
+      },
+      swingForward: {
+        title: "Downswing Club Path",
+        description: "The path your club takes on the way down to impact",
+        category: "Club",
+        difficulty: 8
+      },
+      hipRotation: {
+        title: "Hip Rotation",
+        description: "How your hips rotate throughout the swing",
+        category: "Body",
+        difficulty: 6
+      },
+      swingSpeed: {
+        title: "Swing Speed",
+        description: "The velocity and acceleration through your swing",
+        category: "Club",
+        difficulty: 7
+      },
+      shallowing: {
+        title: "Shallowing",
+        description: "How well your club drops into the proper path during downswing",
+        category: "Club",
+        difficulty: 9
+      },
+      pacing: {
+        title: "Tempo & Rhythm",
+        description: "The timing and rhythm throughout your swing",
+        category: "Body",
+        difficulty: 6
+      },
+      confidence: {
+        title: "Confidence",
+        description: "Your mental composure and commitment to the swing",
+        category: "Mental",
+        difficulty: 7
+      },
+      focus: {
+        title: "Focus",
+        description: "Your concentration and attention during setup and swing",
+        category: "Mental",
+        difficulty: 4
+      },
+      headPosition: {
+        title: "Head Position",
+        description: "The stability and position of your head during the swing",
+        category: "Body",
+        difficulty: 4
+      },
+      shoulderPosition: {
+        title: "Shoulder Position",
+        description: "How your shoulders move and position throughout the swing",
+        category: "Body",
+        difficulty: 6
+      },
+      armPosition: {
+        title: "Arm Position",
+        description: "The positioning of your arms throughout the swing",
+        category: "Body", 
+        difficulty: 6
+      },
+      followThrough: {
+        title: "Follow Through",
+        description: "Your swing completion after ball contact",
+        category: "Body",
+        difficulty: 4
+      },
+      
+      // Additional metrics from Swing Recipe
+      stiffness: {
+        title: "Stiffness",
+        description: "Your ability to remove tension from your body during your swing",
+        category: "Body",
         difficulty: 5
-      };
-    
-      return metricInfo[metricKey] || defaultInfo;
-    };
-
-      // Add this helper function for category colors
-    const getCategoryColor = (category) => {
-      switch(category) {
-        case 'Mental': return '#9b59b6'; // Purple
-        case 'Body': return '#e67e22';   // Orange
-        case 'Setup': return '#3498db';  // Blue
-        case 'Club': return '#2ecc71';   // Green
-        default: return '#95a5a6';       // Gray
+      },
+      ballPosition: {
+        title: "Ball Position",
+        description: "The position of the ball relative to your stance and club type",
+        category: "Setup",
+        difficulty: 1
+      },
+      impactPosition: {
+        title: "Impact Position",
+        description: "The position and angle of the club at the moment of impact",
+        category: "Club",
+        difficulty: 10
+      },
+      
+      // Variants with different naming conventions that might appear in the data
+      clubTrajectoryBackswing: {
+        title: "Backswing",
+        description: "Your takeaway and club position during the backswing phase",
+        category: "Club",
+        difficulty: 8
+      },
+      clubTrajectoryForswing: {
+        title: "Downswing",
+        description: "The path your club takes on the way down to impact",
+        category: "Club",
+        difficulty: 8
       }
     };
+  
+    // Default display info if not found
+    const defaultInfo = {
+      title: metricKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+      description: "An important aspect of your golf swing",
+      category: "General",
+      difficulty: 5
+    };
+  
+    return metricInfo[metricKey] || defaultInfo;
+  };
+
+  // Helper function for category colors
+  const getCategoryColor = (category) => {
+    switch(category) {
+      case 'Mental': return '#9b59b6'; // Purple
+      case 'Body': return '#e67e22';   // Orange
+      case 'Setup': return '#3498db';  // Blue
+      case 'Club': return '#2ecc71';   // Green
+      default: return '#95a5a6';       // Gray
+    }
+  };
+
+  // Render video based on type (YouTube or regular file)
+  const renderVideo = () => {
+    if (swingData.isYouTubeVideo) {
+      return (
+        <div className="video-container">
+          <iframe
+            src={swingData.videoUrl}
+            title="YouTube video player"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{
+              width: '100%',
+              height: '100%',
+              position: 'absolute',
+              top: 0,
+              left: 0
+            }}
+          ></iframe>
+        </div>
+      );
+    } else {
+      return (
+        <div className="video-container">
+          <video
+            ref={videoRef}
+            src={swingData.videoUrl}
+            controls
+            playsInline
+            preload="metadata"
+          />
+        </div>
+      );
+    }
+  };
 
   if (!swingData) {
     return (
@@ -494,18 +557,25 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
               Shot Outcome: {swingData.outcome.charAt(0).toUpperCase() + swingData.outcome.slice(1)}
             </div>
           )}
+          
+          {swingData.isYouTubeVideo && (
+            <div style={{
+              display: 'inline-block',
+              backgroundColor: '#f0f7ff',
+              color: '#3498db',
+              padding: '3px 8px',
+              borderRadius: '12px',
+              fontSize: '0.85rem',
+              marginTop: '5px',
+              marginLeft: '5px'
+            }}>
+              YouTube Video
+            </div>
+          )}
         </div>
 
-        {/* Custom video container with controlled dimensions */}
-        <div className="video-container">
-          <video
-            ref={videoRef}
-            src={swingData.videoUrl}
-            controls
-            playsInline
-            preload="metadata"
-          />
-        </div>
+        {/* Render video based on source type */}
+        {renderVideo()}
 
         <div className="overall-score">
           <h3>Overall Score</h3>
@@ -537,7 +607,15 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
               <div
                 className={`metric-label ${expandedMetrics[key] ? 'expanded' : ''}`}
                 onClick={(e) => toggleMetricExpansion(key, e)}
-                onTouchEnd={(e) => toggleMetricExpansion(key, e)}
+                role="button"
+                tabIndex={0}
+                aria-expanded={expandedMetrics[key] || false}
+                style={{
+                  cursor: 'pointer',
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent',
+                  userSelect: 'none'
+                }}
               >
                 <div style={{ flex: 1 }}>
                   <span style={{ fontWeight: 'bold' }}>
@@ -665,13 +743,13 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
           </button>
         )}
       </div>
-            {/* Feedback Collection */}
+      
+      {/* Feedback Collection */}
       <div className="feedback-section" style={{ marginTop: '30px' }}>
         <FeedbackWidget 
           swingData={swingData} 
           onFeedbackGiven={() => {
             // Optionally handle feedback submission completion
-            // For example, show a thank you message
             console.log('Feedback submitted');
           }} 
         />
