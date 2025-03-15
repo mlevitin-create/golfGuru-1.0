@@ -49,14 +49,26 @@ const uploadVideo = async (userId, videoFile) => {
  * Save a swing analysis to Firestore
  * @param {Object} analysisData - The swing analysis data
  * @param {string} userId - The user ID
- * @param {File} videoFile - The video file
- * @param {Object} metadata - Additional metadata (club, date, etc.)
+ * @param {File} videoFile - The video file (null for YouTube videos)
+ * @param {Object} metadata - Additional metadata (club, date, YouTube info, etc.)
  * @returns {Promise<Object>} The saved swing data with ID
  */
 const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = null) => {
   try {
-    // Upload video to storage
-    const videoUrl = await uploadVideo(userId, videoFile);
+    let videoUrl;
+    
+    // Determine if this is a YouTube video or file upload
+    const isYouTubeAnalysis = !videoFile && metadata?.youtubeVideo;
+    
+    if (isYouTubeAnalysis) {
+      // For YouTube videos, use the embed URL directly
+      videoUrl = metadata.youtubeVideo.embedUrl;
+      console.log('Using YouTube video URL:', videoUrl);
+    } else {
+      // For regular file uploads, upload to storage
+      console.log('Uploading video file to storage');
+      videoUrl = await uploadVideo(userId, videoFile);
+    }
     
     // Prepare data for Firestore with recorded date
     // Note: We separate analysis date from recorded date
@@ -77,6 +89,12 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
       outcome: metadata?.outcome || analysisData.outcome || null,
       createdAt: serverTimestamp()
     };
+    
+    // Add YouTube-specific properties if this is a YouTube video
+    if (isYouTubeAnalysis) {
+      swingData.isYouTubeVideo = true;
+      swingData.youtubeVideoId = metadata.youtubeVideo.videoId;
+    }
     
     // Remove client-specific properties
     delete swingData._isMockData;

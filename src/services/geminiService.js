@@ -245,32 +245,29 @@ const normalizeAndValidateScores = (analysisData) => {
  * @returns {Promise} Promise that resolves to the analysis results
  */
 const analyzeGolfSwing = async (videoFile, metadata = null) => {
-  // Determine if this is a YouTube analysis
-  const isYouTubeAnalysis = !videoFile && metadata?.youtubeVideo;
-  
-  // If USE_MOCK_DATA is true, skip API call and generate mock data
+  // Determine if this is a YouTube analysis.  CRITICAL CHANGE HERE:
+  const isYouTubeAnalysis = !videoFile && metadata?.youtubeVideo?.videoId;
+  console.log("videoFile:", videoFile); // Log the value of videoFile
+  console.log("metadata:", metadata);    // Log the entire metadata object
+
   if (USE_MOCK_DATA) {
-    console.log('Using mock data instead of real API');
-    // Add a small delay to simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    return createMockAnalysis(videoFile, metadata);
+      console.log('Using mock data instead of real API');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return createMockAnalysis(videoFile, metadata);
   }
 
-  try {
-    // Check if API key is configured
-    if (!API_KEY) {
-      console.error('Gemini API key is not configured');
-      return createMockAnalysis(videoFile, metadata); // Fallback to mock
-    }
+    try {
+        if (!API_KEY) {
+            console.error('Gemini API key is not configured');
+            return createMockAnalysis(videoFile, metadata);
+        }
 
-    // Add club information to the prompt if available
-    let clubInfo = "";
-    if (metadata?.clubName) {
-      clubInfo = `\n\nThis swing was performed with a ${metadata.clubName}. Take this into account in your analysis.`;
-    }
+        let clubInfo = "";
+        if (metadata?.clubName) {
+            clubInfo = `\n\nThis swing was performed with a ${metadata.clubName}. Take this into account in your analysis.`;
+        }
 
-    // Construct the base prompt text that will be used for both file and YouTube analysis
-    const promptText = `You are a professional golf coach with expertise in swing analysis. Analyze this golf swing video in detail and provide a comprehensive assessment:
+        const promptText = `You are a professional golf coach with expertise in swing analysis. Analyze this golf swing video in detail and provide a comprehensive assessment:
 
 1. Overall swing score (0-100) based on proper form, mechanics, and effectiveness, where:
    - 90-100: Professional level swing with perfect mechanics
@@ -380,213 +377,204 @@ Format your response ONLY as a valid JSON object with this exact structure:
   ]
 }`;
 
-    // Prepare the payload based on whether we're using YouTube or a file upload
-    let payload;
-    
-    if (isYouTubeAnalysis) {
-      console.log('Analyzing YouTube video:', metadata.youtubeVideo.videoId);
-      
-      // Create payload for YouTube video analysis
-      payload = {
-        contents: [
-          {
-            parts: [
-              { text: promptText },
-              {
-                fileData: {
-                  mimeType: "video/*",
-                  fileUri: `https://youtu.be/${metadata.youtubeVideo.videoId}`,
-                },
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.5,
-          maxOutputTokens: 2048
-        }
-      };
-    } else {
-      // Regular file upload flow
-      console.log('Starting file video analysis, file type:', videoFile.type);
-      console.log('File details:', {
-        name: videoFile.name,
-        type: videoFile.type,
-        size: `${(videoFile.size / (1024 * 1024)).toFixed(2)}MB`,
-        lastModified: new Date(videoFile.lastModified).toISOString()
-      });
+        let payload;
 
-      // Convert video to base64
-      let base64Video;
-      try {
-        base64Video = await fileToBase64(videoFile);
-        console.log('Successfully converted video to base64');
-      } catch (error) {
-        console.error('Error converting file to base64:', error);
-        return createMockAnalysis(videoFile, metadata); // Fallback to mock
-      }
-
-      // Get base64 data part
-      const base64Data = base64Video.split('base64,')[1];
-      if (!base64Data) {
-        console.error('Failed to extract base64 data from video');
-        return createMockAnalysis(videoFile, metadata); // Fallback to mock
-      }
-
-      // Create payload for file upload analysis
-      payload = {
-        contents: [
-          {
-            parts: [
-              { text: promptText },
-              {
-                inlineData: {
-                  mimeType: videoFile.type,
-                  data: base64Data
+        if (isYouTubeAnalysis) {
+            console.log('Starting YouTube video analysis:', metadata.youtubeVideo.videoId);
+            console.log('File details: YouTube video');
+             if (!metadata || !metadata.youtubeVideo || !metadata.youtubeVideo.videoId) {
+                console.error('YouTube metadata is missing or incomplete');
+                return createMockAnalysis(videoFile, metadata);
+            }
+            payload = {
+                contents: [
+                    {
+                        parts: [
+                            { text: promptText },
+                            {
+                                fileData: {
+                                    mimeType: "video/*",
+                                    fileUri: `https://youtu.be/${metadata.youtubeVideo.videoId}`, // Correct URL format
+                                },
+                            }
+                        ]
+                    }
+                ],
+                generationConfig: {
+                    temperature: 0.5,
+                    maxOutputTokens: 2048
                 }
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.5,
-          maxOutputTokens: 2048
-        }
-      };
-    }
+            };
 
-    console.log('Sending request to Gemini API...');
-
-    try {
-      // Make the API request with timeout
-      const response = await axios.post(
-        `${API_URL}?key=${API_KEY}`,
-        payload,
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          timeout: 120000 // 120 second timeout for video processing
-        }
-      );
-
-      console.log('Received response from Gemini API');
-
-      // Check if we have a valid response structure
-      if (!response.data || !response.data.candidates || !response.data.candidates[0]) {
-        console.error('Invalid API response structure:', response.data);
-        return createMockAnalysis(videoFile, metadata); // Fallback to mock
-      }
-
-      const textResponse = response.data.candidates[0].content.parts[0].text;
-      if (!textResponse) {
-        console.error('No text in API response');
-        return createMockAnalysis(videoFile, metadata); // Fallback to mock
-      }
-
-      console.log('Parsing response text to JSON...');
-
-      // Try to find and parse JSON in the response
-      let analysisData;
-      try {
-        // Try direct JSON parsing first
-        try {
-          analysisData = JSON.parse(textResponse);
-        } catch (e) {
-          // Fall back to extracting JSON from text
-          const jsonStart = textResponse.indexOf('{');
-          const jsonEnd = textResponse.lastIndexOf('}') + 1;
-
-          if (jsonStart === -1 || jsonEnd <= jsonStart) {
-            console.error('No valid JSON found in response');
-            console.error('Raw response:', textResponse);
-            return createMockAnalysis(videoFile, metadata); // Fallback to mock
-          }
-
-          const jsonString = textResponse.substring(jsonStart, jsonEnd);
-          analysisData = JSON.parse(jsonString);
-        }
-
-        // Validate the parsed data has the expected structure and sanitize the data
-        if (!analysisData.overallScore || !analysisData.metrics || !analysisData.recommendations) {
-          console.error('Parsed data missing required fields:', analysisData);
-          return createMockAnalysis(videoFile, metadata); // Fallback to mock
-        }
-
-        // Apply normalization and consistency enhancements
-        if (videoFile) {
-          analysisData = normalizeAndValidateScores(analysisData);
-          analysisData = ensureConsistentAnalysis(analysisData, videoFile);
         } else {
-          // For YouTube videos, just normalize the scores
-          analysisData = normalizeAndValidateScores(analysisData);
+            if (!videoFile) {
+                console.error('No video file provided and not a YouTube video');
+                return createMockAnalysis(null, metadata);
+            }
+
+            console.log('Starting file video analysis, file type:', videoFile.type);
+            console.log('File details:', {
+                name: videoFile.name,
+                type: videoFile.type,
+                size: `${(videoFile.size / (1024 * 1024)).toFixed(2)}MB`,
+                lastModified: new Date(videoFile.lastModified).toISOString()
+            });
+
+            let base64Video;
+            try {
+                base64Video = await fileToBase64(videoFile);
+                console.log('Successfully converted video to base64');
+            } catch (error) {
+                console.error('Error converting file to base64:', error);
+                return createMockAnalysis(videoFile, metadata);
+            }
+
+            const base64Data = base64Video.split('base64,')[1];
+            if (!base64Data) {
+                console.error('Failed to extract base64 data from video');
+                return createMockAnalysis(videoFile, metadata);
+            }
+
+            payload = {
+                contents: [
+                    {
+                        parts: [
+                            { text: promptText },
+                            {
+                                inlineData: {
+                                    mimeType: videoFile.type,
+                                    data: base64Data
+                                }
+                            }
+                        ]
+                    }
+                ],
+                generationConfig: {
+                    temperature: 0.5,
+                    maxOutputTokens: 2048
+                }
+            };
         }
 
-        // Ensure we have exactly 3 recommendations
-        if (!Array.isArray(analysisData.recommendations) || analysisData.recommendations.length < 1) {
-          analysisData.recommendations = [
-            "Work on your overall swing mechanics",
-            "Practice your timing and rhythm",
-            "Focus on maintaining proper form throughout your swing"
-          ];
-        } else if (analysisData.recommendations.length > 3) {
-          analysisData.recommendations = analysisData.recommendations.slice(0, 3);
+        console.log('Sending request to Gemini API...');
+
+        try {
+            const response = await axios.post(
+                `${API_URL}?key=${API_KEY}`,
+                payload,
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 120000
+                }
+            );
+
+            console.log('Received response from Gemini API');
+
+            if (!response.data || !response.data.candidates || !response.data.candidates[0]) {
+                console.error('Invalid API response structure:', response.data);
+                return createMockAnalysis(videoFile, metadata);
+            }
+
+            const textResponse = response.data.candidates[0].content.parts[0].text;
+            if (!textResponse) {
+                console.error('No text in API response');
+                return createMockAnalysis(videoFile, metadata);
+            }
+
+            console.log('Parsing response text to JSON...');
+
+            let analysisData;
+            try {
+                try {
+                    analysisData = JSON.parse(textResponse);
+                } catch (e) {
+                    const jsonStart = textResponse.indexOf('{');
+                    const jsonEnd = textResponse.lastIndexOf('}') + 1;
+
+                    if (jsonStart === -1 || jsonEnd <= jsonStart) {
+                        console.error('No valid JSON found in response');
+                        console.error('Raw response:', textResponse);
+                        return createMockAnalysis(videoFile, metadata);
+                    }
+
+                    const jsonString = textResponse.substring(jsonStart, jsonEnd);
+                    analysisData = JSON.parse(jsonString);
+                }
+
+                if (!analysisData.overallScore || !analysisData.metrics || !analysisData.recommendations) {
+                    console.error('Parsed data missing required fields:', analysisData);
+                    return createMockAnalysis(videoFile, metadata);
+                }
+
+                if (videoFile) {
+                    analysisData = normalizeAndValidateScores(analysisData);
+                    analysisData = ensureConsistentAnalysis(analysisData, videoFile);
+                } else {
+                  // For YouTube videos, just normalize the scores
+                  analysisData = normalizeAndValidateScores(analysisData);
+                }
+
+                if (!Array.isArray(analysisData.recommendations) || analysisData.recommendations.length < 1) {
+                    analysisData.recommendations = [
+                        "Work on your overall swing mechanics",
+                        "Practice your timing and rhythm",
+                        "Focus on maintaining proper form throughout your swing"
+                    ];
+                } else if (analysisData.recommendations.length > 3) {
+                    analysisData.recommendations = analysisData.recommendations.slice(0, 3);
+                }
+
+                console.log('Successfully parsed analysis data');
+            } catch (error) {
+                console.error('Error parsing API response:', error);
+                console.error('Raw response text:', textResponse);
+                return createMockAnalysis(videoFile, metadata);
+            }
+
+
+            const recordedDate = metadata?.recordedDate || new Date();
+
+            let finalAnalysis = {
+                ...analysisData,
+                id: Date.now().toString(),
+                date: new Date().toISOString(),
+                recordedDate: recordedDate instanceof Date ? recordedDate.toISOString() : recordedDate,
+                clubName: metadata?.clubName || null,
+                clubId: metadata?.clubId || null,
+                clubType: metadata?.clubType || null,
+                outcome: metadata?.outcome || null
+            };
+
+            if (isYouTubeAnalysis) {
+                finalAnalysis = {
+                    ...finalAnalysis,
+                    videoUrl: metadata.youtubeVideo.embedUrl, // Use embed URL
+                    youtubeVideoId: metadata.youtubeVideo.videoId,
+                    isYouTubeVideo: true
+                };
+            } else {
+                finalAnalysis.videoUrl = URL.createObjectURL(videoFile);
+            }
+            return finalAnalysis;
+
+        } catch (error) {
+            console.error('Error in API request:', error);
+            console.error('Error details:', error.response?.data);
+            console.error('Error status:', error.response?.status);
+
+            if (error.response?.data?.error?.message?.includes('size') ||
+                error.response?.status === 413) {
+                console.error('The API rejected the file due to size limitations');
+            }
+
+            return createMockAnalysis(videoFile, metadata);
         }
-
-        console.log('Successfully parsed analysis data');
-      } catch (error) {
-        console.error('Error parsing API response:', error);
-        console.error('Raw response text:', textResponse);
-        return createMockAnalysis(videoFile, metadata); // Fallback to mock
-      }
-
-      // Extract date information from metadata if available
-      const recordedDate = metadata?.recordedDate || new Date();
-
-      // Prepare the final analysis result
-      let finalAnalysis = {
-        ...analysisData,
-        id: Date.now().toString(),
-        date: new Date().toISOString(), // Analysis date (now)
-        recordedDate: recordedDate instanceof Date ? recordedDate.toISOString() : recordedDate,
-        clubName: metadata?.clubName || null,
-        clubId: metadata?.clubId || null,
-        clubType: metadata?.clubType || null,
-        outcome: metadata?.outcome || null
-      };
-      
-      // Add YouTube-specific properties if this is a YouTube analysis
-      if (isYouTubeAnalysis) {
-        finalAnalysis = {
-          ...finalAnalysis,
-          videoUrl: metadata.youtubeVideo.embedUrl, // Use embed URL
-          youtubeVideoId: metadata.youtubeVideo.videoId,
-          isYouTubeVideo: true
-        };
-      } else {
-        // For file uploads, use the blob URL
-        finalAnalysis.videoUrl = URL.createObjectURL(videoFile);
-      }
-      
-      return finalAnalysis;
-      
     } catch (error) {
-      console.error('Error in API request:', error);
-      console.error('Error details:', error.response?.data);
-      console.error('Error status:', error.response?.status);
-
-      // Check if it's specifically a size-related error
-      if (error.response?.data?.error?.message?.includes('size') ||
-        error.response?.status === 413) {
-        console.error('The API rejected the file due to size limitations');
-      }
-
-      return createMockAnalysis(videoFile, metadata); // Fallback to mock
+        console.error('Unexpected error in analyzeGolfSwing:', error);
+        return createMockAnalysis(videoFile, metadata);
     }
-  } catch (error) {
-    console.error('Unexpected error in analyzeGolfSwing:', error);
-    return createMockAnalysis(videoFile, metadata); // Fallback to mock for any unexpected errors
-  }
 };
 
 // Fix for createMockAnalysis function in geminiService.js
@@ -603,6 +591,9 @@ const createMockAnalysis = (videoFile, metadata = null) => {
   
   // Determine if this is a YouTube analysis
   const isYouTubeAnalysis = !videoFile && metadata?.youtubeVideo;
+    console.log('Is YouTube Analysis:', isYouTubeAnalysis);
+    console.log('VideoFile:', videoFile);
+    console.log('Metadata:', JSON.stringify(metadata));
 
   // Extract date information from metadata if available
   const recordedDate = metadata?.recordedDate || new Date();
@@ -812,7 +803,7 @@ const createMockAnalysis = (videoFile, metadata = null) => {
   } else {
     return {
       ...mockResult,
-      videoUrl: URL.createObjectURL(videoFile)
+      videoUrl: videoFile ? URL.createObjectURL(videoFile) : null
     };
   }
 };

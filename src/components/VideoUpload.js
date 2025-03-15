@@ -189,26 +189,16 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
     fileInputRef.current.click();
   };
 
-  // Handle analyze button click
-  const handleAnalyzeClick = () => {
-    if (isUsingYouTube) {
-      if (!youtubeVideoData) {
-        setYoutubeError('Please preview the YouTube video first');
-        return;
-      }
-      
-      // Show club selector for additional metadata
-      setShowClubSelector(true);
-    } else {
-      if (!selectedFile) {
-        setError('Please select a video first');
-        return;
-      }
-      
-      // Show club selector before analyzing
-      setShowClubSelector(true);
-    }
-  };
+// Handle analyze button click
+const handleAnalyzeClick = () => {
+  if (!((selectedFile && !isUsingYouTube) || (youtubeVideoData && isUsingYouTube))) {
+    setError('Please select a video or preview a YouTube video first');
+    return;
+  }
+
+  // Always show club selector before analyzing, regardless of upload type
+  setShowClubSelector(true);
+};
 
   // Handle playing the video when thumbnail is clicked
   const handleThumbnailClick = () => {
@@ -225,46 +215,31 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
   };
 
   // Handle club selection continuation
-  const handleClubContinue = (clubData) => {
-    if (isUsingYouTube && youtubeVideoData) {
-      // Include the date with the swing data
-      const swingWithDate = {
-        ...clubData,
-        recordedDate: swingDate, // Add the selected or extracted date
-        youtubeVideo: youtubeVideoData // Add YouTube data
-      };
-      
-      // Call onVideoUpload with null for file (indicates YouTube) and the metadata
-      onVideoUpload(null, swingWithDate);
-    } else {
-      // Include the date with the swing data
-      const swingWithDate = {
-        ...clubData,
-        recordedDate: swingDate // Add the selected or extracted date
-      };
-      
-      onVideoUpload(selectedFile, swingWithDate);
-    }
-  };
+const handleClubContinue = (clubData) => {
 
-  // Handle skipping club selection
-  const handleClubSkip = (nextAction) => {
+      const metadata = {
+        recordedDate: swingDate,
+        ...(isUsingYouTube && youtubeVideoData ? { youtubeVideo: youtubeVideoData } : {}),
+         ...clubData
+      };
+      onVideoUpload(isUsingYouTube ? null : selectedFile, metadata);
+
+};
+
+// Handle skipping club selection
+const handleClubSkip = (nextAction) => {
     if (nextAction === 'setup-clubs') {
-      // Navigate to the club setup page
-      navigateTo('profile', { setupClubs: true });
-    } else {
-      if (isUsingYouTube && youtubeVideoData) {
-        // Continue with analysis with YouTube data
-        onVideoUpload(null, { 
-          recordedDate: swingDate,
-          youtubeVideo: youtubeVideoData 
-        });
-      } else {
-        // Continue with analysis without club data, but with date
-        onVideoUpload(selectedFile, { recordedDate: swingDate });
-      }
+        navigateTo('profile', { setupClubs: true });
+        return;
     }
-  };
+
+    const metadata = {
+        recordedDate: swingDate,
+        ...(isUsingYouTube && youtubeVideoData ? { youtubeVideo: youtubeVideoData } : {})
+    };
+
+    onVideoUpload(isUsingYouTube ? null : selectedFile, metadata);
+};
 
   // Handle date change
   const handleDateChange = (date) => {
