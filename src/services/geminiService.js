@@ -51,28 +51,31 @@ const applyFeedbackAdjustments = async (analysisData) => {
     const isUnknownPro = analysisData.isUnknownPro || false;
     
     // Apply pro golfer adjustments if applicable
-    if (swingOwnership === 'pro' || isUnknownPro) {
-      console.log(`Professional golfer detected (${proGolferName || 'unknown pro'}), applying score boost`);
-      
-      // Store original score for logging
-      const originalScore = analysisData.overallScore;
-      
-      // Boost the overall score for pro golfers
-      analysisData.overallScore = Math.min(99, Math.max(85, originalScore + 15));
-      
-      // Boost key metrics
-      Object.entries(analysisData.metrics).forEach(([key, value]) => {
-        // Higher boost for core mechanics, less for mental aspects
-        const boostAmount = ['backswing', 'swingBack', 'swingForward', 'shallowing', 'impactPosition'].includes(key) 
-          ? 15 // Core mechanics get bigger boost
-          : 10; // Other metrics get standard boost
-          
-        analysisData.metrics[key] = Math.min(99, Math.max(80, value + boostAmount));
-      });
-      
-      console.log(`Adjusted pro golfer score from ${originalScore} to ${analysisData.overallScore}`);
-      return analysisData;
-    }
+  if (swingOwnership === 'pro' || isUnknownPro) {
+    console.log(`Professional golfer detected (${proGolferName || 'unknown pro'}), applying score boost`);
+
+    // Store original score for logging
+    const originalScore = analysisData.overallScore;
+
+    // Boost the overall score for pro golfers - increased boost
+    analysisData.overallScore = Math.min(99, Math.max(85, originalScore + 20));
+
+    // Boost key metrics - increased boost
+    Object.entries(analysisData.metrics).forEach(([key, value]) => {
+      // Higher boost for core mechanics, less for mental aspects
+      const boostAmount = ['backswing', 'swingBack', 'swingForward', 'shallowing', 'impactPosition'].includes(key)
+        ? 18 // Core mechanics get bigger boost
+        : 12; // Other metrics get standard boost
+
+      // Apply a curve to boost higher scores more
+      const scoreFactor = value / 100; // Scale from 0 to 1
+      const curvedBoost = Math.round(boostAmount * scoreFactor);
+      analysisData.metrics[key] = Math.min(99, Math.max(80, value + curvedBoost));
+    });
+
+    console.log(`Adjusted pro golfer score from ${originalScore} to ${analysisData.overallScore}`);
+    return analysisData;
+  }
     
     // Skip adjustment for unauthenticated users but apply special rules
     if (!auth.currentUser) {
@@ -259,14 +262,22 @@ const needsAdjustment = async (analysisData) => {
  */
 const isLikelyProGolferSwing = (analysisData) => {
   // Check for high overall score
-  const hasHighOverallScore = analysisData.overallScore >= 85;
-  
+  const hasHighOverallScore = analysisData.overallScore >= 80;
+
   // Check for multiple high metric scores
   const highMetricsCount = Object.values(analysisData.metrics)
-    .filter(score => score >= 90).length;
-  
-  // A pro swing will typically have multiple high metrics
-  return hasHighOverallScore || highMetricsCount >= 3;
+      .filter(score => score >= 90).length;
+
+  // Check for very low scores
+  const lowScoresCount = Object.values(analysisData.metrics)
+      .filter(score => score < 70).length;
+
+  // Check for extremely high individual metrics
+  const hasExtremeMetric = Object.values(analysisData.metrics)
+      .some(score => score >= 95);
+
+  // A pro swing will typically have multiple high metrics, no very low scores, or extremely high metrics
+  return (hasHighOverallScore && highMetricsCount >= 2 && lowScoresCount === 0) || highMetricsCount >= 4 || hasExtremeMetric;
 };
 
 /**

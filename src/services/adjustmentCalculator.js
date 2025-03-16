@@ -1,4 +1,5 @@
-// src/services/adjustmentCalculator.js
+import { calculateAdjustmentValue } from './adjustmentValueCalculator';
+
 /**
  * Calculates adjustment factors based on feedback data
  * @param {Object} metricAdjustments - Aggregated feedback data
@@ -15,7 +16,7 @@ export const calculateAdjustmentFactors = (metricAdjustments) => {
       beginner: { overall: 0, metrics: {} }
     }
   };
-  
+
   // Calculate overall score adjustment
   if (metricAdjustments.overall.total >= 5) {
     factors.overall = calculateAdjustmentValue(
@@ -25,7 +26,7 @@ export const calculateAdjustmentFactors = (metricAdjustments) => {
       3 // Max adjustment factor
     );
   }
-  
+
   // Calculate skill level specific overall adjustments
   Object.keys(metricAdjustments.bySkillLevel).forEach(level => {
     const levelData = metricAdjustments.bySkillLevel[level];
@@ -73,36 +74,33 @@ export const calculateAdjustmentFactors = (metricAdjustments) => {
   return factors;
 };
 
-/**
- * Calculate adjustment value based on feedback distribution
- * @param {number} tooHigh - Count of "too high" feedback
- * @param {number} tooLow - Count of "too low" feedback
- * @param {number} total - Total feedback count
- * @param {number} maxAdjustment - Maximum adjustment factor
- * @returns {number} The calculated adjustment value
- */
-const calculateAdjustmentValue = (tooHigh, tooLow, total, maxAdjustment) => {
-  const highPercentage = tooHigh / total;
-  const lowPercentage = tooLow / total;
-  
-  // No adjustment if feedback is balanced
-  if (Math.abs(highPercentage - lowPercentage) < 0.2) {
-    return 0;
+export const calculateProAdjustmentFactors = (proFeedback) => {
+  const factors = {
+    overall: 0,
+    metrics: {}
+  };
+
+  // Calculate overall score adjustment
+  if (proFeedback.overall.total >= 3) {
+    factors.overall = calculateAdjustmentValue(
+      proFeedback.overall.too_high,
+      proFeedback.overall.too_low,
+      proFeedback.overall.total,
+      2 // Max adjustment factor for pro overall
+    );
   }
-  
-  // If significantly more "too high" than "too low", apply negative adjustment
-  if (highPercentage > 0.5 && highPercentage > lowPercentage * 1.5) {
-    // Scale the adjustment based on the strength of the feedback
-    const adjustmentStrength = Math.min(1, (highPercentage - 0.5) * 2);
-    return -Math.round(maxAdjustment * adjustmentStrength);
-  } 
-  // If significantly more "too low" than "too high", apply positive adjustment
-  else if (lowPercentage > 0.5 && lowPercentage > highPercentage * 1.5) {
-    // Scale the adjustment based on the strength of the feedback
-    const adjustmentStrength = Math.min(1, (lowPercentage - 0.5) * 2);
-    return Math.round(maxAdjustment * adjustmentStrength);
-  }
-  
-  // Default case - no significant trend
-  return 0;
+
+  // Calculate metric-specific adjustments
+  Object.entries(proFeedback.byMetric).forEach(([metric, counts]) => {
+    if (counts.total >= 2) {
+      factors.metrics[metric] = calculateAdjustmentValue(
+        counts.too_high,
+        counts.too_low,
+        counts.total,
+        3 // Max adjustment factor for pro metrics
+      );
+    }
+  });
+
+  return factors;
 };

@@ -80,15 +80,18 @@ const FeedbackWidget = ({ swingData, onFeedbackGiven }) => {
       <h4 style={{ marginTop: 0 }}>Help Improve the Analysis</h4>
       <div style={{ marginBottom: '15px' }}>
         <label style={{ display: 'block', marginBottom: '5px' }}>Overall score accuracy:</label>
-        <select 
-          value={feedback} 
-          onChange={(e) => setFeedback(e.target.value)}
-          style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd', width: '100%' }}
-        >
-          <option value="accurate">Accurate</option>
-          <option value="too_high">Too High</option>
-          <option value="too_low">Too Low</option>
-        </select>
+          <select
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd', width: '100%' }}
+          >
+            <option value="accurate">Accurate</option>
+            <option value="too_high">Too High</option>
+            <option value="too_low">Too Low</option>
+            <option value="form_issue">Form Issue</option>
+            <option value="pacing_issue">Pacing Issue</option>
+            <option value="not_helpful">Not Helpful</option>
+          </select>
       </div>
       
       {/* Golfer Skill Level Section */}
