@@ -1,8 +1,8 @@
-// src/components/VideoUpload.js - Key changes to integrate swing ownership
+// src/components/VideoUpload.js
 import React, { useState, useRef, useEffect } from 'react';
 import ClubSelector from './ClubSelector';
 import DateSelector from './DateSelector';
-import SwingOwnershipSelector from './SwingOwnershipSelector'; // New import
+import SwingOwnershipSelector from './SwingOwnershipSelector';
 import { extractVideoCreationDate } from '../utils/videoMetadata';
 import { extractYouTubeVideoId, getYouTubeEmbedUrl, getYouTubeThumbnailUrl, isValidYouTubeUrl } from '../utils/youtubeUtils';
 
@@ -12,8 +12,8 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [showClubSelector, setShowClubSelector] = useState(false);
-  const [showOwnershipSelector, setShowOwnershipSelector] = useState(false); // New state
-  const [ownershipData, setOwnershipData] = useState(null); // New state
+  const [showOwnershipSelector, setShowOwnershipSelector] = useState(false);
+  const [ownershipData, setOwnershipData] = useState(null);
   const [error, setError] = useState(null);
   const [swingDate, setSwingDate] = useState(new Date());
   const [fileDate, setFileDate] = useState(null);
@@ -93,7 +93,48 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
     setYoutubeVideoData(null);
   };
 
-  // Handle analyze button click - UPDATED
+  // Generate a thumbnail from the video file
+  const generateThumbnail = (file) => {
+    const videoElement = document.createElement('video');
+    const objectUrl = URL.createObjectURL(file);
+    
+    videoElement.onloadedmetadata = () => {
+      // Set current time to 1 second or 25% through the video, whichever is less
+      const seekTime = Math.min(1, videoElement.duration * 0.25);
+      videoElement.currentTime = seekTime;
+    };
+    
+    videoElement.onseeked = () => {
+      // When the video has seeked to the desired time, capture the frame
+      const canvas = document.createElement('canvas');
+      canvas.width = videoElement.videoWidth;
+      canvas.height = videoElement.videoHeight;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      
+      try {
+        const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
+        setThumbnailUrl(thumbnailUrl);
+      } catch (err) {
+        console.error('Error generating thumbnail:', err);
+        setThumbnailUrl(null);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+    
+    videoElement.onerror = (err) => {
+      console.error('Error loading video for thumbnail:', err);
+      URL.revokeObjectURL(objectUrl);
+      setThumbnailUrl(null);
+    };
+    
+    videoElement.src = objectUrl;
+    videoElement.load();
+  };
+
+  // Handle analyze button click
   const handleAnalyzeClick = () => {
     if (!((selectedFile && !isUsingYouTube) || (youtubeVideoData && isUsingYouTube))) {
       setError('Please select a video or preview a YouTube video first');
@@ -104,7 +145,51 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
     setShowOwnershipSelector(true);
   };
 
-  // Handle ownership selection completion - NEW
+  // Handle YouTube URL input change
+  const handleYoutubeUrlChange = (e) => {
+    setYoutubeUrl(e.target.value);
+    setYoutubeError(null);
+  };
+
+  // Handle YouTube preview button click
+  const handleYouTubePreview = () => {
+    if (!youtubeUrl.trim()) {
+      setYoutubeError('Please enter a YouTube URL');
+      return;
+    }
+    
+    // Validate YouTube URL
+    const videoId = extractYouTubeVideoId(youtubeUrl);
+    if (!videoId) {
+      setYoutubeError('Invalid YouTube URL. Please enter a valid YouTube video link.');
+      return;
+    }
+    
+    // Create YouTube video data
+    const embedUrl = getYouTubeEmbedUrl(videoId);
+    const thumbnail = getYouTubeThumbnailUrl(videoId);
+    
+    setYoutubeVideoData({ videoId, embedUrl });
+    setThumbnailUrl(thumbnail);
+    setPreviewUrl(embedUrl);
+    setShowDateSelector(true);
+    setYoutubeError(null);
+  };
+
+  // Handle thumbnail click to play video
+  const handleThumbnailClick = () => {
+    if (videoRef.current) {
+      setThumbnailUrl(null);
+      videoRef.current.play().catch(err => console.error('Error playing video:', err));
+    }
+  };
+
+  // Handle click on upload area
+  const onButtonClick = () => {
+    fileInputRef.current.click();
+  };
+
+  // Handle ownership selection completion
   const handleOwnershipComplete = (data) => {
     // Save ownership data
     setOwnershipData(data);
@@ -114,24 +199,24 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
     setShowClubSelector(true);
   };
 
-  // Handle ownership selection back button - NEW
+  // Handle ownership selection back button
   const handleOwnershipBack = () => {
     setShowOwnershipSelector(false);
   };
 
-  // Handle club selection continuation - UPDATED
+  // Handle club selection continuation
   const handleClubContinue = (clubData) => {
     const metadata = {
       recordedDate: swingDate,
       ...(isUsingYouTube && youtubeVideoData ? { youtubeVideo: youtubeVideoData } : {}),
       ...clubData,
-      ...ownershipData // Add ownership data to metadata
+      ...ownershipData
     };
     
     onVideoUpload(isUsingYouTube ? null : selectedFile, metadata);
   };
 
-  // Handle skipping club selection - UPDATED
+  // Handle skipping club selection
   const handleClubSkip = (nextAction) => {
     if (nextAction === 'setup-clubs') {
       navigateTo('profile', { setupClubs: true });
@@ -141,7 +226,7 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
     const metadata = {
       recordedDate: swingDate,
       ...(isUsingYouTube && youtubeVideoData ? { youtubeVideo: youtubeVideoData } : {}),
-      ...ownershipData // Add ownership data to metadata
+      ...ownershipData
     };
 
     onVideoUpload(isUsingYouTube ? null : selectedFile, metadata);
