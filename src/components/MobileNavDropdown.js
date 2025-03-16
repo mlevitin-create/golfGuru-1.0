@@ -1,8 +1,23 @@
-// src/components/MobileNavDropdown.js
-import React, { useState } from 'react';
+// In MobileNavDropdown.js
+import { useAuth } from '../contexts/AuthContext';
+import { useState, useEffect } from 'react';
 
 const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false, pageParams }) => {
+  const { currentUser, isAdmin } = useAuth();
+  const [isAdminUser, setIsAdminUser] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  
+  useEffect(() => {
+    // Only check admin status if user is logged in
+    if (currentUser) {
+      const checkAdmin = async () => {
+        const admin = await isAdmin(currentUser.uid);
+        setIsAdminUser(admin);
+      };
+      
+      checkAdmin();
+    }
+  }, [currentUser, isAdmin]);
   
   const handleNavigate = (page, params = null) => {
     navigateTo(page, params);
@@ -232,6 +247,22 @@ const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false, pageP
             zIndex: 1
           }}
         />
+      )}
+      {isAdminUser && (
+        <div 
+          className={`dropdown-item ${currentPage === 'admin' ? 'active' : ''}`}
+          onClick={() => handleNavigate('admin')}
+          style={{
+            padding: '12px 16px',
+            cursor: 'pointer',
+            backgroundColor: currentPage === 'admin' ? '#f0f7ff' : 'transparent',
+            borderBottom: '1px solid #eee',
+            color: '#333',
+            fontWeight: currentPage === 'admin' ? 'bold' : 'normal'
+          }}
+        >
+          Admin Panel
+        </div>
       )}
     </div>
   );

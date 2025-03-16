@@ -187,6 +187,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+
+const isAdmin = async (userId) => {
+  if (!userId) return false;
+  
+  try {
+    const userRef = doc(db, USERS_COLLECTION, userId);
+    const userDoc = await getDoc(userRef);
+    
+    return userDoc.exists() && userDoc.data().isAdmin === true;
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    return false;
+  }
+};
+
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -206,7 +221,8 @@ export const AuthProvider = ({ children }) => {
     signup,
     login,
     resetPassword,
-    logout
+    logout,
+    isAdmin
   };
 
   return (

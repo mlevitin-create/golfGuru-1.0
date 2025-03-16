@@ -316,6 +316,24 @@ const AppContent = () => {
           setupClubsTab={pageParams?.setupClubs}
           pageParams={pageParams}
         />;
+      case 'admin':
+        if (!currentUser) {
+          return (
+            <div className="card">
+              <h2>Authentication Required</h2>
+              <p>You need to log in to access this page.</p>
+              <button 
+                className="button"
+                onClick={() => setIsLoginModalOpen(true)}
+              >
+                Sign In
+              </button>
+            </div>
+          );
+        }
+        
+        // Use the AdminAccessCheck component to handle permission verification
+        return <AdminAccessCheck><AdminFeedbackPanel /></AdminAccessCheck>;
       default:
         return <Dashboard 
           swingHistory={swingHistory} 
@@ -447,7 +465,7 @@ const AppContent = () => {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <AppContent /> 
     </AuthProvider>
   );
 }

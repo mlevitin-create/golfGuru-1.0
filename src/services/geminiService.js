@@ -287,15 +287,6 @@ const normalizeAndValidateScores = (analysisData) => {
   // First ensure overall score is within 0-100 range and rounded
   analysisData.overallScore = Math.min(100, Math.max(0, Math.round(analysisData.overallScore)));
   
-  // Now recalculate based on weighted metrics
-  const recalculatedScore = calculateWeightedOverallScore(analysisData.metrics);
-  
-  // If there's a significant difference (more than 5 points), use the recalculated score
-  if (Math.abs(analysisData.overallScore - recalculatedScore) > 5) {
-    console.log(`Adjusting overall score from ${analysisData.overallScore} to ${recalculatedScore} based on weighted metrics`);
-    analysisData.overallScore = recalculatedScore;
-  }
-  
   // Get all metric values
   const metricValues = Object.values(analysisData.metrics);
   
@@ -307,8 +298,14 @@ const normalizeAndValidateScores = (analysisData) => {
   
   console.log(`Metrics avg: ${avgScore.toFixed(1)}, stdDev: ${stdDev.toFixed(1)}`);
   
-  // If standard deviation is too low (less than 5), scores are too clustered
-  if (stdDev < 5 && metricValues.length > 3) {
+  // Check if this might be a pro-level swing (high average score)
+  const isPotentialPro = avgScore > 80;
+  
+  // Adjust standard deviation targets based on skill level
+  const targetStdDev = isPotentialPro ? 5 : 12; // Less variance for pros, more for amateurs
+  
+  // If standard deviation is too low, scores are too clustered
+  if (stdDev < 8 && metricValues.length > 3) {
     console.log("Detected low variance in scores, applying normalization");
     
     // Find min and max values
@@ -317,9 +314,7 @@ const normalizeAndValidateScores = (analysisData) => {
     const range = maxVal - minVal;
     
     // If the range is too small, spread the scores out
-    if (range < 15) {
-      // Target a more realistic standard deviation
-      const targetStdDev = 8;
+    if (range < 20) { // Increased from 15 to 20 for wider range
       const stretchFactor = targetStdDev / Math.max(1, stdDev);
       
       // Apply a spread to each metric while maintaining the overall average
@@ -333,23 +328,48 @@ const normalizeAndValidateScores = (analysisData) => {
         // Ensure it's within bounds
         analysisData.metrics[key] = Math.min(100, Math.max(0, analysisData.metrics[key]));
       });
-      
-      // Recalculate overall score after adjusting metrics
-      analysisData.overallScore = calculateWeightedOverallScore(analysisData.metrics);
     }
   }
   
-  // Verify no metric has exactly the same score as the overall score, unless all metrics do
-  const hasAllSameAsOverall = metricValues.every(val => val === analysisData.overallScore);
-  if (!hasAllSameAsOverall) {
+  // For potentially pro-level swings, boost the top end
+  if (isPotentialPro) {
+    // Boost overall score for pro-level swings
+    analysisData.overallScore = Math.min(100, Math.round(analysisData.overallScore * 1.1));
+    
+    // Boost key metrics for pro-level swing mechanics
+    const proMetrics = ['backswing', 'swingBack', 'swingForward', 'shallowing', 'impactPosition'];
     Object.keys(analysisData.metrics).forEach(key => {
-      if (analysisData.metrics[key] === analysisData.overallScore) {
-        // Slightly adjust to avoid exact matches
-        analysisData.metrics[key] += (Math.random() > 0.5 ? 1 : -1);
-        // Ensure bounds
-        analysisData.metrics[key] = Math.min(100, Math.max(0, analysisData.metrics[key]));
+      if (proMetrics.includes(key) && analysisData.metrics[key] > 75) {
+        // Apply a curve that increases higher scores more than lower ones
+        const boost = (analysisData.metrics[key] - 75) / 5; // More boost for higher scores
+        analysisData.metrics[key] = Math.min(99, Math.round(analysisData.metrics[key] + boost));
       }
     });
+  }
+  
+  // Avoid score clustering in the 70-75 range by stretching the distribution
+  if (avgScore > 65 && avgScore < 80) {
+    // If average is in the common clustering range, apply a wider distribution
+    const clusterBias = (avgScore - 72.5) / 7.5; // -1 to +1 range centered at 72.5
+    const spreadFactor = 1.2; // Increase the spread
+    
+    Object.keys(analysisData.metrics).forEach(key => {
+      // Apply a spread factor that pushes scores away from the 70-75 range
+      const centeredValue = analysisData.metrics[key] - avgScore;
+      const spreadValue = centeredValue * spreadFactor;
+      
+      // Apply a slight bias based on whether we're above or below the clustering range
+      const biasedValue = spreadValue + (clusterBias * 3);
+      
+      // Recenter and round
+      analysisData.metrics[key] = Math.round(avgScore + biasedValue);
+      
+      // Ensure it's within bounds
+      analysisData.metrics[key] = Math.min(100, Math.max(0, analysisData.metrics[key]));
+    });
+    
+    // Recalculate overall score based on adjusted metrics
+    analysisData.overallScore = calculateWeightedOverallScore(analysisData.metrics);
   }
   
   return analysisData;
