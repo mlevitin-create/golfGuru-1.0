@@ -52,32 +52,32 @@ const applyFeedbackAdjustments = async (analysisData) => {
     const isUnknownPro = analysisData.isUnknownPro || false;
     
     // Apply pro golfer adjustments if applicable
-    if (swingOwnership === 'pro' || isUnknownPro) {
-      // Keep your existing pro boost code
-      console.log(`Professional golfer detected (${proGolferName || 'unknown pro'}), applying score boost`);
+    // if (swingOwnership === 'pro' || isUnknownPro) {
+    //   // Keep your existing pro boost code
+    //   console.log(`Professional golfer detected (${proGolferName || 'unknown pro'}), applying score boost`);
       
-      // Store original score for logging
-      const originalScore = analysisData.overallScore;
+    //   // Store original score for logging
+    //   const originalScore = analysisData.overallScore;
       
-      // Boost the overall score for pro golfers - increased boost
-      analysisData.overallScore = Math.min(99, Math.max(85, originalScore + 20));
+    //   // Boost the overall score for pro golfers - increased boost
+    //   analysisData.overallScore = Math.min(99, Math.max(85, originalScore + 20));
       
-      // Boost key metrics - increased boost
-      Object.entries(analysisData.metrics).forEach(([key, value]) => {
-        // Higher boost for core mechanics, less for mental aspects
-        const boostAmount = ['backswing', 'swingBack', 'swingForward', 'shallowing', 'impactPosition'].includes(key)
-          ? 18 // Core mechanics get bigger boost
-          : 12; // Other metrics get standard boost
+    //   // Boost key metrics - increased boost
+    //   Object.entries(analysisData.metrics).forEach(([key, value]) => {
+    //     // Higher boost for core mechanics, less for mental aspects
+    //     const boostAmount = ['backswing', 'swingBack', 'swingForward', 'shallowing', 'impactPosition'].includes(key)
+    //       ? 18 // Core mechanics get bigger boost
+    //       : 12; // Other metrics get standard boost
   
-        // Apply a curve to boost higher scores more
-        const scoreFactor = value / 100; // Scale from 0 to 1
-        const curvedBoost = Math.round(boostAmount * scoreFactor);
-        analysisData.metrics[key] = Math.min(99, Math.max(80, value + curvedBoost));
-      });
+    //     // Apply a curve to boost higher scores more
+    //     const scoreFactor = value / 100; // Scale from 0 to 1
+    //     const curvedBoost = Math.round(boostAmount * scoreFactor);
+    //     analysisData.metrics[key] = Math.min(99, Math.max(80, value + curvedBoost));
+    //   });
       
-      console.log(`Adjusted pro golfer score from ${originalScore} to ${analysisData.overallScore}`);
-      return analysisData;
-    }
+    //   console.log(`Adjusted pro golfer score from ${originalScore} to ${analysisData.overallScore}`);
+    //   return analysisData;
+    // }
     
     // CONTINUE WITH EXISTING CODE for unauthenticated user handling
     
@@ -640,46 +640,50 @@ const calculateWeightedOverallScore = (metrics) => {
 const normalizeAndValidateScores = (analysisData) => {
   // First ensure overall score is within 0-100 range and rounded
   analysisData.overallScore = Math.min(100, Math.max(0, Math.round(analysisData.overallScore)));
-  
+
   // Get all metric values
   const metricValues = Object.values(analysisData.metrics);
-  
+
   // Calculate average and standard deviation
   const avgScore = metricValues.reduce((sum, val) => sum + val, 0) / metricValues.length;
   const stdDev = Math.sqrt(
-    metricValues.reduce((sum, val) => sum + Math.pow(val - avgScore, 2), 0) / metricValues.length
+      metricValues.reduce((sum, val) => sum + Math.pow(val - avgScore, 2), 0) / metricValues.length
   );
-  
+
   console.log(`Metrics avg: ${avgScore.toFixed(1)}, stdDev: ${stdDev.toFixed(1)}`);
-  
+
   // CRUCIAL CHANGE: Increase variance more aggressively to break out of 70s clustering
-  if (stdDev < 10 && metricValues.length > 3) {
-    console.log("Detected low variance in scores, applying stronger normalization");
-    
-    // Find min and max values
-    const minVal = Math.min(...metricValues);
-    const maxVal = Math.max(...metricValues);
-    const range = maxVal - minVal;
-    
-    // If range is too small, apply more aggressive stretching
-    if (range < 25) { // Increased from 20 to 25
-      const targetStdDev = 15; // Increased from 12 to 15
-      const stretchFactor = targetStdDev / Math.max(1, stdDev);
-      
-      // Apply a larger spread to each metric
-      Object.keys(analysisData.metrics).forEach(key => {
-        // Center the value around the mean
-        const centered = analysisData.metrics[key] - avgScore;
-        // Apply stronger stretch factor
-        const stretched = centered * stretchFactor * 1.3; // 30% more stretching
-        // Recenter around the original mean and round
-        analysisData.metrics[key] = Math.round(avgScore + stretched);
-        // Ensure it's within bounds
-        analysisData.metrics[key] = Math.min(100, Math.max(0, analysisData.metrics[key]));
-      });
-    }
+  let targetStdDev = 12; // Default target
+  if (analysisData.overallScore >= 80) { // Adjust target for potential pro swings
+      targetStdDev = 8;
   }
-  
+
+  if (stdDev < 10 && metricValues.length > 3) {
+      console.log("Detected low variance in scores, applying stronger normalization");
+
+      // Find min and max values
+      const minVal = Math.min(...metricValues);
+      const maxVal = Math.max(...metricValues);
+      const range = maxVal - minVal;
+
+      // If range is too small, apply more aggressive stretching
+      if (range < 25) { // Increased from 20 to 25
+          const stretchFactor = targetStdDev / Math.max(1, stdDev);
+
+          // Apply a larger spread to each metric
+          Object.keys(analysisData.metrics).forEach(key => {
+              // Center the value around the mean
+              const centered = analysisData.metrics[key] - avgScore;
+              // Apply stronger stretch factor
+              const stretched = centered * stretchFactor * 1.3; // 30% more stretching
+              // Recenter around the original mean and round
+              analysisData.metrics[key] = Math.round(avgScore + stretched);
+              // Ensure it's within bounds
+              analysisData.metrics[key] = Math.min(100, Math.max(0, analysisData.metrics[key]));
+          });
+      }
+  }
+
   // CRUCIAL CHANGE: Add explicit score redistribution to fix clustering
   return redistributeScores(analysisData);
 };
@@ -687,37 +691,22 @@ const normalizeAndValidateScores = (analysisData) => {
 /**
  * Redistributes scores to create clearer separation between skill levels
  */
+// Greatly simplified redistributeScores function
 const redistributeScores = (analysisData) => {
-  // Is this likely a pro-level swing?
-  const isPotentialPro = determineIfPotentialPro(analysisData);
+  // Only handle extreme outliers
+  if (analysisData.overallScore > 95) {
+    analysisData.overallScore = 95; // Cap maximum
+  } else if (analysisData.overallScore < 30) {
+    analysisData.overallScore = 30; // Set minimum
+  }
   
-  // Current overall score
-  const currentScore = analysisData.overallScore;
+  // Ensure overall score is somewhat in line with metrics average
+  const metricsAvg = Object.values(analysisData.metrics).reduce((sum, val) => sum + val, 0) / 
+                     Object.keys(analysisData.metrics).length;
   
-  // Apply different distribution based on score range to break out of the 70s cluster
-  if (isPotentialPro) {
-    // Pro level - scale to 85-99 range
-    analysisData.overallScore = Math.max(85, Math.min(99, currentScore));
-    
-    // Also boost key metrics for pros
-    Object.keys(analysisData.metrics).forEach(key => {
-      analysisData.metrics[key] = Math.max(80, analysisData.metrics[key]);
-    });
-  } else if (currentScore >= 80) {
-    // Advanced level - scale to 70-85 range
-    analysisData.overallScore = Math.min(85, Math.max(70, currentScore));
-  } else if (currentScore >= 60 && currentScore < 80) {
-    // Intermediate level - more aggressive separation
-    if (currentScore > 70) {
-      // Upper intermediate - push toward advanced
-      analysisData.overallScore = Math.min(85, currentScore + 5);
-    } else {
-      // Lower intermediate - push toward beginner
-      analysisData.overallScore = Math.max(50, currentScore - 5);
-    }
-  } else {
-    // Beginner level - scale to 30-60 range
-    analysisData.overallScore = Math.min(60, Math.max(30, currentScore));
+  // If overall score is drastically different from metrics average, nudge it slightly
+  if (Math.abs(analysisData.overallScore - metricsAvg) > 15) {
+    analysisData.overallScore = Math.round(0.7 * analysisData.overallScore + 0.3 * metricsAvg);
   }
   
   return analysisData;
@@ -737,13 +726,21 @@ const determineIfPotentialPro = (analysisData) => {
     return true;
   }
   
-  // Check metrics for pro-level indicators
-  const metricValues = Object.values(analysisData.metrics);
-  const highMetricsCount = metricValues.filter(value => value >= 90).length;
-  const avgMetricValue = metricValues.reduce((sum, val) => sum + val, 0) / metricValues.length;
-  
-  // If multiple metrics are extremely high or average is very high
-  return (highMetricsCount >= 3 || avgMetricValue >= 85);
+  // Before returning from applyFeedbackAdjustments
+// Calculate metrics average for score alignment and pro detection
+const metricValues = Object.values(analysisData.metrics);
+const metricsAvg = metricValues.reduce((sum, val) => sum + val, 0) / metricValues.length;
+
+// If overall score is significantly lower than metrics average, apply gentle adjustment
+if (metricsAvg - analysisData.overallScore > 10) {
+  const oldScore = analysisData.overallScore;
+  // Gentle adjustment - 80% original, 20% metrics average
+  analysisData.overallScore = Math.round(0.8 * analysisData.overallScore + 0.2 * metricsAvg);
+  console.log(`Minor score alignment: ${oldScore} → ${analysisData.overallScore} (metrics avg: ${metricsAvg})`);
+}
+
+// Return the adjusted analysis data
+return analysisData;
 };
 
 /**
@@ -823,79 +820,88 @@ const analyzeGolfSwing = async (videoFile, metadata = null) => {
             clubInfo = `\n\nThis swing was performed with a ${metadata.clubName}. Take this into account in your analysis.`;
         }
 
-        const promptText = `You are a professional golf coach with expertise in swing analysis. Analyze this golf swing video in detail and provide a comprehensive assessment:
+        const promptText = 
+`* You are a PGA Master Professional with 30 years of experience coaching elite golfers, specializing in biomechanics and swing analysis.
+* You are using high-speed video to assess a player's single golf swing.
+* Analyze the golf swing video in detail and provide a comprehensive assessment.
+* Remember this is a single swing and may not represent their entire game.
 
-1. Overall swing score (0-100) based on proper form, mechanics, and effectiveness, where:
-   - 90-100: Professional level swing with perfect mechanics
-   - 80-89: Advanced player with very good mechanics and minor flaws
-   - 70-79: Skilled player with good fundamentals but noticeable flaws
-   - 60-69: Intermediate player with correct basic mechanics but significant issues
-   - 50-59: Developing player with some correct elements but many issues
-   - Below 50: Beginner with fundamental issues in multiple areas
+* **Overall Swing Score (0-100):**
+    * Holistic assessment, NOT a simple average.
+    * Consider how effectively the components work together.
+    * Base it on proper form, mechanics, kinematic sequence (legs, hips, torso, arms, club), and potential for consistent, powerful ball-striking.
+    * The score should reflect the swing itself, not the player's handicap.
+    * **95-100:** Elite/Tour-Level Swing. Virtually flawless mechanics, optimal sequencing, and exceptional power generation.
+    * **88-94:** Exceptional Swing. Mechanically sound with only extremely minor deviations.
+    * **80-87:** Very Good Swing. Solid fundamentals with a few minor, identifiable areas for improvement.
+    * **70-79:** Competent Swing. Functional mechanics, but with noticeable flaws.
+    * **60-69:** Developing Swing. Some correct elements, but significant issues.
+    * **50-59:** Inconsistent Swing. Major flaws in multiple areas.
+    * **Below 50:** Beginner Swing. Fundamental issues.
 
 2. Score each of the following metrics from 0-100 using these specific criteria:
 
-   - backswing: Evaluate the takeaway, wrist position, and backswing plane
+   - backswing: Evaluate the takeaway, wrist position, and backswing plane. How does this affect the swing's potential power and accuracy?
      * 90+: Perfect takeaway, ideal wrist cock, on-plane movement
      * 70-89: Good fundamentals with minor flaws in plane or wrist position
      * 50-69: Functional but with clear issues in takeaway or plane
      * <50: Significant flaws causing compensations
 
-   - stance: Assess foot position, width, weight distribution, and posture
+   - stance: Assess foot position, width, weight distribution, and posture. How does this stance support balance and power generation?
      * 90+: Perfect athletic posture, ideal width and alignment
      * 70-89: Good posture with minor alignment or width issues
      * 50-69: Basic posture established but with noticeable flaws
      * <50: Poor posture affecting the entire swing
 
-   - grip: Evaluate hand placement, pressure, and wrist position
+   - grip: Evaluate hand placement, pressure, and wrist position. How does the grip influence clubface control and swing path?
      * 90+: Textbook grip with ideal pressure and hand placement
      * 70-89: Functional grip with minor issues in hand position
      * 50-69: Basic grip established but with pressure or placement issues
      * <50: Fundamentally flawed grip requiring rebuilding
 
-   - swingBack: Rate the rotation, plane, and position at the top
+   - swingBack: Rate the rotation, plane, and position at the top. Does this position maximize power and set up a good downswing?
      * 90+: Perfect rotation with ideal club position at the top
      * 70-89: Good rotation with minor plane issues
      * 50-69: Functional but with restricted turn or off-plane issues
      * <50: Severely restricted or off-plane
 
-   - swingForward: Evaluate the downswing path, transition, and follow through
+   - swingForward: Evaluate the downswing path, transition, and follow through. Does the downswing sequence efficiently transfer energy to the ball?
      * 90+: Perfect sequencing and path through impact
      * 70-89: Good sequencing with minor path issues
      * 50-69: Basic sequencing but with timing or path issues
      * <50: Poor sequencing with major path flaws
 
-   - hipRotation: Assess the hip turn both in backswing and through impact
+   - hipRotation: Assess the hip turn both in backswing and through impact. How does hip rotation contribute to power and swing speed?
      * 90+: Perfect hip loading and explosive rotation through impact
      * 70-89: Good rotation with minor timing or restriction issues
      * 50-69: Basic rotation but with clear restrictions
      * <50: Minimal hip involvement
 
-   - swingSpeed: Rate the tempo and acceleration through the ball
+   - swingSpeed: Rate the tempo and acceleration through the ball. Is the swing speed appropriate for the club and does it indicate efficient power transfer?
      * 90+: Perfect tempo with ideal acceleration through impact
      * 70-89: Good tempo with minor acceleration issues
      * 50-69: Inconsistent tempo affecting clubhead speed
      * <50: Poor tempo with deceleration issues
 
-   - shallowing: Evaluate club path and shaft position in the downswing
+   - shallowing: Evaluate club path and shaft position in the downswing. Does the shallowing action promote optimal contact?
      * 90+: Perfect shallowing with ideal shaft plane
      * 70-89: Good shallowing with minor steepness issues
      * 50-69: Inconsistent shallowing with occasional steepness
      * <50: Consistently steep or incorrect shallowing
 
-   - pacing: Rate the overall rhythm and timing of the swing
+   - pacing: Rate the overall rhythm and timing of the swing. Does the rhythm support consistent and powerful swings?
      * 90+: Perfect rhythm throughout with ideal transitions
      * 70-89: Good rhythm with minor timing issues
      * 50-69: Functional but with rushed or slow segments
      * <50: Disjointed or poorly timed
 
-   - confidence: Assess the decisiveness and commitment to the swing
+   - confidence: Assess the decisiveness and commitment to the swing. Is the golfer confident and committed to the swing?
      * 90+: Complete commitment with precise setup routine
      * 70-89: Good commitment with occasional hesitation
      * 50-69: Basic commitment but with visible uncertainty
      * <50: Tentative throughout
 
-   - focus: Evaluate setup routine and swing execution
+   - focus: Evaluate setup routine and swing execution. Is the golfer focused and attentive throughout the swing?
      * 90+: Laser focus throughout with perfect routine
      * 70-89: Good focus with minor lapses
      * 50-69: Basic focus but with visible distractions
@@ -909,6 +915,12 @@ IMPORTANT INSTRUCTIONS:
 - The overall score should NOT be a simple average of the metrics.
 - Focus on what you actually observe, not what you assume might be happening.
 - Maintain consistency in how you evaluate similar swings.
+- Evaluate the kinematic sequence (legs, hips, torso, arms, club) and how efficiently the golfer transfers energy.
+- For pro-level swings, look for a wide backswing, lag in the downswing, a square clubface at impact, and a balanced follow-through. Pro swings often exhibit high clubhead speed, minimal energy leaks, and efficient power transfer.
+- If the video is unclear, note "Video unclear" but provide as much analysis as possible.
+- A driver swing should have a wider arc and a shallower angle of attack than a wedge swing. Evaluate if the swing mechanics are appropriate for the club being used.
+- Do not assume the skill level of the golfer. Focus only on the mechanics of the swing in the video.
+- Analyze this *single* golf swing. Do not evaluate the golfer's consistency over multiple swings.
 
 Format your response ONLY as a valid JSON object with this exact structure:
 {
@@ -1786,54 +1798,57 @@ const generateMetricInsights = async (swingData, metricKey) => {
     const promptContent = {
       coachingPrompt: coachingPrompt,
       metric: {
-        name: metricName,
-        score: safeMetricValue,
-        description: metricDescription,
-        category: metricCategory,
-        difficulty: metricDifficulty,
-        weighting: metricWeight
+          name: metricName,
+          score: safeMetricValue,
+          description: metricDescription,
+          category: metricCategory,
+          difficulty: metricDifficulty,
+          weighting: metricWeight
       },
       instructions: [
-        "Analyze this specific aspect of the golf swing",
-        "Provide technically accurate feedback based on the score and video if available",
-        "Identify specific strengths and areas for improvement related to this aspect of the swing",
-        "Give actionable recommendations that directly address what you observe",
-        "Provide recommendations that talk about tips as well as how the swing should feel"
+          "Analyze this specific aspect of the golf swing",
+          "Provide technically accurate feedback based on the score and video if available",
+          "Identify specific strengths and weaknesses related to this aspect of the swing",
+          "Give actionable recommendations that directly address what you observe",
+          "Provide recommendations that talk about tips as well as how the swing should feel",
+          "If the video is unclear for this metric, state 'Video unclear' in the JSON response."
       ],
       outputFormat: {
-        metricName: "string",
-        score: "number (0-100)",
-        tone: "string (excellent/good/needs improvement/poor)",
-        goodAspects: "array of strings with specific observations",
-        improvementAreas: "array of strings with specific observations",
-        technicalBreakdown: "array of strings describing technical aspects",
-        recommendations: "array of strings with actionable advice",
-        feelTips: "array of strings explaining how correct execution should feel"
+          metricName: "string",
+          score: "number (0-100)",
+          tone: "string (excellent/good/needs improvement/poor)",
+          goodAspects: "array of strings with specific observations",
+          improvementAreas: "array of strings with specific observations",
+          technicalBreakdown: "array of strings describing technical aspects",
+          recommendations: "array of strings with actionable advice",
+          feelTips: "array of strings explaining how correct execution should feel"
       }
-    };
+  };
 
-    // Prepare payload for API request
-    const payload = {
+  // Prepare payload for API request
+  const payload = {
       contents: [{
-        parts: [{
-          text: `Analyze this golf swing ${isYouTubeVideo ? 'from YouTube' : (hasVideo ? 'video' : 'data')} as a professional golf coach, focusing specifically on the ${metricName} aspect:
+          parts: [{
+              text: `You are a PGA Master Professional with 30 years of experience coaching elite golfers. Analyze this golf swing ${isYouTubeVideo ? 'from YouTube' : (hasVideo ? 'video' : 'data')} as a professional golf coach, focusing specifically on the ${metricName} aspect of the swing for a golfer whose skill level you should assume based on the score:
 
 Coaching Context: ${JSON.stringify(promptContent, null, 2)}
 ${isYouTubeVideo ? `\nYouTube Video URL: ${swingData.videoUrl}` : ''}
 
 Please provide a detailed, professional analysis following these guidelines:
-1. Focus ONLY on the ${metricName} aspect of the swing
-2. Identify specific strengths related to ${metricName}
-3. Identify specific areas for improvement related to ${metricName}
-4. Provide actionable, technically sound recommendations
-5. Include tips on how the correct execution should feel
-6. Use clear, concise language that a golfer would understand
-7. Strictly adhere to the JSON output format
+1.  Focus ONLY on the ${metricName} aspect of the swing
+2.  Infer the golfer's likely skill level from the provided score for this metric. Tailor your feedback accordingly (e.g., more basic advice for lower scores, more advanced for higher scores).
+3.  Identify specific strengths related to ${metricName}
+4.  Identify specific weaknesses related to ${metricName}
+5.  Provide actionable, technically sound recommendations
+6.  Include tips on how the correct execution should feel
+7.  Use clear, concise language that a golfer would understand
+8.  If the video quality is poor or the swing is unclear for this specific metric, include "Video unclear" in the relevant section of the JSON response (e.g., in improvementAreas or technicalBreakdown).
+9.  Strictly adhere to the JSON output format
 
 Your response should be a valid JSON object that can be directly parsed.`
-        }]
+          }]
       }]
-    };
+  };
 
     // Add video if available
     if (base64Video && !isYouTubeVideo) {
@@ -1984,109 +1999,359 @@ const getGenericMetricDescription = (metricKey) => {
 const getDefaultInsights = (metricKey) => {
   // Get the swing recipe metric key if available
   const swingRecipeKey = metricKeyMapping[metricKey] || metricKey;
-  
+
   // Get detailed information about this metric from our swing recipe
   const metricInfo = metricDetails[swingRecipeKey];
-  
+
   // Base default structure
   const baseDefaults = {
-    goodAspects: [],
-    improvementAreas: [],
-    technicalBreakdown: [],
-    recommendations: [],
-    feelTips: []
+      goodAspects: [],
+      improvementAreas: [],
+      technicalBreakdown: [],
+      recommendations: [],
+      feelTips: []
   };
-  
+
   // If we have specific information from the Swing Recipe, use it
   if (metricInfo) {
-    return {
-      goodAspects: [
-        `Good ${metricKey.replace(/([A-Z])/g, ' $1').toLowerCase()} is crucial for a consistent swing`,
-        `This is a ${metricInfo.category} element with a difficulty rating of ${metricInfo.difficulty}/10`
-      ],
-      improvementAreas: [
-        `${metricInfo.description}`,
-        `This element represents ${metricInfo.weighting} of your overall swing score`
-      ],
-      technicalBreakdown: [
-        `${metricInfo.description}`,
-        `This is categorized as a "${metricInfo.category}" element in golf technique`
-      ],
-      recommendations: [
-        `Focus on improving this aspect through dedicated practice`,
-        `Consider working with a professional instructor on this specific element`,
-        metricInfo.exampleUrl ? `Watch instructional videos like ${metricInfo.exampleUrl}` : `Watch instructional videos focusing on this aspect of your swing`
-      ],
-      feelTips: [
-        `When executed correctly, this element should feel natural and controlled`,
-        `Focus on building muscle memory through repetitive practice`
-      ]
-    };
+      return {
+          goodAspects: [
+              `Good ${metricKey.replace(/([A-Z])/g, ' $1').toLowerCase()} is crucial for a consistent swing.`,
+              `This is a ${metricInfo.category} element with a difficulty rating of ${metricInfo.difficulty}/10.`
+          ],
+          improvementAreas: [
+              `${metricInfo.description}.`,
+              `This element represents ${metricInfo.weighting} of your overall swing score.`
+          ],
+          technicalBreakdown: [
+              `${metricInfo.description}.`,
+              `This is categorized as a "${metricInfo.category}" element in golf technique.`
+          ],
+          recommendations: [
+              `Focus on improving this aspect through dedicated practice.`,
+              `Consider working with a professional instructor on this specific element.`,
+              metricInfo.exampleUrl ? `Watch instructional videos like ${metricInfo.exampleUrl} to visualize proper form.` : `Watch instructional videos focusing on this aspect of your swing to visualize proper form.`
+          ],
+          feelTips: [
+              `When executed correctly, this element should feel natural and controlled.`,
+              `Focus on building muscle memory through repetitive practice.`
+          ]
+      };
   }
-  
+
   // Metric-specific defaults for common metrics not in the Swing Recipe
   const metricDefaults = {
-    backswing: {
-      goodAspects: [
-        "Maintaining a straight left arm during backswing helps create width and power",
-        "Proper shoulder turn creates torque for a more powerful downswing"
-      ],
-      improvementAreas: [
-        "Focus on keeping the club on plane throughout the backswing",
-        "Watch for over-rotation which can lead to inconsistent contact"
-      ],
-      technicalBreakdown: [
-        "The backswing starts with a one-piece takeaway",
-        "The wrists should hinge naturally as the club reaches parallel to the ground",
-        "Proper rotation involves turning the shoulders while maintaining spine angle"
-      ],
-      recommendations: [
-        "Practice the 'L' position drill to improve your takeaway and club position",
-        "Work on maintaining your spine angle during the shoulder turn",
-        "Use alignment sticks to ensure proper swing plane"
-      ],
-      feelTips: [
-        "The backswing should feel wide and controlled, not rushed",
-        "Focus on feeling your weight shift slightly to your trail side",
-        "Your hands should feel light with natural wrist hinge"
-      ]
-    },
-    // Other metric defaults as needed...
+      backswing: {
+          goodAspects: [
+              "Maintaining a straight left arm during the backswing helps create width and power.",
+              "Proper shoulder turn creates torque for a more powerful downswing."
+          ],
+          improvementAreas: [
+              "Focus on keeping the club on plane throughout the backswing.",
+              "Watch for over-rotation which can lead to inconsistent contact."
+          ],
+          technicalBreakdown: [
+              "The backswing starts with a one-piece takeaway.",
+              "The wrists should hinge naturally as the club reaches parallel to the ground.",
+              "Proper rotation involves turning the shoulders while maintaining spine angle."
+          ],
+          recommendations: [
+              "Practice the 'L' position drill to improve your takeaway and club position.",
+              "Work on maintaining your spine angle during the shoulder turn.",
+              "Use alignment sticks to ensure proper swing plane."
+          ],
+          feelTips: [
+              "The backswing should feel wide and controlled, not rushed.",
+              "Focus on feeling your weight shift slightly to your trail side.",
+              "Your hands should feel light with natural wrist hinge."
+          ]
+      },
+      stance: {
+          goodAspects: [
+              "A stable stance provides a solid foundation for the swing.",
+              "Proper width allows for balance and weight transfer."
+          ],
+          improvementAreas: [
+              "Check your alignment to ensure you're aimed at your target.",
+              "Adjust your ball position based on the club you're using."
+          ],
+          technicalBreakdown: [
+              "Stance width should be approximately shoulder-width apart.",
+              "Weight distribution should be balanced at address.",
+              "Posture should be athletic with a slight bend at the hips."
+          ],
+          recommendations: [
+              "Practice setting up to a target line with alignment sticks.",
+              "Use a mirror to check your posture and alignment.",
+              "Experiment with different stance widths to find what feels most stable."
+          ],
+          feelTips: [
+              "Feel grounded and balanced in your stance.",
+              "Feel your weight evenly distributed between your feet.",
+              "Feel a slight tension in your core to support your swing."
+          ]
+      },
+      grip: {
+          goodAspects: [
+              "A proper grip promotes clubface control.",
+              "Consistent grip pressure prevents excessive tension."
+          ],
+          improvementAreas: [
+              "Check your grip type (interlocking, overlapping, 10-finger) to ensure it's suitable for you.",
+              "Avoid a grip that's too weak or too strong."
+          ],
+          technicalBreakdown: [
+              "The grip should be placed primarily in the fingers of the lead hand.",
+              "Grip pressure should be light to medium.",
+              "The 'V' formed by the thumb and forefinger of the lead hand should point towards your right shoulder (for a right-handed golfer)."
+          ],
+          recommendations: [
+              "Use a training grip aid to develop proper hand placement.",
+              "Practice gripping the club in front of a mirror.",
+              "Experiment with different grip pressures to find what feels most comfortable and effective."
+          ],
+          feelTips: [
+              "Feel the club in your fingers, not your palms.",
+              "Feel a connection between your hands and arms.",
+              "Feel relaxed and in control of the club."
+          ]
+      },
+      swingBack: {
+          goodAspects: [
+              "A full shoulder turn allows for maximum power generation.",
+              "Maintaining spine angle during the backswing promotes consistency."
+          ],
+          improvementAreas: [
+              "Avoid swaying or lifting during the backswing.",
+              "Ensure the club stays on plane as you rotate."
+          ],
+          technicalBreakdown: [
+              "The swing back is a rotation of the body around the spine.",
+              "The club should move away from the ball as a unit with the shoulders and arms.",
+              "The wrists will naturally hinge as the swing progresses."
+          ],
+          recommendations: [
+              "Practice with a mirror to monitor your shoulder turn and spine angle.",
+              "Use a golf swing trainer to guide your swing path.",
+              "Film your swing from different angles to identify areas for improvement."
+          ],
+          feelTips: [
+              "Feel your weight shifting to your trail side.",
+              "Feel your core muscles engage as you rotate.",
+              "Feel a stretch in your torso as you reach the top of the swing."
+          ]
+      },
+      swingForward: {
+          goodAspects: [
+              "Starting the downswing with the lower body promotes proper sequencing.",
+              "Efficient weight transfer leads to increased power and accuracy."
+          ],
+          improvementAreas: [
+              "Avoid casting the club from the top of the swing.",
+              "Ensure you're rotating through impact, not just swinging your arms."
+          ],
+          technicalBreakdown: [
+              "The downswing is initiated by the hips rotating towards the target.",
+              "Weight is transferred from the trail foot to the lead foot.",
+              "The arms and club follow the body's rotation."
+          ],
+          recommendations: [
+              "Practice drills that emphasize lower body initiation of the downswing.",
+              "Use a weighted ball to feel proper weight transfer.",
+              "Focus on rotating your belt buckle towards the target through impact."
+          ],
+          feelTips: [
+              "Feel your weight shifting forward as you start the downswing.",
+              "Feel your hips leading the way through impact.",
+              "Feel your body rotating around your spine."
+          ]
+      },
+      hipRotation: {
+          goodAspects: [
+              "Proper hip rotation generates power and speed.",
+              "Rotation in the backswing loads energy for the downswing."
+          ],
+          improvementAreas: [
+              "Avoid early extension, which restricts hip rotation.",
+              "Ensure you're rotating your hips, not swaying them."
+          ],
+          technicalBreakdown: [
+              "Hip rotation involves turning the hips both in the backswing and through impact.",
+              "The hips should rotate around a relatively stable spine.",
+              "Hip rotation contributes to both power and clubhead speed."
+          ],
+          recommendations: [
+              "Practice drills that isolate hip rotation.",
+              "Use a resistance band to feel the muscles involved in hip rotation.",
+              "Focus on feeling your hips lead the transition from backswing to downswing."
+          ],
+          feelTips: [
+              "Feel your hips turning away from the target in the backswing.",
+              "Feel your hips clearing out of the way as you swing through impact.",
+              "Feel the power generated from your hip rotation."
+          ]
+      },
+      swingSpeed: {
+          goodAspects: [
+              "A smooth and consistent tempo promotes accuracy.",
+              "Proper acceleration through impact maximizes clubhead speed."
+          ],
+          improvementAreas: [
+              "Avoid rushing the swing, which can lead to loss of control.",
+              "Ensure you're accelerating through the ball, not decelerating."
+          ],
+          technicalBreakdown: [
+              "Swing speed is influenced by tempo, rhythm, and acceleration.",
+              "Proper sequencing of the swing contributes to efficient power transfer and increased speed.",
+              "Clubhead speed is the speed of the club at the moment of impact."
+          ],
+          recommendations: [
+              "Practice with a metronome to develop a consistent tempo.",
+              "Focus on maintaining acceleration through the impact zone.",
+              "Experiment with different swing thoughts to find what helps you generate more speed."
+          ],
+          feelTips: [
+              "Feel a smooth and rhythmic flow throughout the swing.",
+              "Feel the clubhead accelerating through impact.",
+              "Feel the power generated from your body rotation and weight transfer."
+          ]
+      },
+      shallowing: {
+          goodAspects: [
+              "Proper shallowing promotes a good angle of attack.",
+              "Shallowing helps to avoid coming over the top."
+          ],
+          improvementAreas: [
+              "Avoid an overly steep downswing, which can lead to fat shots and slices.",
+              "Ensure the club is approaching the ball from the inside."
+          ],
+          technicalBreakdown: [
+              "Shallowing refers to the angle of the club shaft in the downswing.",
+              "A shallower angle of attack is generally preferred for driver swings.",
+              "Shallowing is influenced by body rotation and wrist action."
+          ],
+          recommendations: [
+              "Practice drills that promote an inside-out swing path.",
+              "Use a training aid to help you feel the proper shallowing motion.",
+              "Focus on feeling the club dropping into the slot in the downswing."
+          ],
+          feelTips: [
+              "Feel the club moving more around your body in the downswing.",
+              "Feel your right elbow (for a right-handed golfer) tucking in towards your body.",
+              "Feel the clubhead approaching the ball from the inside."
+          ]
+      },
+      pacing: {
+          goodAspects: [
+              "A consistent pre-shot routine promotes focus and consistency.",
+              "Good rhythm throughout the swing leads to better timing."
+          ],
+          improvementAreas: [
+              "Avoid rushing your pre-shot routine.",
+              "Ensure your swing has a smooth and deliberate flow."
+          ],
+          technicalBreakdown: [
+              "Pacing refers to the timing and rhythm of the swing.",
+              "A consistent pre-shot routine helps to establish a good rhythm.",
+              "Tempo is the speed of the swing, while rhythm is the flow and timing of the different parts of the swing."
+          ],
+          recommendations: [
+              "Develop a consistent pre-shot routine and stick to it.",
+              "Count to yourself during your swing to help maintain a good tempo.",
+              "Practice with a metronome to develop a consistent rhythm."
+          ],
+          feelTips: [
+              "Feel a smooth and deliberate flow throughout your swing.",
+              "Feel your body moving in a coordinated sequence.",
+              "Feel relaxed and in control of your swing."
+          ]
+      },
+      focus: {
+          goodAspects: [
+              "A consistent pre-shot routine helps to maintain focus.",
+              "Focusing on the target promotes accuracy."
+          ],
+          improvementAreas: [
+              "Avoid distractions during your pre-shot routine and swing.",
+              "Stay focused on the task at hand."
+          ],
+          technicalBreakdown: [
+              "Focus is the ability to concentrate on the task at hand.",
+              "A consistent pre-shot routine can help to improve focus.",
+              "Visualizing the shot before you hit it can also aid in focus."
+          ],
+          recommendations: [
+              "Develop a consistent pre-shot routine and stick to it.",
+              "Practice mindfulness techniques to improve focus.",
+              "Eliminate distractions during your practice sessions and rounds."
+          ],
+          feelTips: [
+              "Feel your attention focused on the target.",
+              "Feel present in the moment and engaged in the task.",
+              "Feel confident and committed to your swing."
+          ]
+      },
+      confidence: {
+          goodAspects: [
+              "A confident approach can lead to better performance.",
+              "Positive self-talk can boost confidence."
+          ],
+          improvementAreas: [
+              "Avoid negative self-talk, which can hinder performance.",
+              "Focus on your strengths and learn from your mistakes."
+          ],
+          technicalBreakdown: [
+              "Confidence is a belief in your own abilities.",
+              "Positive self-talk and visualization can help to build confidence.",
+              "Consistent practice and preparation can also contribute to confidence."
+          ],
+          recommendations: [
+              "Focus on your successes and learn from your mistakes.",
+              "Practice positive self-talk and visualization techniques.",
+              "Set realistic goals and celebrate your achievements."
+          ],
+          feelTips: [
+              "Feel confident and in control of your swing.",
+              "Feel a sense of trust in your abilities.",
+              "Feel positive and optimistic about your game."
+          ]
+      }
+      // Other metric defaults as needed...
   };
-  
+
   // If we have defaults for this metric, use them, otherwise use generic
   if (metricDefaults[metricKey]) {
-    return {
-      ...baseDefaults,
-      ...metricDefaults[metricKey]
-    };
+      return {
+          ...baseDefaults,
+          ...metricDefaults[metricKey]
+      };
   }
-  
+
   // Generic defaults if metric not found anywhere
   return {
-    goodAspects: [
-      "Work with a golf professional for personalized analysis",
-      "Record your swing regularly to track progress"
-    ],
-    improvementAreas: [
-      "Focus on fundamentals like grip, stance, and posture",
-      "Break down the swing into components for targeted practice"
-    ],
-    technicalBreakdown: [
-      "The golf swing is a complex motion requiring coordination of multiple body parts",
-      "Proper sequencing from ground up creates efficient power",
-      "Balance and tempo are fundamental to consistency"
-    ],
-    recommendations: [
-      "Work with a PGA teaching professional for personalized instruction",
-      "Practice with purpose, focusing on specific aspects rather than just hitting balls",
-      "Use video analysis to identify and address specific issues"
-    ],
-    feelTips: [
-      "A good swing should feel balanced and rhythmic",
-      "Focus on feeling connected throughout the swing",
-      "The correct motion will feel effortless, not forced"
-    ]
+      goodAspects: [
+          "Work with a golf professional for personalized analysis.",
+          "Record your swing regularly to track progress."
+      ],
+      improvementAreas: [
+          "Focus on fundamentals like grip, stance, and posture.",
+          "Break down the swing into components for targeted practice."
+      ],
+      technicalBreakdown: [
+          "The golf swing is a complex motion requiring coordination of multiple body parts.",
+          "Proper sequencing from ground up creates efficient power.",
+          "Balance and tempo are fundamental to consistency."
+      ],
+      recommendations: [
+          "Work with a PGA teaching professional for personalized instruction.",
+          "Practice with purpose, focusing on specific aspects rather than just hitting balls.",
+          "Use video analysis to identify and address specific issues."
+      ],
+      feelTips: [
+          "A good swing should feel balanced and rhythmic.",
+          "Focus on feeling connected throughout the swing.",
+          "The correct motion will feel effortless, not forced."
+      ]
   };
 };
 
