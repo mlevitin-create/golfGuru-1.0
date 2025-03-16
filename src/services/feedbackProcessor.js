@@ -2,6 +2,49 @@ import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'fi
 import { db } from '../firebase/firebase';
 import { calculateAdjustmentFactors, calculateProAdjustmentFactors } from './adjustmentCalculator'; 
 
+// Create a more impactful feedback system that adapts to the amount of feedback collected
+const calculateFeedbackImpact = (feedback, currentAdjustments) => {
+  // Base impact factors
+  let impactFactors = {
+    confidenceWeight: {
+      1: 0.5,  // Low confidence
+      2: 0.8,
+      3: 1.0,  // Medium confidence
+      4: 1.5,
+      5: 2.0   // High confidence
+    },
+    skillLevelWeight: {
+      pro: 2.0,       // Pro input highly valued
+      advanced: 1.5,  
+      amateur: 1.0,   // Standard weight
+      beginner: 0.8   // Slightly lower weight
+    },
+    feedbackTypeWeight: {
+      too_high: 1.5,  // Higher weight for this type of feedback
+      too_low: 1.3,
+      accurate: 0.5   // Lower weight for "accurate" feedback
+    },
+    adjustmentScaling: {
+      low: 0.8,      // Few feedbacks → conservative adjustments
+      medium: 1.0,    // Moderate feedback → standard adjustments
+      high: 1.2      // Many feedbacks → aggressive adjustments
+    }
+  };
+  
+  // Determine adjustment scaling based on amount of feedback
+  let adjustmentScale = 'low';
+  if (feedback.total >= 20) adjustmentScale = 'high';
+  else if (feedback.total >= 10) adjustmentScale = 'medium';
+  
+  // Calculate final impact factor
+  const confidenceImpact = impactFactors.confidenceWeight[feedback.confidenceLevel || 3];
+  const skillImpact = impactFactors.skillLevelWeight[feedback.skillLevel || 'amateur'];
+  const typeImpact = impactFactors.feedbackTypeWeight[feedback.feedbackType];
+  const scaleImpact = impactFactors.adjustmentScaling[adjustmentScale];
+  
+  return confidenceImpact * skillImpact * typeImpact * scaleImpact;
+};
+
 export const processFeedbackData = async () => {
   // Get recent feedback (last 14 days)
   const twoWeeksAgo = new Date();

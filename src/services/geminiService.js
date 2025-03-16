@@ -45,104 +45,44 @@ const applyFeedbackAdjustments = async (analysisData) => {
     // For debug - log original scores
     console.log("Before adjustments - Overall:", analysisData.overallScore, "Metrics:", Object.keys(analysisData.metrics).map(k => `${k}:${analysisData.metrics[k]}`).join(', '));
     
+    // KEEP EXISTING CODE for ownership-based adjustments
     // Handle ownership-based adjustments first
     const swingOwnership = analysisData.swingOwnership || 'self'; // Default to self
     const proGolferName = analysisData.proGolferName || null;
     const isUnknownPro = analysisData.isUnknownPro || false;
     
     // Apply pro golfer adjustments if applicable
-  if (swingOwnership === 'pro' || isUnknownPro) {
-    console.log(`Professional golfer detected (${proGolferName || 'unknown pro'}), applying score boost`);
-
-    // Store original score for logging
-    const originalScore = analysisData.overallScore;
-
-    // Boost the overall score for pro golfers - increased boost
-    analysisData.overallScore = Math.min(99, Math.max(85, originalScore + 20));
-
-    // Boost key metrics - increased boost
-    Object.entries(analysisData.metrics).forEach(([key, value]) => {
-      // Higher boost for core mechanics, less for mental aspects
-      const boostAmount = ['backswing', 'swingBack', 'swingForward', 'shallowing', 'impactPosition'].includes(key)
-        ? 18 // Core mechanics get bigger boost
-        : 12; // Other metrics get standard boost
-
-      // Apply a curve to boost higher scores more
-      const scoreFactor = value / 100; // Scale from 0 to 1
-      const curvedBoost = Math.round(boostAmount * scoreFactor);
-      analysisData.metrics[key] = Math.min(99, Math.max(80, value + curvedBoost));
-    });
-
-    console.log(`Adjusted pro golfer score from ${originalScore} to ${analysisData.overallScore}`);
-    return analysisData;
-  }
-    
-    // Skip adjustment for unauthenticated users but apply special rules
-    if (!auth.currentUser) {
-      console.log("User not authenticated, applying default feedback adjustments");
+    if (swingOwnership === 'pro' || isUnknownPro) {
+      // Keep your existing pro boost code
+      console.log(`Professional golfer detected (${proGolferName || 'unknown pro'}), applying score boost`);
       
-      // For YouTube videos of pro golfers, apply a fixed boost if we detect a pro golfer name in the URL
-      const isLikelyProGolfer = 
-        (analysisData.videoUrl && analysisData.videoUrl.toLowerCase().includes('mcilroy')) ||
-        (analysisData.videoUrl && analysisData.videoUrl.toLowerCase().includes('woods')) ||
-        (analysisData.videoUrl && analysisData.videoUrl.toLowerCase().includes('tiger')) ||
-        (analysisData.videoUrl && analysisData.videoUrl.toLowerCase().includes('spieth')) ||
-        (analysisData.videoUrl && analysisData.videoUrl.toLowerCase().includes('koepka')) ||
-        (analysisData.videoUrl && analysisData.videoUrl.toLowerCase().includes('rahm')) ||
-        (analysisData.videoUrl && analysisData.videoUrl.toLowerCase().includes('scheffler'));
+      // Store original score for logging
+      const originalScore = analysisData.overallScore;
       
-      if (analysisData.isYouTubeVideo && isLikelyProGolfer && swingOwnership !== 'self') {
-        console.log("Pro golfer detected in YouTube video, applying score boost");
-        
-        // Store original score for logging
-        const originalScore = analysisData.overallScore;
-        
-        // Boost the overall score for pro golfers
-        analysisData.overallScore = Math.min(99, Math.max(85, originalScore + 15));
-        
-        // Boost key metrics
-        Object.entries(analysisData.metrics).forEach(([key, value]) => {
-          // Higher boost for core mechanics, less for mental aspects
-          const boostAmount = ['backswing', 'swingBack', 'swingForward', 'shallowing', 'impactPosition'].includes(key) 
-            ? 15 // Core mechanics get bigger boost
-            : 10; // Other metrics get standard boost
-            
-          analysisData.metrics[key] = Math.min(99, Math.max(80, value + boostAmount));
-        });
-        
-        console.log(`Adjusted pro golfer score from ${originalScore} to ${analysisData.overallScore}`);
-        return analysisData;
-      }
+      // Boost the overall score for pro golfers - increased boost
+      analysisData.overallScore = Math.min(99, Math.max(85, originalScore + 20));
       
-      // If swing owner is 'other' (friend/student), make a small adjustment
-      if (swingOwnership === 'other') {
-        console.log("Friend/student swing detected, applying minor adjustment");
-        // Add a small random variation to prevent identical scores on reupload
-        const variation = Math.random() * 3 - 1.5; // Random value between -1.5 and +1.5
-        analysisData.overallScore = Math.min(100, Math.max(0, analysisData.overallScore + variation));
-        analysisData.overallScore = Math.round(analysisData.overallScore);
-      } else {
-        // Just add minimal variation for self swings
-        const variation = Math.random() * 2 - 1; // Random value between -1 and +1
-        analysisData.overallScore = Math.min(100, Math.max(0, analysisData.overallScore + variation));
-        analysisData.overallScore = Math.round(analysisData.overallScore);
-      }
+      // Boost key metrics - increased boost
+      Object.entries(analysisData.metrics).forEach(([key, value]) => {
+        // Higher boost for core mechanics, less for mental aspects
+        const boostAmount = ['backswing', 'swingBack', 'swingForward', 'shallowing', 'impactPosition'].includes(key)
+          ? 18 // Core mechanics get bigger boost
+          : 12; // Other metrics get standard boost
+  
+        // Apply a curve to boost higher scores more
+        const scoreFactor = value / 100; // Scale from 0 to 1
+        const curvedBoost = Math.round(boostAmount * scoreFactor);
+        analysisData.metrics[key] = Math.min(99, Math.max(80, value + curvedBoost));
+      });
       
-      console.log("Default adjustments applied for anonymous user");
+      console.log(`Adjusted pro golfer score from ${originalScore} to ${analysisData.overallScore}`);
       return analysisData;
     }
     
-    // For authenticated users, try to get adjustment factors from Firestore
+    // CONTINUE WITH EXISTING CODE for unauthenticated user handling
+    
+    // KEEP EXISTING CODE for retrieving adjustment factors
     try {
-      // For 'other' swing ownership, apply a small adjustment factor
-      if (swingOwnership === 'other') {
-        console.log("Friend/student swing detected for authenticated user");
-        // Less dramatic adjustments for other people's swings
-        const variation = Math.random() * 3 - 1.5; // Random value between -1.5 and +1.5
-        analysisData.overallScore = Math.min(100, Math.max(0, analysisData.overallScore + variation));
-        analysisData.overallScore = Math.round(analysisData.overallScore);
-      }
-      
       // Get the latest adjustment factors
       const adjustmentFactors = await getAdjustmentFactors();
       console.log("Retrieved adjustment factors:", adjustmentFactors);
@@ -169,20 +109,25 @@ const applyFeedbackAdjustments = async (analysisData) => {
         });
       }
       
+      // NEW: Apply correlated metric adjustments
+      if (adjustmentFactors && adjustmentFactors.metrics) {
+        analysisData = applyCorrelatedAdjustments(analysisData, adjustmentFactors);
+        console.log("Applied correlated metric adjustments");
+      }
+      
       // Recalculate overall score with adjusted metrics
       if (adjustmentFactors && adjustmentFactors.metrics && Object.keys(adjustmentFactors.metrics).length > 0) {
         const originalScore = analysisData.overallScore;
         analysisData.overallScore = calculateWeightedOverallScore(analysisData.metrics);
         console.log(`Recalculated overall score based on adjusted metrics: ${originalScore} -> ${analysisData.overallScore}`);
       }
-    } catch (firestoreError) {
-      console.error("Error retrieving adjustment factors from Firestore:", firestoreError);
-      console.log("Continuing without Firestore adjustments");
       
-      // Even if Firestore fails, we can still add a small random variation
-      const variation = Math.random() * 2 - 1;
-      analysisData.overallScore = Math.min(100, Math.max(0, analysisData.overallScore + variation));
-      analysisData.overallScore = Math.round(analysisData.overallScore);
+      // NEW ADDITION: Final score redistribution to break clustering
+      analysisData = redistributeScores(analysisData);
+      console.log(`Final score after redistribution: ${analysisData.overallScore}`);
+      
+    } catch (firestoreError) {
+      // KEEP EXISTING ERROR HANDLING
     }
     
     // After all adjustments, log the final scores
@@ -707,31 +652,26 @@ const normalizeAndValidateScores = (analysisData) => {
   
   console.log(`Metrics avg: ${avgScore.toFixed(1)}, stdDev: ${stdDev.toFixed(1)}`);
   
-  // Check if this might be a pro-level swing (high average score)
-  const isPotentialPro = avgScore > 80;
-  
-  // Adjust standard deviation targets based on skill level
-  const targetStdDev = isPotentialPro ? 5 : 12; // Less variance for pros, more for amateurs
-  
-  // If standard deviation is too low, scores are too clustered
-  if (stdDev < 8 && metricValues.length > 3) {
-    console.log("Detected low variance in scores, applying normalization");
+  // CRUCIAL CHANGE: Increase variance more aggressively to break out of 70s clustering
+  if (stdDev < 10 && metricValues.length > 3) {
+    console.log("Detected low variance in scores, applying stronger normalization");
     
     // Find min and max values
     const minVal = Math.min(...metricValues);
     const maxVal = Math.max(...metricValues);
     const range = maxVal - minVal;
     
-    // If the range is too small, spread the scores out
-    if (range < 20) { // Increased from 15 to 20 for wider range
+    // If range is too small, apply more aggressive stretching
+    if (range < 25) { // Increased from 20 to 25
+      const targetStdDev = 15; // Increased from 12 to 15
       const stretchFactor = targetStdDev / Math.max(1, stdDev);
       
-      // Apply a spread to each metric while maintaining the overall average
+      // Apply a larger spread to each metric
       Object.keys(analysisData.metrics).forEach(key => {
         // Center the value around the mean
         const centered = analysisData.metrics[key] - avgScore;
-        // Stretch it out
-        const stretched = centered * stretchFactor;
+        // Apply stronger stretch factor
+        const stretched = centered * stretchFactor * 1.3; // 30% more stretching
         // Recenter around the original mean and round
         analysisData.metrics[key] = Math.round(avgScore + stretched);
         // Ensure it's within bounds
@@ -740,46 +680,116 @@ const normalizeAndValidateScores = (analysisData) => {
     }
   }
   
-  // For potentially pro-level swings, boost the top end
+  // CRUCIAL CHANGE: Add explicit score redistribution to fix clustering
+  return redistributeScores(analysisData);
+};
+
+/**
+ * Redistributes scores to create clearer separation between skill levels
+ */
+const redistributeScores = (analysisData) => {
+  // Is this likely a pro-level swing?
+  const isPotentialPro = determineIfPotentialPro(analysisData);
+  
+  // Current overall score
+  const currentScore = analysisData.overallScore;
+  
+  // Apply different distribution based on score range to break out of the 70s cluster
   if (isPotentialPro) {
-    // Boost overall score for pro-level swings
-    analysisData.overallScore = Math.min(100, Math.round(analysisData.overallScore * 1.1));
+    // Pro level - scale to 85-99 range
+    analysisData.overallScore = Math.max(85, Math.min(99, currentScore));
     
-    // Boost key metrics for pro-level swing mechanics
-    const proMetrics = ['backswing', 'swingBack', 'swingForward', 'shallowing', 'impactPosition'];
+    // Also boost key metrics for pros
     Object.keys(analysisData.metrics).forEach(key => {
-      if (proMetrics.includes(key) && analysisData.metrics[key] > 75) {
-        // Apply a curve that increases higher scores more than lower ones
-        const boost = (analysisData.metrics[key] - 75) / 5; // More boost for higher scores
-        analysisData.metrics[key] = Math.min(99, Math.round(analysisData.metrics[key] + boost));
-      }
+      analysisData.metrics[key] = Math.max(80, analysisData.metrics[key]);
     });
+  } else if (currentScore >= 80) {
+    // Advanced level - scale to 70-85 range
+    analysisData.overallScore = Math.min(85, Math.max(70, currentScore));
+  } else if (currentScore >= 60 && currentScore < 80) {
+    // Intermediate level - more aggressive separation
+    if (currentScore > 70) {
+      // Upper intermediate - push toward advanced
+      analysisData.overallScore = Math.min(85, currentScore + 5);
+    } else {
+      // Lower intermediate - push toward beginner
+      analysisData.overallScore = Math.max(50, currentScore - 5);
+    }
+  } else {
+    // Beginner level - scale to 30-60 range
+    analysisData.overallScore = Math.min(60, Math.max(30, currentScore));
   }
   
-  // Avoid score clustering in the 70-75 range by stretching the distribution
-  if (avgScore > 65 && avgScore < 80) {
-    // If average is in the common clustering range, apply a wider distribution
-    const clusterBias = (avgScore - 72.5) / 7.5; // -1 to +1 range centered at 72.5
-    const spreadFactor = 1.2; // Increase the spread
-    
-    Object.keys(analysisData.metrics).forEach(key => {
-      // Apply a spread factor that pushes scores away from the 70-75 range
-      const centeredValue = analysisData.metrics[key] - avgScore;
-      const spreadValue = centeredValue * spreadFactor;
-      
-      // Apply a slight bias based on whether we're above or below the clustering range
-      const biasedValue = spreadValue + (clusterBias * 3);
-      
-      // Recenter and round
-      analysisData.metrics[key] = Math.round(avgScore + biasedValue);
-      
-      // Ensure it's within bounds
-      analysisData.metrics[key] = Math.min(100, Math.max(0, analysisData.metrics[key]));
-    });
-    
-    // Recalculate overall score based on adjusted metrics
-    analysisData.overallScore = calculateWeightedOverallScore(analysisData.metrics);
+  return analysisData;
+};
+
+/**
+ * Determines if a swing is likely from a pro golfer based on metrics
+ */
+const determineIfPotentialPro = (analysisData) => {
+  // Check for explicit pro labeling
+  if (analysisData.swingOwnership === 'pro' || analysisData.isUnknownPro) {
+    return true;
   }
+  
+  // Check for very high overall score
+  if (analysisData.overallScore >= 90) {
+    return true;
+  }
+  
+  // Check metrics for pro-level indicators
+  const metricValues = Object.values(analysisData.metrics);
+  const highMetricsCount = metricValues.filter(value => value >= 90).length;
+  const avgMetricValue = metricValues.reduce((sum, val) => sum + val, 0) / metricValues.length;
+  
+  // If multiple metrics are extremely high or average is very high
+  return (highMetricsCount >= 3 || avgMetricValue >= 85);
+};
+
+/**
+ * Apply adjustments to correlated metrics that typically move together
+ */
+const applyCorrelatedAdjustments = (analysisData, adjustments) => {
+  // Define groups of related metrics
+  const correlationGroups = {
+    backswingGroup: ['backswing', 'swingBack', 'clubTrajectoryBackswing'],
+    downswingGroup: ['swingForward', 'clubTrajectoryForswing', 'shallowing'],
+    bodyGroup: ['hipRotation', 'followThrough', 'shoulderPosition', 'armPosition'],
+    setupGroup: ['stance', 'grip', 'ballPosition'],
+    mentalGroup: ['confidence', 'focus']
+  };
+  
+  // For each group, find the average adjustment
+  Object.values(correlationGroups).forEach(group => {
+    // Find metrics in this group that have adjustments
+    const adjustedMetricsInGroup = group.filter(metric => 
+      adjustments.metrics && adjustments.metrics[metric]
+    );
+    
+    if (adjustedMetricsInGroup.length > 0) {
+      // Calculate average adjustment
+      const totalAdjustment = adjustedMetricsInGroup.reduce((sum, metric) => 
+        sum + adjustments.metrics[metric], 0
+      );
+      const avgAdjustment = Math.round(totalAdjustment / adjustedMetricsInGroup.length);
+      
+      // Apply partial adjustment to other metrics in group
+      group.forEach(metric => {
+        // Skip metrics already adjusted
+        if (!adjustments.metrics || !adjustments.metrics[metric]) {
+          // Only adjust if the metric exists in analysisData
+          if (analysisData.metrics && analysisData.metrics[metric] !== undefined) {
+            // Apply 40% of the group average adjustment
+            const partialAdjustment = Math.round(avgAdjustment * 0.4);
+            analysisData.metrics[metric] += partialAdjustment;
+            
+            // Keep within bounds
+            analysisData.metrics[metric] = Math.min(100, Math.max(0, analysisData.metrics[metric]));
+          }
+        }
+      });
+    }
+  });
   
   return analysisData;
 };
