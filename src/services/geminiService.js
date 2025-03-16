@@ -1,5 +1,16 @@
 import axios from 'axios';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  collection, 
+  addDoc, 
+  doc, 
+  getDoc, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  getDocs,
+  serverTimestamp 
+} from 'firebase/firestore';
 import { db, auth } from '../firebase/firebase';
 import { getAdjustmentFactors } from './adjustmentService';
 
@@ -34,11 +45,40 @@ const applyFeedbackAdjustments = async (analysisData) => {
     // For debug - log original scores
     console.log("Before adjustments - Overall:", analysisData.overallScore, "Metrics:", Object.keys(analysisData.metrics).map(k => `${k}:${analysisData.metrics[k]}`).join(', '));
     
+    // Handle ownership-based adjustments first
+    const swingOwnership = analysisData.swingOwnership || 'self'; // Default to self
+    const proGolferName = analysisData.proGolferName || null;
+    const isUnknownPro = analysisData.isUnknownPro || false;
+    
+    // Apply pro golfer adjustments if applicable
+    if (swingOwnership === 'pro' || isUnknownPro) {
+      console.log(`Professional golfer detected (${proGolferName || 'unknown pro'}), applying score boost`);
+      
+      // Store original score for logging
+      const originalScore = analysisData.overallScore;
+      
+      // Boost the overall score for pro golfers
+      analysisData.overallScore = Math.min(99, Math.max(85, originalScore + 15));
+      
+      // Boost key metrics
+      Object.entries(analysisData.metrics).forEach(([key, value]) => {
+        // Higher boost for core mechanics, less for mental aspects
+        const boostAmount = ['backswing', 'swingBack', 'swingForward', 'shallowing', 'impactPosition'].includes(key) 
+          ? 15 // Core mechanics get bigger boost
+          : 10; // Other metrics get standard boost
+          
+        analysisData.metrics[key] = Math.min(99, Math.max(80, value + boostAmount));
+      });
+      
+      console.log(`Adjusted pro golfer score from ${originalScore} to ${analysisData.overallScore}`);
+      return analysisData;
+    }
+    
     // Skip adjustment for unauthenticated users but apply special rules
     if (!auth.currentUser) {
       console.log("User not authenticated, applying default feedback adjustments");
       
-      // For YouTube videos of pro golfers, apply a fixed boost
+      // For YouTube videos of pro golfers, apply a fixed boost if we detect a pro golfer name in the URL
       const isLikelyProGolfer = 
         (analysisData.videoUrl && analysisData.videoUrl.toLowerCase().includes('mcilroy')) ||
         (analysisData.videoUrl && analysisData.videoUrl.toLowerCase().includes('woods')) ||
@@ -48,7 +88,7 @@ const applyFeedbackAdjustments = async (analysisData) => {
         (analysisData.videoUrl && analysisData.videoUrl.toLowerCase().includes('rahm')) ||
         (analysisData.videoUrl && analysisData.videoUrl.toLowerCase().includes('scheffler'));
       
-      if (analysisData.isYouTubeVideo && isLikelyProGolfer) {
+      if (analysisData.isYouTubeVideo && isLikelyProGolfer && swingOwnership !== 'self') {
         console.log("Pro golfer detected in YouTube video, applying score boost");
         
         // Store original score for logging
@@ -71,20 +111,35 @@ const applyFeedbackAdjustments = async (analysisData) => {
         return analysisData;
       }
       
-      // If we need to, we can add more default adjustment logic here
-      // For example, we might want to boost scores for YouTube videos in general
+      // If swing owner is 'other' (friend/student), make a small adjustment
+      if (swingOwnership === 'other') {
+        console.log("Friend/student swing detected, applying minor adjustment");
+        // Add a small random variation to prevent identical scores on reupload
+        const variation = Math.random() * 3 - 1.5; // Random value between -1.5 and +1.5
+        analysisData.overallScore = Math.min(100, Math.max(0, analysisData.overallScore + variation));
+        analysisData.overallScore = Math.round(analysisData.overallScore);
+      } else {
+        // Just add minimal variation for self swings
+        const variation = Math.random() * 2 - 1; // Random value between -1 and +1
+        analysisData.overallScore = Math.min(100, Math.max(0, analysisData.overallScore + variation));
+        analysisData.overallScore = Math.round(analysisData.overallScore);
+      }
       
-      // Add a small random variation to prevent identical scores on reupload
-      const variation = Math.random() * 2 - 1; // Random value between -1 and +1
-      analysisData.overallScore = Math.min(100, Math.max(0, analysisData.overallScore + variation));
-      analysisData.overallScore = Math.round(analysisData.overallScore);
-      
-      console.log("No special adjustments applied for anonymous user");
+      console.log("Default adjustments applied for anonymous user");
       return analysisData;
     }
     
     // For authenticated users, try to get adjustment factors from Firestore
     try {
+      // For 'other' swing ownership, apply a small adjustment factor
+      if (swingOwnership === 'other') {
+        console.log("Friend/student swing detected for authenticated user");
+        // Less dramatic adjustments for other people's swings
+        const variation = Math.random() * 3 - 1.5; // Random value between -1.5 and +1.5
+        analysisData.overallScore = Math.min(100, Math.max(0, analysisData.overallScore + variation));
+        analysisData.overallScore = Math.round(analysisData.overallScore);
+      }
+      
       // Get the latest adjustment factors
       const adjustmentFactors = await getAdjustmentFactors();
       console.log("Retrieved adjustment factors:", adjustmentFactors);
@@ -135,6 +190,349 @@ const applyFeedbackAdjustments = async (analysisData) => {
     console.error("Error applying feedback adjustments:", error);
     // Return the original data if adjustment fails
     return analysisData;
+  }
+};
+
+/**
+ * Check if the given analysis data needs adjustments
+ * @param {Object} analysisData - The analysis data
+ * @returns {Promise<boolean>} Whether adjustments are needed
+ */
+const needsAdjustment = async (analysisData) => {
+  try {
+    // Get adjustment preferences for this specific user if available
+    const userPreferences = await getUserAdjustmentPreferences(analysisData.userId);
+    
+    // First check explicit preferences
+    if (userPreferences?.adjustmentPriority === 'never') {
+      console.log("User has disabled adjustments");
+      return false;
+    }
+    
+    if (userPreferences?.adjustmentPriority === 'always') {
+      console.log("User has enabled adjustments for all swings");
+      return true;
+    }
+    
+    // For as-needed (default), check for issues that require adjustment
+    
+    // Pro golfer detection - generally don't need adjustments unless there's a clear issue
+    if (isLikelyProGolferSwing(analysisData)) {
+      // Only apply adjustments to pro swings if there's a severe issue
+      const hasIssue = hasScoreClustering(analysisData.metrics) || 
+                      hasUnrealisticScores(analysisData, 'pro');
+      
+      if (!hasIssue) {
+        console.log("Pro golfer swing detected, no adjustments needed");
+        return false;
+      }
+    }
+    
+    // Amateur golfers - check for common scoring issues
+    
+    // Check for score clustering (too many similar scores)
+    if (hasScoreClustering(analysisData.metrics)) {
+      console.log("Score clustering detected, adjustment needed");
+      return true;
+    }
+    
+    // Check for unrealistic scores
+    if (hasUnrealisticScores(analysisData, userPreferences?.skillLevel || 'amateur')) {
+      console.log("Unrealistic scores detected for skill level, adjustment needed");
+      return true;
+    }
+    
+    // No issues detected that require adjustment
+    console.log("No adjustment needed, scores appear realistic");
+    return false;
+  } catch (error) {
+    console.error("Error in needsAdjustment:", error);
+    // Default to being conservative with adjustments
+    return false;
+  }
+};
+
+/**
+ * Detect if the swing is likely from a pro golfer
+ * @param {Object} analysisData - The analysis data
+ * @returns {boolean} Whether it's likely a pro swing
+ */
+const isLikelyProGolferSwing = (analysisData) => {
+  // Check for high overall score
+  const hasHighOverallScore = analysisData.overallScore >= 85;
+  
+  // Check for multiple high metric scores
+  const highMetricsCount = Object.values(analysisData.metrics)
+    .filter(score => score >= 90).length;
+  
+  // A pro swing will typically have multiple high metrics
+  return hasHighOverallScore || highMetricsCount >= 3;
+};
+
+/**
+ * Detect if this is likely a video of a pro golfer
+ * @param {Object} analysisData - The analysis data
+ * @returns {boolean} Whether it's likely a pro golfer video
+ */
+const isLikelyProGolferVideo = (analysisData) => {
+  // Pro golfer names to check in URL
+  const proGolferNames = [
+    'mcilroy', 'woods', 'tiger', 'spieth', 'koepka', 'rahm', 
+    'scheffler', 'dechambeau', 'hovland', 'thomas', 'johnson',
+    'morikawa', 'finau', 'scott', 'rose', 'garcia', 'fowler'
+  ];
+  
+  // Check if the URL contains a pro golfer name
+  const hasProNameInUrl = analysisData.videoUrl && 
+    proGolferNames.some(name => analysisData.videoUrl.toLowerCase().includes(name));
+  
+  // Also check if it's a YouTube swing and has pro-level scores
+  const isYouTubeWithHighScores = analysisData.isYouTubeVideo && (
+    analysisData.overallScore >= 85 || 
+    Object.values(analysisData.metrics).some(score => score >= 90)
+  );
+  
+  return hasProNameInUrl || isYouTubeWithHighScores;
+};
+
+/**
+ * Check if the metrics show score clustering
+ * @param {Object} metrics - The metrics object
+ * @returns {boolean} Whether score clustering is detected
+ */
+const hasScoreClustering = (metrics) => {
+  const values = Object.values(metrics);
+  
+  // Need at least several metrics to detect clustering
+  if (values.length < 4) return false;
+  
+  // Calculate average and standard deviation
+  const average = values.reduce((sum, val) => sum + val, 0) / values.length;
+  
+  // Calculate variance
+  const variance = values.reduce((sum, val) => sum + Math.pow(val - average, 2), 0) / values.length;
+  
+  // Calculate standard deviation
+  const stdDev = Math.sqrt(variance);
+  
+  // Check if standard deviation is too low (clustered scores)
+  // Most real swings should have more variation between metrics
+  return stdDev < 8;
+};
+
+/**
+ * Check if the analysis has unrealistic scores for the golfer's level
+ * @param {Object} analysisData - The analysis data
+ * @param {string} skillLevel - The golfer's skill level
+ * @returns {boolean} Whether unrealistic scores are detected
+ */
+const hasUnrealisticScores = (analysisData, skillLevel) => {
+  const scores = Object.values(analysisData.metrics);
+  
+  // Expected score ranges by skill level
+  const expectedRanges = {
+    'pro': { min: 70, max: 99, avg: 85 },
+    'advanced': { min: 60, max: 95, avg: 75 },
+    'amateur': { min: 40, max: 85, avg: 65 },
+    'beginner': { min: 30, max: 75, avg: 55 }
+  };
+  
+  const range = expectedRanges[skillLevel] || expectedRanges.amateur;
+  
+  // Calculate the average score
+  const average = scores.reduce((sum, val) => sum + val, 0) / scores.length;
+  
+  // Count metrics that are outside the expected range
+  const outsideRangeCount = scores.filter(score => 
+    score > range.max || score < range.min
+  ).length;
+  
+  // Calculate how far the average is from the expected average
+  const avgDifference = Math.abs(average - range.avg);
+  
+  // If the average is too far from expected or too many metrics are outside range
+  return avgDifference > 15 || (outsideRangeCount / scores.length) > 0.4;
+};
+
+/**
+ * Apply specialized adjustments for pro golfer swings
+ * @param {Object} analysisData - The analysis data
+ * @returns {Object} The adjusted analysis data
+ */
+const applyProGolferAdjustments = (analysisData) => {
+  // Store original score for logging
+  const originalScore = analysisData.overallScore;
+  
+  // Boost the overall score for pro golfers
+  analysisData.overallScore = Math.min(99, Math.max(85, originalScore + 10));
+  
+  // Boost key metrics
+  Object.entries(analysisData.metrics).forEach(([key, value]) => {
+    // Higher boost for core mechanics, less for mental aspects
+    const boostAmount = ['backswing', 'swingBack', 'swingForward', 'shallowing', 'impactPosition'].includes(key) 
+      ? 10 // Core mechanics get bigger boost
+      : 5; // Other metrics get standard boost
+      
+    analysisData.metrics[key] = Math.min(99, Math.max(80, value + boostAmount));
+  });
+  
+  console.log(`Adjusted pro golfer score from ${originalScore} to ${analysisData.overallScore}`);
+  return analysisData;
+};
+
+/**
+ * Apply minimal variation to prevent identical scores on reupload
+ * @param {Object} analysisData - The analysis data
+ * @returns {Object} The adjusted analysis data
+ */
+const applyMinimalVariation = (analysisData) => {
+  // Add a small random variation to prevent identical scores on reupload
+  const variation = Math.random() * 2 - 1; // Random value between -1 and +1
+  analysisData.overallScore = Math.min(100, Math.max(0, analysisData.overallScore + variation));
+  analysisData.overallScore = Math.round(analysisData.overallScore);
+  
+  return analysisData;
+};
+
+/**
+ * Correct score clustering in metrics
+ * @param {Object} analysisData - The analysis data
+ * @returns {Object} The adjusted analysis data
+ */
+const correctScoreClustering = (analysisData) => {
+  const metricValues = Object.values(analysisData.metrics);
+  
+  // Calculate average and standard deviation
+  const avgScore = metricValues.reduce((sum, val) => sum + val, 0) / metricValues.length;
+  const stdDev = Math.sqrt(
+    metricValues.reduce((sum, val) => sum + Math.pow(val - avgScore, 2), 0) / metricValues.length
+  );
+  
+  console.log(`Metrics avg: ${avgScore.toFixed(1)}, stdDev: ${stdDev.toFixed(1)}`);
+  
+  // For skill levels, target different standard deviations
+  const isPotentialPro = avgScore > 80;
+  const targetStdDev = isPotentialPro ? 5 : 12; // Less variance for pros, more for amateurs
+  
+  // If standard deviation is too low, scores are too clustered
+  if (stdDev < 8 && metricValues.length > 3) {
+    console.log("Detected low variance in scores, applying normalization");
+    
+    // Find min and max values
+    const minVal = Math.min(...metricValues);
+    const maxVal = Math.max(...metricValues);
+    const range = maxVal - minVal;
+    
+    // If the range is too small, spread the scores out
+    if (range < 20) {
+      const stretchFactor = targetStdDev / Math.max(1, stdDev);
+      
+      // Apply a spread to each metric while maintaining the overall average
+      Object.keys(analysisData.metrics).forEach(key => {
+        // Center the value around the mean
+        const centered = analysisData.metrics[key] - avgScore;
+        // Stretch it out
+        const stretched = centered * stretchFactor;
+        // Recenter around the original mean and round
+        analysisData.metrics[key] = Math.round(avgScore + stretched);
+        // Ensure it's within bounds
+        analysisData.metrics[key] = Math.min(100, Math.max(0, analysisData.metrics[key]));
+      });
+      
+      // Recalculate overall score based on adjusted metrics
+      analysisData.overallScore = calculateWeightedOverallScore(analysisData.metrics);
+    }
+  }
+  
+  return analysisData;
+};
+
+/**
+ * Check if overall adjustment should be applied
+ * @param {Object} analysisData - The analysis data
+ * @param {Object} adjustmentFactors - The adjustment factors
+ * @returns {boolean} Whether to apply overall adjustment
+ */
+const shouldApplyOverallAdjustment = (analysisData, adjustmentFactors) => {
+  // Skip if no adjustment factor available
+  if (!adjustmentFactors || adjustmentFactors.overall === 0) {
+    return false;
+  }
+  
+  // For pros, only apply small adjustments if needed
+  if (isLikelyProGolferSwing(analysisData)) {
+    return Math.abs(adjustmentFactors.overall) <= 3;
+  }
+  
+  // For regular swings, check if the adjustment makes sense
+  // (e.g., don't push an already high score much higher)
+  const wouldMakeUnrealistic = 
+    (analysisData.overallScore > 85 && adjustmentFactors.overall > 0) || 
+    (analysisData.overallScore < 40 && adjustmentFactors.overall < 0);
+  
+  return !wouldMakeUnrealistic;
+};
+
+/**
+ * Check if metric-specific adjustments should be applied
+ * @param {Object} analysisData - The analysis data
+ * @param {Object} adjustmentFactors - The adjustment factors
+ * @returns {boolean} Whether to apply metric adjustments
+ */
+const shouldApplyMetricAdjustments = (analysisData, adjustmentFactors) => {
+  return adjustmentFactors && 
+         adjustmentFactors.metrics && 
+         Object.keys(adjustmentFactors.metrics).length > 0;
+};
+
+/**
+ * Check if a specific metric needs adjustment
+ * @param {string} metric - The metric name
+ * @param {number} value - The current metric value
+ * @param {Object} analysisData - The full analysis data
+ * @returns {boolean} Whether the metric needs adjustment
+ */
+const needsMetricAdjustment = (metric, value, analysisData) => {
+  // Don't adjust unreasonably high scores for pros
+  if (isLikelyProGolferSwing(analysisData) && value > 90) {
+    return false;
+  }
+  
+  // Don't make already low scores even lower or high scores even higher
+  if (value < 35 || value > 95) {
+    return false;
+  }
+  
+  // Default to true for metrics in the common problem range (65-80)
+  return value >= 65 && value <= 80;
+};
+
+/**
+ * Get user adjustment preferences
+ * @param {string} userId - The user ID
+ * @returns {Promise<Object>} User adjustment preferences
+ */
+const getUserAdjustmentPreferences = async (userId) => {
+  if (!userId) return null;
+  
+  try {
+    // Get the user's profile document
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    
+    if (!userDoc.exists()) {
+      return null;
+    }
+    
+    const userData = userDoc.data();
+    
+    // Return preference data
+    return {
+      adjustmentPriority: userData.adjustmentPriority || 'as-needed',
+      skillLevel: userData.skillLevel || 'amateur'
+    };
+  } catch (error) {
+    console.error("Error getting user adjustment preferences:", error);
+    return null;
   }
 };
 
@@ -950,6 +1348,90 @@ const createMockAnalysis = (videoFile, metadata = null) => {
 };
 
 /**
+ * Gets the appropriate adjustment context for a swing analysis
+ * @param {Object} analysisData - The analysis data being adjusted
+ * @returns {Promise<Object>} Context object for adjustment decisions
+ */
+const getAdjustmentContext = async (analysisData) => {
+  try {
+    // Default context
+    const defaultContext = {
+      isProSwing: isLikelyProGolferSwing(analysisData),
+      skillLevel: 'amateur',
+      adjustmentPriority: 'as-needed',
+      confidenceLevel: 3,
+      
+      // Check if this is a YouTube swing
+      isYouTubeVideo: analysisData.isYouTubeVideo || false,
+      
+      // Generate video signature for identifying repeat analyses
+      videoSignature: analysisData.youtubeVideoId || generateVideoSignature(analysisData)
+    };
+    
+    // For unauthenticated users, return the default context
+    if (!auth.currentUser) {
+      return defaultContext;
+    }
+    
+    // For authenticated users, check if we have previous feedback for this specific swing
+    try {
+      // Query for feedback on this specific swing
+      const swingFeedbackQuery = query(
+        collection(db, 'analysis_feedback'),
+        where('userId', '==', auth.currentUser.uid),
+        where('videoSignature', '==', defaultContext.videoSignature),
+        orderBy('timestamp', 'desc'),
+        limit(1)
+      );
+      
+      const swingFeedback = await getDocs(swingFeedbackQuery);
+      
+      if (!swingFeedback.empty) {
+        // Found feedback for this specific swing
+        const feedbackData = swingFeedback.docs[0].data();
+        
+        // Use feedback-specific settings
+        return {
+          ...defaultContext,
+          isProSwing: feedbackData.isProSwing || defaultContext.isProSwing,
+          skillLevel: feedbackData.skillLevel || defaultContext.skillLevel,
+          adjustmentPriority: feedbackData.adjustmentPriority || defaultContext.adjustmentPriority,
+          confidenceLevel: feedbackData.confidenceLevel || defaultContext.confidenceLevel,
+          
+          // Flag to indicate we have specific feedback for this swing
+          hasSpecificFeedback: true
+        };
+      }
+      
+      // If no specific feedback, check user preferences
+      const userPrefs = await getUserAdjustmentPreferences(auth.currentUser.uid);
+      
+      if (userPrefs) {
+        return {
+          ...defaultContext,
+          ...userPrefs
+        };
+      }
+    } catch (error) {
+      console.error("Error fetching feedback for context:", error);
+      // Continue with default context on error
+    }
+    
+    return defaultContext;
+  } catch (error) {
+    console.error("Error in getAdjustmentContext:", error);
+    // Return a default context on error
+    return {
+      isProSwing: false,
+      skillLevel: 'amateur',
+      adjustmentPriority: 'as-needed',
+      confidenceLevel: 3,
+      isYouTubeVideo: analysisData.isYouTubeVideo || false
+    };
+  }
+};
+
+/**
  * Convert a file to base64 string
  * @param {File} file - The file to convert
  * @returns {Promise<string>} Promise that resolves to the base64 string
@@ -968,9 +1450,10 @@ const fileToBase64 = (file) => {
  * @param {Object} swingData - The swing analysis data
  * @param {String} feedbackType - 'accurate', 'too_high', 'too_low'
  * @param {Object} metricFeedback - Feedback on specific metrics
+ * @param {Object} additionalFeedback - Additional feedback data
  * @returns {Promise<boolean>} Success status
  */
-const collectAnalysisFeedback = async (swingData, feedbackType, metricFeedback = {}) => {
+const collectAnalysisFeedback = async (swingData, feedbackType, metricFeedback = {}, additionalFeedback = {}) => {
   if (!swingData) return false;
   
   try {
@@ -985,7 +1468,20 @@ const collectAnalysisFeedback = async (swingData, feedbackType, metricFeedback =
       metricFeedback, // e.g. { backswing: 'too_high', grip: 'accurate' }
       clubType: swingData.clubType || null,
       clubName: swingData.clubName || null,
-      modelVersion: 'gemini-2.0-flash-exp' // Track which model version was used
+      
+      // New fields for enhanced feedback
+      isProSwing: additionalFeedback.isProSwing || false,
+      skillLevel: additionalFeedback.skillLevel || 'amateur',
+      confidenceLevel: additionalFeedback.confidenceLevel || 3,
+      adjustmentPriority: additionalFeedback.adjustmentPriority || 'as-needed',
+      additionalNotes: additionalFeedback.additionalNotes || '',
+      
+      modelVersion: 'gemini-2.0-flash-exp', // Track which model version was used
+      
+      // Additional metadata that might help with adjustments
+      submittedAt: new Date().toISOString(),
+      isYouTubeVideo: swingData.isYouTubeVideo || false,
+      videoSignature: swingData.youtubeVideoId || generateVideoSignature(swingData)
     };
 
     if (!auth.currentUser && !swingData._isLocalOnly) {
@@ -1002,6 +1498,44 @@ const collectAnalysisFeedback = async (swingData, feedbackType, metricFeedback =
     return false;
   }
 };
+
+/**
+ * Generate a unique signature for a video to identify it
+ * @param {Object} swingData - The swing data with video information
+ * @returns {string} A unique signature for the video
+ */
+const generateVideoSignature = (swingData) => {
+  // For file uploads, use basic metadata
+  if (swingData.videoUrl && !swingData.isYouTubeVideo) {
+    // Create a hash from available data
+    const videoInfo = [
+      swingData.overallScore,
+      Object.entries(swingData.metrics).map(([k, v]) => `${k}:${v}`).join('|'),
+      swingData.date,
+      swingData.recordedDate
+    ].join('_');
+    
+    return `video_${hashString(videoInfo)}`;
+  }
+  
+  // Return a default signature
+  return `swing_${Date.now()}`;
+};
+
+/**
+ * Simple string hashing function
+ * @param {string} str - String to hash
+ * @returns {string} Hashed string
+ */
+const hashString = (str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(16);
+}
 
 // Enhanced metric descriptions and prompts from the Swing Recipe document
 // Update to metricDetails object in geminiService.js

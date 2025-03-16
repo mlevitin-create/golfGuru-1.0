@@ -50,7 +50,7 @@ const uploadVideo = async (userId, videoFile) => {
  * @param {Object} analysisData - The swing analysis data
  * @param {string} userId - The user ID
  * @param {File} videoFile - The video file (null for YouTube videos)
- * @param {Object} metadata - Additional metadata (club, date, YouTube info, etc.)
+ * @param {Object} metadata - Additional metadata (club, date, YouTube info, ownership, etc.)
  * @returns {Promise<Object>} The saved swing data with ID
  */
 const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = null) => {
@@ -76,6 +76,11 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
       new Date(metadata.recordedDate) : 
       (analysisData.recordedDate ? new Date(analysisData.recordedDate) : new Date());
     
+    // Extract ownership data from metadata
+    const swingOwnership = metadata?.swingOwnership || 'self'; // Default to self if not specified
+    const proGolferName = metadata?.proGolferName || null;
+    const isUnknownPro = metadata?.isUnknownPro || false;
+    
     // Create Firestore document
     const swingData = {
       ...analysisData,
@@ -87,6 +92,12 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
       clubName: metadata?.clubName || analysisData.clubName || null,
       clubType: metadata?.clubType || analysisData.clubType || null,
       outcome: metadata?.outcome || analysisData.outcome || null,
+      
+      // Add ownership data
+      swingOwnership,
+      proGolferName,
+      isUnknownPro,
+      
       createdAt: serverTimestamp()
     };
     

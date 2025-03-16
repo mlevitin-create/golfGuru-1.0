@@ -1,6 +1,8 @@
+// src/components/VideoUpload.js - Key changes to integrate swing ownership
 import React, { useState, useRef, useEffect } from 'react';
 import ClubSelector from './ClubSelector';
 import DateSelector from './DateSelector';
+import SwingOwnershipSelector from './SwingOwnershipSelector'; // New import
 import { extractVideoCreationDate } from '../utils/videoMetadata';
 import { extractYouTubeVideoId, getYouTubeEmbedUrl, getYouTubeThumbnailUrl, isValidYouTubeUrl } from '../utils/youtubeUtils';
 
@@ -10,6 +12,8 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [showClubSelector, setShowClubSelector] = useState(false);
+  const [showOwnershipSelector, setShowOwnershipSelector] = useState(false); // New state
+  const [ownershipData, setOwnershipData] = useState(null); // New state
   const [error, setError] = useState(null);
   const [swingDate, setSwingDate] = useState(new Date());
   const [fileDate, setFileDate] = useState(null);
@@ -89,157 +93,59 @@ const VideoUpload = ({ onVideoUpload, isAnalyzing, navigateTo }) => {
     setYoutubeVideoData(null);
   };
 
-  // Generate thumbnail from video file
-  const generateThumbnail = (videoFile) => {
-    const videoElement = document.createElement('video');
-    videoElement.preload = 'metadata';
-    videoElement.muted = true;
-    videoElement.playsInline = true;
-    
-    const fileUrl = URL.createObjectURL(videoFile);
-    videoElement.src = fileUrl;
-    
-    // When video data is loaded, create thumbnail
-    videoElement.onloadeddata = () => {
-      // Seek to 1 second or 1/4 through the video, whichever is less
-      videoElement.currentTime = 1;
-    };
-    
-    // Once we've seeked to the right place, capture the frame
-    videoElement.onseeked = () => {
-      const canvas = document.createElement('canvas');
-      // Set canvas dimensions to match video
-      canvas.width = videoElement.videoWidth;
-      canvas.height = videoElement.videoHeight;
-      
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-      
-      // Create thumbnail URL from canvas
-      try {
-        const thumbnailUrl = canvas.toDataURL('image/jpeg');
-        setThumbnailUrl(thumbnailUrl);
-      } catch (err) {
-        console.error('Error generating thumbnail:', err);
-        // If thumbnail generation fails, we'll still have the video element
-      }
-      
-      // Clean up object URL
-      URL.revokeObjectURL(fileUrl);
-    };
-    
-    // Handle errors
-    videoElement.onerror = (err) => {
-      console.error('Error loading video for thumbnail:', err);
-      URL.revokeObjectURL(fileUrl);
-    };
-    
-    // Explicitly trigger load
-    videoElement.load();
-  };
-
-  // Handle YouTube URL input and validation
-  const handleYoutubeUrlChange = (e) => {
-    setYoutubeUrl(e.target.value);
-    setYoutubeError(null);
-    setYoutubeVideoData(null);
-  };
-
-  // Validate and process YouTube URL
-  const handleYouTubePreview = () => {
-    // Clear any existing errors
-    setYoutubeError(null);
-    
-    if (!youtubeUrl.trim()) {
-      setYoutubeError('Please enter a YouTube URL');
+  // Handle analyze button click - UPDATED
+  const handleAnalyzeClick = () => {
+    if (!((selectedFile && !isUsingYouTube) || (youtubeVideoData && isUsingYouTube))) {
+      setError('Please select a video or preview a YouTube video first');
       return;
     }
+
+    // First show the ownership selector
+    setShowOwnershipSelector(true);
+  };
+
+  // Handle ownership selection completion - NEW
+  const handleOwnershipComplete = (data) => {
+    // Save ownership data
+    setOwnershipData(data);
+    setShowOwnershipSelector(false);
     
-    // Extract video ID from URL
-    const videoId = extractYouTubeVideoId(youtubeUrl);
-    if (!videoId) {
-      setYoutubeError('Invalid YouTube URL. Please enter a valid YouTube video link.');
-      return;
-    }
-    
-    // Create YouTube video data object
-    const youtubeData = {
-      videoId,
-      url: youtubeUrl,
-      embedUrl: getYouTubeEmbedUrl(videoId)
+    // Then show club selector
+    setShowClubSelector(true);
+  };
+
+  // Handle ownership selection back button - NEW
+  const handleOwnershipBack = () => {
+    setShowOwnershipSelector(false);
+  };
+
+  // Handle club selection continuation - UPDATED
+  const handleClubContinue = (clubData) => {
+    const metadata = {
+      recordedDate: swingDate,
+      ...(isUsingYouTube && youtubeVideoData ? { youtubeVideo: youtubeVideoData } : {}),
+      ...clubData,
+      ...ownershipData // Add ownership data to metadata
     };
     
-    // Update state with YouTube data
-    setYoutubeVideoData(youtubeData);
-    setThumbnailUrl(getYouTubeThumbnailUrl(videoId));
-    setPreviewUrl(getYouTubeEmbedUrl(videoId));
-    
-    // Reset file upload data
-    setSelectedFile(null);
-    
-    // Show date selector
-    setSwingDate(new Date());
-    setShowDateSelector(true);
-    
-    console.log('YouTube video ready for analysis:', youtubeData);
+    onVideoUpload(isUsingYouTube ? null : selectedFile, metadata);
   };
 
-  // Handle button click
-  const onButtonClick = () => {
-    fileInputRef.current.click();
-  };
-
-// Handle analyze button click
-const handleAnalyzeClick = () => {
-  if (!((selectedFile && !isUsingYouTube) || (youtubeVideoData && isUsingYouTube))) {
-    setError('Please select a video or preview a YouTube video first');
-    return;
-  }
-
-  // Always show club selector before analyzing, regardless of upload type
-  setShowClubSelector(true);
-};
-
-  // Handle playing the video when thumbnail is clicked
-  const handleThumbnailClick = () => {
-    if (isUsingYouTube) {
-      // For YouTube, we just hide the thumbnail and show the embed
-      setThumbnailUrl(null);
-    } else if (videoRef.current) {
-      videoRef.current.style.display = 'block';
-      if (thumbnailUrl) {
-        setThumbnailUrl(null);
-      }
-      videoRef.current.play();
-    }
-  };
-
-  // Handle club selection continuation
-const handleClubContinue = (clubData) => {
-
-      const metadata = {
-        recordedDate: swingDate,
-        ...(isUsingYouTube && youtubeVideoData ? { youtubeVideo: youtubeVideoData } : {}),
-         ...clubData
-      };
-      onVideoUpload(isUsingYouTube ? null : selectedFile, metadata);
-
-};
-
-// Handle skipping club selection
-const handleClubSkip = (nextAction) => {
+  // Handle skipping club selection - UPDATED
+  const handleClubSkip = (nextAction) => {
     if (nextAction === 'setup-clubs') {
-        navigateTo('profile', { setupClubs: true });
-        return;
+      navigateTo('profile', { setupClubs: true });
+      return;
     }
 
     const metadata = {
-        recordedDate: swingDate,
-        ...(isUsingYouTube && youtubeVideoData ? { youtubeVideo: youtubeVideoData } : {})
+      recordedDate: swingDate,
+      ...(isUsingYouTube && youtubeVideoData ? { youtubeVideo: youtubeVideoData } : {}),
+      ...ownershipData // Add ownership data to metadata
     };
 
     onVideoUpload(isUsingYouTube ? null : selectedFile, metadata);
-};
+  };
 
   // Handle date change
   const handleDateChange = (date) => {
@@ -263,6 +169,16 @@ const handleClubSkip = (nextAction) => {
     setError(null);
     setYoutubeError(null);
   };
+
+  // If ownership selector is shown, render it
+  if (showOwnershipSelector) {
+    return (
+      <SwingOwnershipSelector 
+        onContinue={handleOwnershipComplete}
+        onBack={handleOwnershipBack}
+      />
+    );
+  }
 
   // If club selector is shown, render it
   if (showClubSelector) {
