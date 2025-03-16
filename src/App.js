@@ -16,6 +16,9 @@ import geminiService from './services/geminiService';
 import firestoreService from './services/firestoreService';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ClubAnalytics from './components/ClubAnalytics';
+// At the top of src/App.js, add these imports:
+import AdminAccessCheck from './components/AdminAccessCheck';
+import AdminFeedbackPanel from './components/AdminFeedbackPanel';
 
 // Modal component for login and other modal content
 const Modal = ({ isOpen, onClose, children, canClose = true }) => {

@@ -1,4 +1,4 @@
-// In src/components/AdminFeedbackPanel.js
+// src/components/AdminFeedbackPanel.js
 import React, { useState, useEffect } from 'react';
 import { runFeedbackProcessing } from '../admin/processFeedback';
 import { getAdjustmentFactors } from '../services/adjustmentService';
@@ -68,7 +68,6 @@ const AdminFeedbackPanel = () => {
       
       {result && (
         <div 
-          className={result.success ? 'success-message' : 'error-message'}
           style={{
             padding: '15px',
             marginTop: '20px',
@@ -78,9 +77,9 @@ const AdminFeedbackPanel = () => {
           }}
         >
           {result.success 
-            ? result.skipped 
+            ? (result.skipped 
               ? 'Skipped processing (was done recently)' 
-              : 'Successfully processed feedback!' 
+              : 'Successfully processed feedback!')
             : `Error: ${result.error}`
           }
         </div>

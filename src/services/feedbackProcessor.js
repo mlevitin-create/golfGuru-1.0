@@ -1,6 +1,7 @@
 // src/services/feedbackProcessor.js
 import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
+import { calculateAdjustmentFactors } from './adjustmentCalculator';
 
 export const processFeedbackData = async () => {
   // Get recent feedback (last 14 days)

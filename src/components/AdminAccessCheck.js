@@ -1,4 +1,4 @@
-// Create a new file: src/components/AdminAccessCheck.js
+// src/components/AdminAccessCheck.js
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
