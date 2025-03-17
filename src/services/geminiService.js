@@ -9,10 +9,12 @@ import {
   orderBy, 
   limit, 
   getDocs,
-  serverTimestamp 
+  serverTimestamp,
+  setDoc 
 } from 'firebase/firestore';
 import { db, auth } from '../firebase/firebase';
 import { getAdjustmentFactors } from './adjustmentService';
+import { extractYouTubeVideoId } from '../utils/youtubeUtils';
 
 // Note: You should store your API key in an environment variable (.env file)
 // Create a .env file at the root of your project with:
@@ -815,6 +817,48 @@ const analyzeGolfSwing = async (videoFile, metadata = null) => {
             return createMockAnalysis(videoFile, metadata);
         }
 
+        // Load reference models for metrics
+        let referenceModels = {};
+        try {
+          const referenceModelsSnapshot = await getDocs(collection(db, 'reference_models'));
+          referenceModelsSnapshot.forEach(doc => {
+            referenceModels[doc.id] = doc.data();
+          });
+          console.log(`Loaded ${Object.keys(referenceModels).length} reference models`);
+        } catch (error) {
+          console.error('Error loading reference models:', error);
+          // Continue even if reference models couldn't be loaded
+        }
+
+        // Build enhanced prompt using reference models if available
+        let enhancedPromptText = promptText;
+        
+        // Add reference model information to the prompt if available
+        if (Object.keys(referenceModels).length > 0) {
+          let referenceSection = "\n\n* Use these professional reference guidelines for scoring specific metrics:";
+          
+          Object.entries(referenceModels).forEach(([metricKey, modelData]) => {
+            if (modelData.referenceAnalysis) {
+              const analysis = modelData.referenceAnalysis;
+              
+              referenceSection += `\n\n* ${metricKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} (0-100):`;
+              referenceSection += `\n  * Technical Guidelines: ${analysis.technicalGuidelines.slice(0, 3).join('; ')}`;
+              referenceSection += `\n  * Ideal Form: ${analysis.idealForm.slice(0, 2).join('; ')}`;
+              referenceSection += `\n  * Common Mistakes: ${analysis.commonMistakes.slice(0, 2).join('; ')}`;
+              
+              if (analysis.scoringRubric) {
+                referenceSection += `\n  * Scoring Criteria:`;
+                referenceSection += `\n    * 90+: ${analysis.scoringRubric['90+']}`;
+                referenceSection += `\n    * 70-89: ${analysis.scoringRubric['70-89']}`;
+                referenceSection += `\n    * 50-69: ${analysis.scoringRubric['50-69']}`;
+                referenceSection += `\n    * <50: ${analysis.scoringRubric['<50']}`;
+              }
+            }
+          });
+          
+          enhancedPromptText += referenceSection;
+        }
+
         let clubInfo = "";
         if (metadata?.clubName) {
             clubInfo = `\n\nThis swing was performed with a ${metadata.clubName}. Take this into account in your analysis.`;
@@ -958,7 +1002,7 @@ Format your response ONLY as a valid JSON object with this exact structure:
                 contents: [
                     {
                         parts: [
-                            { text: promptText },
+                            { text: enhancedPromptText },
                             {
                                 fileData: {
                                     mimeType: "video/*",
@@ -1569,6 +1613,152 @@ const hashString = (str) => {
   }
   return Math.abs(hash).toString(16);
 }
+
+// New function to enhance the metricDetails with analysis from reference videos
+const enhanceMetricDetailsWithReferenceAnalysis = async () => {
+  // For each metric in metricDetails
+  for (const [metricKey, metricInfo] of Object.entries(metricDetails)) {
+    if (metricInfo.exampleUrl) {
+      try {
+        console.log(`Analyzing reference video for ${metricKey}: ${metricInfo.exampleUrl}`);
+        
+        // Extract YouTube video ID
+        const videoId = extractYouTubeVideoId(metricInfo.exampleUrl);
+        
+        if (!videoId) {
+          console.error(`Invalid YouTube URL for ${metricKey}`);
+          continue;
+        }
+        
+        // Create payload for analysis request
+        const payload = {
+          // Similar to your existing API call but more specialized
+          contents: [{
+            parts: [
+              { 
+                text: `Analyze this specific golf instructional video focusing ONLY on ${metricKey.replace(/([A-Z])/g, ' $1').toLowerCase()}. 
+                Extract key technical points, ideal form indicators, common mistakes, and coaching cues.
+                Provide detailed analysis of what perfect technique looks like for this specific aspect.`
+              },
+              {
+                fileData: {
+                  mimeType: "video/*",
+                  fileUri: `https://youtu.be/${videoId}`,
+                }
+              }
+            ]
+          }]
+        };
+        
+        // Call the AI API
+        const response = await axios.post(
+          `${API_URL}?key=${API_KEY}`,
+          payload,
+          {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 120000
+          }
+        );
+        
+        // Process and store the analysis
+        const analysis = processReferenceVideoAnalysis(response.data, metricKey);
+        
+        // Update metricDetails with enhanced information
+        metricDetails[metricKey] = {
+          ...metricInfo,
+          referenceAnalysis: analysis,
+          lastAnalyzed: new Date().toISOString()
+        };
+        
+        // Store in Firestore for future use
+        await setDoc(doc(db, 'reference_models', metricKey), {
+          ...metricDetails[metricKey],
+          updatedAt: serverTimestamp()
+        });
+        
+        console.log(`Successfully enhanced reference data for ${metricKey}`);
+      } catch (error) {
+        console.error(`Error analyzing reference video for ${metricKey}:`, error);
+      }
+    }
+  }
+  
+  return metricDetails;
+};
+
+// ADD THESE FUNCTIONS (Implementations from Solution Part 1)
+const extractTechnicalGuidelines = (textResponse) => {
+  // Example logic (adjust to your API response format):
+  const match = textResponse.match(/Technical Guidelines:\s*([\s\S]*?)(?:\n\n|\Z)/);
+  if (match) {
+    return match[1].split(';').map(s => s.trim()).filter(s => s); // Split and trim
+  }
+  return [];
+};
+
+const extractIdealForm = (textResponse) => {
+  // Example logic (adjust to your API response format):
+  const match = textResponse.match(/Ideal Form:\s*([\s\S]*?)(?:\n\n|\Z)/);
+    if (match) {
+        return match[1].split(';').map(item => item.trim()).filter(item => item); // Split by ';', trim, and filter out empty strings.
+    }
+    return [];
+};
+
+const extractCommonMistakes = (textResponse) => {
+  // Example logic (adjust to your API response format):
+  const match = textResponse.match(/Common Mistakes:\s*([\s\S]*?)(?:\n\n|\Z)/);
+    if (match) {
+        return match[1].split(';').map(item => item.trim()).filter(item => item); // Split by ';', trim, and filter out empty strings.
+    }
+    return [];
+};
+
+const extractCoachingCues = (textResponse) => {
+  // Example logic (adjust to your API response format):
+  const match = textResponse.match(/Coaching Cues:\s*([\s\S]*?)(?:\n\n|\Z)/);
+  if (match) {
+        return match[1].split(';').map(item => item.trim()).filter(item => item); // Split by ';', trim, and filter out empty strings.
+    }
+    return [];
+};
+
+const generateScoringRubric = (textResponse, metricKey) => {
+  // Example logic (adjust to your API response format):
+    const rubric = {};
+    const regex = /(\d+\+?)\s*[:-]\s*([\s\S]*?)(?:\n\n|\Z)/g;
+    let match;
+
+    while ((match = regex.exec(textResponse)) !== null) {
+        rubric[match[1]] = match[2].trim();
+    }
+
+    return rubric;
+};
+// Process the AI's analysis of the reference video
+const processReferenceVideoAnalysis = (responseData, metricKey) => {
+  try {
+    // Extract the text from the response
+    const textResponse = responseData?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!textResponse) {
+      console.error('No text in API response');
+      return null;
+    }
+    
+    // Structure the analysis for use in future evaluations
+    return {
+      technicalGuidelines: extractTechnicalGuidelines(textResponse),
+      idealForm: extractIdealForm(textResponse),
+      commonMistakes: extractCommonMistakes(textResponse),
+      coachingCues: extractCoachingCues(textResponse),
+      scoringRubric: generateScoringRubric(textResponse, metricKey)
+    };
+  } catch (error) {
+    console.error('Error processing reference video analysis:', error);
+    return null;
+  }
+};
 
 // Enhanced metric descriptions and prompts from the Swing Recipe document
 // Update to metricDetails object in geminiService.js
