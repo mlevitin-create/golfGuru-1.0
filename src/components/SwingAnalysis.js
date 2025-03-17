@@ -707,7 +707,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     }}>
       {swingData.swingOwnership === 'pro' ? 
         `Want to analyze more pro swings like ${swingData.proGolferName || 'this one'}?` : 
-        "Want to analyze more of your friend's swings?"}
+        "Your friend can get their own detailed analysis by creating an account!"}
     </h3>
     <p style={{
       margin: '0 0 15px 0',
