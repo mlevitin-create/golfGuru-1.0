@@ -19,6 +19,7 @@ import ClubAnalytics from './components/ClubAnalytics';
 // At the top of src/App.js, add these imports:
 import AdminAccessCheck from './components/AdminAccessCheck';
 import AdminFeedbackPanel from './components/AdminFeedbackPanel';
+import AdminPage from './admin/AdminPage';
 
 // Modal component for login and other modal content
 const Modal = ({ isOpen, onClose, children, canClose = true }) => {
@@ -319,6 +320,8 @@ const AppContent = () => {
           setupClubsTab={pageParams?.setupClubs}
           pageParams={pageParams}
         />;
+      // In the renderPage function of App.js, replace the 'admin' case:
+
       case 'admin':
         if (!currentUser) {
           return (
@@ -335,8 +338,8 @@ const AppContent = () => {
           );
         }
         
-        // Use the AdminAccessCheck component to handle permission verification
-        return <AdminAccessCheck><AdminFeedbackPanel /></AdminAccessCheck>;
+        // Use the AdminPage component instead of AdminFeedbackPanel
+        return <AdminAccessCheck><AdminPage /></AdminAccessCheck>;
       default:
         return <Dashboard 
           swingHistory={swingHistory} 

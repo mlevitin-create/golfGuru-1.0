@@ -1,6 +1,6 @@
 // src/services/referenceAnalysisService.js
 import axios from 'axios';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { extractYouTubeVideoId } from '../utils/youtubeUtils';
 
@@ -16,14 +16,18 @@ const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-
  */
 export const analyzeReferenceVideo = async (metricKey, youtubeUrl) => {
   try {
+    console.log(`Starting analysis for ${metricKey} using ${youtubeUrl}`);
+    
     // Extract video ID from URL
     const videoId = extractYouTubeVideoId(youtubeUrl);
     if (!videoId) {
+      console.error('Invalid YouTube URL:', youtubeUrl);
       throw new Error('Invalid YouTube URL');
     }
     
     // Get metric information
     const metricInfo = await getMetricInfo(metricKey);
+    console.log('Retrieved metric info:', metricInfo);
     
     // Create the analysis prompt
     const analysisPrompt = `
@@ -31,6 +35,8 @@ You are a PGA Master Professional with 30 years experience in golf swing analysi
 Watch this instructional YouTube video about ${metricKey.replace(/([A-Z])/g, ' $1').toLowerCase()} in the golf swing.
 
 Your task is to conduct a comprehensive analysis of this video to create a reference model for the ${metricKey.replace(/([A-Z])/g, ' $1').toLowerCase()} aspect of the golf swing. This model will be used to evaluate and score other golfers' swings.
+
+The video is about: "${metricInfo.description || 'This aspect of the golf swing'}"
 
 Analyze the video for:
 1. Technical Guidelines: What are the precise technical elements that define proper ${metricKey.replace(/([A-Z])/g, ' $1').toLowerCase()}?
@@ -79,6 +85,8 @@ Provide comprehensive, detailed, and technically accurate information that could
       }
     };
     
+    console.log(`API request prepared for ${metricKey}`);
+    
     // Make the API request
     const response = await axios.post(
       `${API_URL}?key=${API_KEY}`,
@@ -91,6 +99,8 @@ Provide comprehensive, detailed, and technically accurate information that could
       }
     );
     
+    console.log(`Received API response for ${metricKey}`);
+    
     // Process the response
     const textResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!textResponse) {
@@ -102,22 +112,49 @@ Provide comprehensive, detailed, and technically accurate information that could
     try {
       // Try to extract JSON from the text
       const jsonMatch = textResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/) ||
-                        textResponse.match(/\{[\s\S]*?\}/);
+                        textResponse.match(/(\{[\s\S]*?\})/);
       
-      const jsonText = jsonMatch ? jsonMatch[0] : textResponse;
+      const jsonText = jsonMatch ? jsonMatch[1] || jsonMatch[0] : textResponse;
+      console.log(`Extracted JSON text for ${metricKey}: ${jsonText.substring(0, 100)}...`);
+      
       jsonResponse = JSON.parse(jsonText);
     } catch (error) {
       console.error('Error parsing JSON from response:', error);
-      console.error('Raw response:', textResponse);
-      throw new Error('Failed to parse analysis result');
+      console.error('First 200 characters of raw response:', textResponse.substring(0, 200));
+      
+      // Try another approach - search for the first { and last }
+      try {
+        const startBrace = textResponse.indexOf('{');
+        const endBrace = textResponse.lastIndexOf('}') + 1;
+        
+        if (startBrace >= 0 && endBrace > startBrace) {
+          const jsonText = textResponse.substring(startBrace, endBrace);
+          console.log(`Attempting alternative JSON extraction: ${jsonText.substring(0, 100)}...`);
+          jsonResponse = JSON.parse(jsonText);
+        } else {
+          throw new Error('No JSON object found in response');
+        }
+      } catch (innerError) {
+        console.error('Alternative JSON extraction also failed:', innerError);
+        throw new Error('Failed to parse analysis result: ' + error.message);
+      }
     }
     
-    // Validate the response structure
-    if (!jsonResponse.technicalGuidelines || !jsonResponse.idealForm || 
-        !jsonResponse.commonMistakes || !jsonResponse.coachingCues || 
-        !jsonResponse.scoringRubric) {
-      throw new Error('Invalid analysis structure');
+    // Validate the response structure and provide defaults if missing
+    if (!jsonResponse.technicalGuidelines) jsonResponse.technicalGuidelines = [];
+    if (!jsonResponse.idealForm) jsonResponse.idealForm = [];
+    if (!jsonResponse.commonMistakes) jsonResponse.commonMistakes = [];
+    if (!jsonResponse.coachingCues) jsonResponse.coachingCues = [];
+    if (!jsonResponse.scoringRubric) {
+      jsonResponse.scoringRubric = {
+        "90+": "Perfect technique",
+        "70-89": "Good technique with minor flaws",
+        "50-69": "Developing technique with clear issues",
+        "<50": "Significant flaws requiring fundamental correction"
+      };
     }
+    
+    console.log(`Successfully parsed analysis for ${metricKey}`);
     
     // Save the result to Firestore
     const referenceData = {
@@ -129,10 +166,12 @@ Provide comprehensive, detailed, and technically accurate information that could
     };
     
     await setDoc(doc(db, 'reference_models', metricKey), referenceData, { merge: true });
+    console.log(`Saved analysis to Firestore for ${metricKey}`);
     
     return referenceData;
   } catch (error) {
     console.error(`Error analyzing reference video for ${metricKey}:`, error);
+    console.error('Stack trace:', error.stack);
     throw error;
   }
 };
