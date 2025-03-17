@@ -56,6 +56,7 @@ const uploadVideo = async (userId, videoFile) => {
 const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = null) => {
   try {
     let videoUrl;
+    let temporaryVideoUrl = null;
     
     // Determine if this is a YouTube video or file upload
     const isYouTubeAnalysis = !videoFile && metadata?.youtubeVideo;
@@ -76,6 +77,10 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
         // For others' swings, don't upload to storage, just use a flag
         console.log('Not uploading video for non-user swing');
         videoUrl = 'non-user-swing';
+        
+        // Create a temporary object URL for analysis only, won't be saved to Firestore
+        // Just returned in the response
+        temporaryVideoUrl = 'temporary-url-will-be-added-client-side';
       }
     }
     
@@ -133,9 +138,11 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
     }
     
     // Return saved data with the document ID
+    // Include flag to inform client that we need a temporary URL for this swing
     return {
       ...swingData,
-      id: docRef.id
+      id: docRef.id,
+      ...(temporaryVideoUrl ? { _hasTemporaryUrl: true } : {})
     };
   } catch (error) {
     console.error('Error saving swing analysis:', error);

@@ -1925,18 +1925,25 @@ const generateMetricInsights = async (swingData, metricKey) => {
       return getDefaultInsights(metricKey);
     }
 
+    // Check for video source priority:
+    // 1. _temporaryVideoUrl - created specifically for analysis of non-user swings
+    // 2. regular videoUrl - for user's own swings or YouTube videos
+    // 3. video reference from DOM - if passed in the enhanced swing data
+    const videoUrl = swingData._temporaryVideoUrl || swingData.videoUrl;
 
-    // NEW CODE: Check if this is a YouTube video and handle differently
+    // Determine if this is a YouTube video
     const isYouTubeVideo = swingData.isYouTubeVideo || 
-                           (swingData.videoUrl && swingData.videoUrl.includes('youtube.com'));
+                           (videoUrl && videoUrl.includes('youtube.com'));
     
+    // Log the video URL being used
+    console.log(`Using video URL for analysis: ${isYouTubeVideo ? 'YouTube' : (videoUrl || 'None')}`);
 
     // Ensure the metric value is a number and within 0-100 range
     const metricValue = Number(swingData.metrics[metricKey] || 0);
     const safeMetricValue = Math.max(0, Math.min(100, metricValue));
 
-    // Check if video URL exists
-    const hasVideo = Boolean(swingData.videoUrl);
+    // Check if video URL exists and is valid
+    const hasVideo = Boolean(videoUrl) && videoUrl !== 'non-user-swing';
     console.log('Video URL available:', hasVideo);
 
     // Get the swing recipe metric key if available
@@ -1951,22 +1958,56 @@ const generateMetricInsights = async (swingData, metricKey) => {
     const exampleUrl = metricInfo?.exampleUrl || null;
 
     // Try to fetch the video as base64 if available
+    // Try to fetch the video as base64 if available
     let base64Video;
     if (hasVideo && !isYouTubeVideo) {
       try {
         // Only try to fetch video if it's not YouTube
-        const response = await fetch(swingData.videoUrl);
+        const response = await fetch(videoUrl);
         const videoBlob = await response.blob();
         base64Video = await blobToBase64(videoBlob);
         console.log('Successfully converted video to base64');
       } catch (error) {
         console.error('Error converting video to base64:', error);
         console.log('Falling back to score-based analysis without video');
+        
+        // Check if this is a non-user swing without authentication
+        const isUnauthenticatedFriendSwing = swingData._isLocalOnly && 
+                                           (swingData.swingOwnership === 'other' || 
+                                            swingData.swingOwnership === 'pro');
+        
+        // If this is an unauthenticated user viewing a friend's swing, add adoption messaging
+        if (isUnauthenticatedFriendSwing) {
+          const defaultInsights = getDefaultInsights(metricKey);
+          
+          // Add account creation prompt to default insights
+          const accountPrompt = [
+            "For AI-powered deep dive analysis of your friend's swings, please create your own account.",
+            "Sign up to unlock advanced video-based metric insights and save your progress!"
+          ];
+          
+          // Add this prompt to various sections of insights
+          return {
+            ...defaultInsights,
+            technicalBreakdown: [
+              ...accountPrompt,
+              ...defaultInsights.technicalBreakdown
+            ],
+            recommendations: [
+              ...accountPrompt,
+              ...defaultInsights.recommendations
+            ]
+          };
+        }
       }
     } else if (isYouTubeVideo) {
       console.log('YouTube video detected - using URL-based analysis instead of video content');
       // For YouTube videos, we'll rely on the prompt without video content
     }
+
+    // Rest of the function remains the same...
+    // ... 
+    // (Format prompt, send to API, process response, etc.)
 
     // Format the metric name for better readability
     const metricName = metricKey.replace(/([A-Z])/g, ' $1').toLowerCase();
@@ -2021,7 +2062,7 @@ const generateMetricInsights = async (swingData, metricKey) => {
               text: `You are a PGA Master Professional with 30 years of experience coaching elite golfers. Analyze this golf swing ${isYouTubeVideo ? 'from YouTube' : (hasVideo ? 'video' : 'data')} as a professional golf coach, focusing specifically on the ${metricName} aspect of the swing for a golfer whose skill level you should assume based on the score:
 
 Coaching Context: ${JSON.stringify(promptContent, null, 2)}
-${isYouTubeVideo ? `\nYouTube Video URL: ${swingData.videoUrl}` : ''}
+${isYouTubeVideo ? `\nYouTube Video URL: ${videoUrl}` : ''}
 
 Please provide a detailed, professional analysis following these guidelines:
 1.  Focus ONLY on the ${metricName} aspect of the swing
@@ -2039,29 +2080,30 @@ Your response should be a valid JSON object that can be directly parsed.`
       }]
   };
 
-    // Add video if available
-    if (base64Video && !isYouTubeVideo) {
-      const base64Data = base64Video.split('base64,')[1];
-      if (base64Data) {
-        payload.contents[0].parts.push({
-          inlineData: {
-            mimeType: "video/mp4",
-            data: base64Data
-          }
-        });
-      }
+  // Add video if available
+  if (base64Video && !isYouTubeVideo) {
+    const base64Data = base64Video.split('base64,')[1];
+    if (base64Data) {
+      payload.contents[0].parts.push({
+        inlineData: {
+          mimeType: "video/mp4",
+          data: base64Data
+        }
+      });
     }
+  }
 
-    // Set generation config
-    payload.generationConfig = {
-      temperature: 0.5, // Lower temperature for more consistent, focused responses
-      maxOutputTokens: 1024
-    };
+  // Set generation config
+  payload.generationConfig = {
+    temperature: 0.5, // Lower temperature for more consistent, focused responses
+    maxOutputTokens: 1024
+  };
 
-    // Add comprehensive logging
-    console.log('Sending metric analysis request for:', metricKey);
-    
-    // Make the API request
+  // Add comprehensive logging
+  console.log('Sending metric analysis request for:', metricKey);
+  
+  // Make the API request
+  try {
     const response = await axios.post(
       `${API_URL}?key=${API_KEY}`,
       payload,
@@ -2135,20 +2177,54 @@ Your response should be a valid JSON object that can be directly parsed.`
 
     // Extract and return insights
     return extractInsights(response.data);
-
   } catch (error) {
-    // Log error details
-    console.error('Error in generateMetricInsights:', {
-      message: error.message,
-      name: error.name,
-      stack: error.stack,
-      responseData: error.response?.data,
-      responseStatus: error.response?.status
-    });
-
-    // Return default insights on any error
-    return getDefaultInsights(metricKey);
+    console.error('Error in API request for metric insights:', error);
+    // In case of error, return default insights WITH swing data
+    return getDefaultInsights(metricKey, swingData);
   }
+
+} catch (error) {
+  // Log error details
+  console.error('Error in generateMetricInsights:', {
+    message: error.message,
+    name: error.name,
+    stack: error.stack,
+    responseData: error.response?.data,
+    responseStatus: error.response?.status
+  });
+
+  // Return default insights on any error
+  const defaultInsights = getDefaultInsights(metricKey);
+  
+  // Check if this is a non-user swing without authentication
+  const isUnauthenticatedFriendSwing = swingData._isLocalOnly && 
+                                     (swingData.swingOwnership === 'other' || 
+                                      swingData.swingOwnership === 'pro');
+  
+  // If this is an unauthenticated user viewing a friend's swing, add adoption messaging
+  if (isUnauthenticatedFriendSwing) {
+    // Add account creation prompt to default insights
+    const accountPrompt = [
+      "For AI-powered deep dive analysis of your friend's swings, please create your own account.",
+      "Sign up to unlock advanced video-based metric insights and save your progress!"
+    ];
+    
+    // Add this prompt to various sections of insights
+    return {
+      ...defaultInsights,
+      technicalBreakdown: [
+        ...accountPrompt,
+        ...defaultInsights.technicalBreakdown
+      ],
+      recommendations: [
+        ...accountPrompt,
+        ...defaultInsights.recommendations
+      ]
+    };
+  }
+  
+  return getDefaultInsights(metricKey, swingData);
+}
 };
 
 // Helper function to convert Blob to base64
@@ -2182,15 +2258,26 @@ const getGenericMetricDescription = (metricKey) => {
 
 /**
  * Provide improved default insights for a metric by leveraging the Swing Recipe details
+ * Modified to add account promotion for non-user swings
  * @param {string} metricKey - The metric key
+ * @param {Object} swingData - Optional swing data to check ownership
  * @returns {Object} Default insights object with metric-specific content
  */
-const getDefaultInsights = (metricKey) => {
+const getDefaultInsights = (metricKey, swingData = null) => {
   // Get the swing recipe metric key if available
   const swingRecipeKey = metricKeyMapping[metricKey] || metricKey;
 
   // Get detailed information about this metric from our swing recipe
   const metricInfo = metricDetails[swingRecipeKey];
+
+  // Check if this is a non-user swing
+  const isNonUserSwing = swingData && swingData.swingOwnership !== 'self';
+  
+  // Create account promotion message
+  const accountPrompt = [
+    "For full AI-powered analysis of this swing, please create your own account.",
+    "Sign up to unlock advanced video-based metric insights and save your progress!"
+  ];
 
   // Base default structure
   const baseDefaults = {
@@ -2203,7 +2290,7 @@ const getDefaultInsights = (metricKey) => {
 
   // If we have specific information from the Swing Recipe, use it
   if (metricInfo) {
-      return {
+      const insights = {
           goodAspects: [
               `Good ${metricKey.replace(/([A-Z])/g, ' $1').toLowerCase()} is crucial for a consistent swing.`,
               `This is a ${metricInfo.category} element with a difficulty rating of ${metricInfo.difficulty}/10.`
@@ -2226,6 +2313,14 @@ const getDefaultInsights = (metricKey) => {
               `Focus on building muscle memory through repetitive practice.`
           ]
       };
+      
+      // Add account promotion for non-user swings
+      if (isNonUserSwing) {
+          insights.technicalBreakdown = [...accountPrompt, ...insights.technicalBreakdown];
+          insights.recommendations = [...accountPrompt, ...insights.recommendations];
+      }
+      
+      return insights;
   }
 
   // Metric-specific defaults for common metrics not in the Swing Recipe
@@ -2510,14 +2605,22 @@ const getDefaultInsights = (metricKey) => {
 
   // If we have defaults for this metric, use them, otherwise use generic
   if (metricDefaults[metricKey]) {
-      return {
+      const defaults = {
           ...baseDefaults,
           ...metricDefaults[metricKey]
       };
+      
+      // Add account promotion for non-user swings
+      if (isNonUserSwing) {
+          defaults.technicalBreakdown = [...accountPrompt, ...defaults.technicalBreakdown];
+          defaults.recommendations = [...accountPrompt, ...defaults.recommendations];
+      }
+      
+      return defaults;
   }
 
   // Generic defaults if metric not found anywhere
-  return {
+  const genericDefaults = {
       goodAspects: [
           "Work with a golf professional for personalized analysis.",
           "Record your swing regularly to track progress."
@@ -2542,6 +2645,14 @@ const getDefaultInsights = (metricKey) => {
           "The correct motion will feel effortless, not forced."
       ]
   };
+  
+  // Add account promotion for non-user swings
+  if (isNonUserSwing) {
+      genericDefaults.technicalBreakdown = [...accountPrompt, ...genericDefaults.technicalBreakdown];
+      genericDefaults.recommendations = [...accountPrompt, ...genericDefaults.recommendations];
+  }
+  
+  return genericDefaults;
 };
 
 // Export the main function

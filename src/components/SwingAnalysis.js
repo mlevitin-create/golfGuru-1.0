@@ -71,12 +71,24 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     }));
   
     try {
+      // Create a copy of the swing data with proper video URL for analysis
+      const swingDataForAnalysis = {
+        ...enhancedSwingData
+      };
+  
+      // Use temporary URL for analysis if available
+      if (swingDataForAnalysis._temporaryVideoUrl) {
+        swingDataForAnalysis.videoUrl = swingDataForAnalysis._temporaryVideoUrl;
+      } else if (swingDataForAnalysis._hasTemporaryUrl && videoRef.current) {
+        // Fall back to video element's src if needed
+        swingDataForAnalysis.videoUrl = videoRef.current.src;
+      }
+  
       // Log that we're passing video for enhanced analysis
       console.log(`Fetching insights for ${metricKey} with video analysis`);
       
       // Generate insights using the enhanced Gemini service
-      // This now passes the swing data WITH video
-      const insights = await metricInsightsGenerator.generateMetricInsights(enhancedSwingData, metricKey);
+      const insights = await metricInsightsGenerator.generateMetricInsights(swingDataForAnalysis, metricKey);
   
       // Update insights state
       setMetricInsights(prev => ({
@@ -85,10 +97,10 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
       }));
     } catch (error) {
       console.error(`Error fetching insights for ${metricKey}:`, error);
-      // Fallback to default insights
+      // Fallback to default insights - PASS THE SWING DATA to allow for account promotion
       setMetricInsights(prev => ({
         ...prev,
-        [metricKey]: metricInsightsGenerator.getDefaultInsights(metricKey)
+        [metricKey]: metricInsightsGenerator.getDefaultInsights(metricKey, enhancedSwingData)
       }));
     } finally {
       // Clear loading state
@@ -515,10 +527,26 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
         </div>
       );
     } 
-    // Handle non-user swings where video was skipped
+    // Handle non-user swings where video was skipped FOR DISPLAY PURPOSES
+    // but we still maintain the actual video data in state for analysis
     else if (swingData.isVideoSkipped || swingData.videoUrl === 'non-user-swing') {
+      // If we have a temporary URL for analysis, create a hidden video element
+      // This allows us to use the video data for analysis while showing a placeholder in the UI
+      const hasTempUrl = swingData._temporaryVideoUrl || (swingData.videoUrl && swingData.videoUrl !== 'non-user-swing');
+      
       return (
         <div className="video-container">
+          {/* Hidden video element for analysis purposes */}
+          {hasTempUrl && (
+            <video
+              ref={videoRef}
+              src={swingData._temporaryVideoUrl || swingData.videoUrl}
+              style={{ display: 'none' }}
+              preload="metadata"
+            />
+          )}
+          
+          {/* Visible placeholder UI */}
           <div style={{
             width: '100%',
             maxWidth: '600px',
@@ -555,6 +583,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
             </p>
             <p style={{ marginTop: '5px', fontSize: '0.9rem', color: '#666' }}>
               This swing was analyzed but the video wasn't stored since it's not your own swing.
+              {hasTempUrl ? " Video data is still available for detailed metric analysis." : ""}
             </p>
           </div>
         </div>
@@ -575,6 +604,28 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
       );
     }
   };
+  
+  // Add a cleanup function to release temporary Object URLs when the component unmounts
+  // Add this to the SwingAnalysis component as a useEffect
+  
+  useEffect(() => {
+    // Cleanup function to release temporary URLs
+    return () => {
+      if (swingData && (swingData._temporaryVideoUrl || swingData._hasTemporaryUrl)) {
+        // Revoke the object URL to free up memory
+        if (swingData._temporaryVideoUrl) {
+          URL.revokeObjectURL(swingData._temporaryVideoUrl);
+          console.log('Temporary video URL revoked');
+        }
+        
+        // If there's a videoUrl that's an object URL, revoke it too
+        if (swingData.videoUrl && swingData.videoUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(swingData.videoUrl);
+          console.log('Object URL revoked');
+        }
+      }
+    };
+  }, [swingData]);
 
   if (!swingData) {
     return (
@@ -635,6 +686,72 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
             </div>
           )}
         </div>
+
+        {/* Add prominent account promotion for non-user swings at the top of the page */}
+{swingData.swingOwnership !== 'self' && (
+  <div style={{
+    backgroundColor: '#ebf7fd',
+    border: '2px solid #3498db',
+    borderRadius: '10px',
+    padding: '20px',
+    marginBottom: '25px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    textAlign: 'center'
+  }}>
+    <h3 style={{
+      margin: '0 0 12px 0',
+      color: '#2c3e50',
+      fontSize: '1.3rem'
+    }}>
+      {swingData.swingOwnership === 'pro' ? 
+        `Want to analyze more pro swings like ${swingData.proGolferName || 'this one'}?` : 
+        "Want to analyze more of your friend's swings?"}
+    </h3>
+    <p style={{
+      margin: '0 0 15px 0',
+      fontSize: '1rem',
+      maxWidth: '500px'
+    }}>
+      Create your own account to unlock <strong>unlimited AI-powered swing analysis</strong> with detailed metric breakdowns and personalized recommendations!
+    </p>
+    <div style={{ display: 'flex', gap: '15px' }}>
+      <button
+        onClick={() => window.dispatchEvent(new Event('openLoginModal'))}
+        style={{
+          backgroundColor: '#3498db',
+          color: 'white',
+          border: 'none',
+          borderRadius: '6px',
+          padding: '10px 20px',
+          fontWeight: 'bold',
+          fontSize: '1rem',
+          cursor: 'pointer',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}
+      >
+        Sign Up Now
+      </button>
+      <button
+        onClick={() => navigateTo('upload')}
+        style={{
+          backgroundColor: '#2ecc71',
+          color: 'white',
+          border: 'none',
+          borderRadius: '6px',
+          padding: '10px 20px',
+          fontWeight: 'bold',
+          fontSize: '1rem',
+          cursor: 'pointer',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}
+      >
+        Upload Your Swing
+      </button>
+    </div>
+  </div>
+)}
 
         {/* Render video based on source type */}
         {renderVideo()}

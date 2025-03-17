@@ -225,6 +225,8 @@ const AppContent = () => {
   }, [currentUser, currentPage]);
 
   // Function to analyze swing with optional club data
+  // In App.js, modify handleVideoUpload to create temporary objectURLs for all videos
+
   const handleVideoUpload = async (videoFile, metadata) => {
     setIsAnalyzing(true);
     setError(null);
@@ -233,7 +235,7 @@ const AppContent = () => {
     try {
       // Get analysis from Gemini (or mock data)
       const analysisResult = await geminiService.analyzeGolfSwing(videoFile, metadata);
-  
+
       // Save to Firestore if user is logged in
       if (currentUser) {
         // For non-user swings, inform user about storage optimization
@@ -248,14 +250,22 @@ const AppContent = () => {
           // Set info message if needed
           setError(infoMessage);
         }
-  
+
         const savedSwing = await firestoreService.saveSwingAnalysis(
           analysisResult,
           currentUser.uid,
           videoFile, // This will be null for YouTube videos
           metadata // Pass the entire metadata object, including club data (if any) AND youtubeVideo data
         );
-  
+
+        // Create a temporary videoUrl for analysis even for non-user swings
+        // This will be used for in-memory analysis but won't be saved to Storage
+        if (videoFile && !savedSwing.isYouTubeVideo && metadata.swingOwnership !== 'self') {
+          savedSwing._temporaryVideoUrl = URL.createObjectURL(videoFile);
+          // Add flag to track temporary URLs so we can revoke them later
+          savedSwing._hasTemporaryUrl = true;
+        }
+
         // Update state with the saved data (includes Firestore ID)
         setSwingData(savedSwing);
         
@@ -269,11 +279,6 @@ const AppContent = () => {
           setUserStats(stats);
         } else {
           console.log(`Swing for ${metadata.swingOwnership} not added to user's history/tracker`);
-          
-          // For non-YouTube, non-user swings, mark as video skipped
-          if (!metadata.youtubeVideo && videoFile) {
-            savedSwing.isVideoSkipped = true;
-          }
         }
       } else {
         // Just use the local data if not logged in
@@ -282,19 +287,26 @@ const AppContent = () => {
         const localResult = {
           ...analysisResult,
           _isLocalOnly: true,
-          // For non-user swings that aren't from YouTube, don't create object URL to save memory
-          ...(videoFile && !isNonUserSwing ? { videoUrl: URL.createObjectURL(videoFile) } : {}),
-          ...(metadata.youtubeVideo ? { videoUrl: metadata.youtubeVideo.embedUrl, youtubeVideoId: metadata.youtubeVideo.videoId, isYouTubeVideo: true } : {}),
+          // MODIFIED: Always create object URL for all video files for analysis purposes
+          // But mark non-user swings so we know to display placeholders in the UI
+          ...(videoFile ? { 
+            videoUrl: URL.createObjectURL(videoFile),
+            // Flag to determine display behavior in the UI
+            isVideoSkipped: isNonUserSwing
+          } : {}),
+          ...(metadata.youtubeVideo ? { 
+            videoUrl: metadata.youtubeVideo.embedUrl, 
+            youtubeVideoId: metadata.youtubeVideo.videoId, 
+            isYouTubeVideo: true 
+          } : {}),
           recordedDate: metadata.recordedDate,  // Include recorded date
           ...(metadata.clubId && { clubId: metadata.clubId }), //spread clubdata if it exists
           ...(metadata.clubName && { clubName: metadata.clubName }),
           ...(metadata.clubType && { clubType: metadata.clubType }),
           ...(metadata.outcome && { outcome: metadata.outcome }),
-          swingOwnership: metadata.swingOwnership, // Make sure ownership is included
-          // Flag non-user, non-YouTube swings
-          isVideoSkipped: isNonUserSwing && !metadata.youtubeVideo
+          swingOwnership: metadata.swingOwnership // Make sure ownership is included
         };
-  
+
         setSwingData(localResult);
         
         // Only add to swing history if it's the user's own swing
@@ -313,11 +325,11 @@ const AppContent = () => {
             });
           }
         }
-  
+
         // Prompt user to login to save their data
         setIsLoginModalOpen(true);
       }
-  
+
       navigateTo('analysis');
     } catch (error) {
       console.error("Error analyzing swing:", error);
