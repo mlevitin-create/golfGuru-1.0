@@ -128,16 +128,18 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
 };
 
 /**
- * Get a user's swings from Firestore
+ * Get a user's swings from Firestore (only their own swings)
  * @param {string} userId - The user ID
  * @returns {Promise<Array>} The user's swings
  */
 const getUserSwings = async (userId) => {
   try {
     // Query swings collection, ordered by recorded date (not analysis date)
+    // Add a filter for swingOwnership to only get 'self' swings
     const q = query(
       collection(db, 'swings'), 
       where('userId', '==', userId),
+      where('swingOwnership', '==', 'self'), // Only get swings where the user is the golfer
       orderBy('recordedDate', 'desc')
     );
     
@@ -307,7 +309,7 @@ const calculateConsecutiveDays = (swings) => {
  */
 const updateUserStats = async (userId) => {
   try {
-    // Get all user swings
+    // Get all user's own swings
     const swings = await getUserSwings(userId);
     
     if (!swings || swings.length === 0) {
@@ -315,6 +317,7 @@ const updateUserStats = async (userId) => {
       return;
     }
     
+    // Continue with the existing stats calculation with only the user's own swings
     // Sort swings by recorded date
     const sortedSwings = [...swings].sort((a, b) => {
       const dateA = a.recordedDate instanceof Date ? a.recordedDate : new Date(a.recordedDate);

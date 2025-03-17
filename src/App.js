@@ -225,59 +225,74 @@ const AppContent = () => {
   }, [currentUser, currentPage]);
 
   // Function to analyze swing with optional club data
-    const handleVideoUpload = async (videoFile, metadata) => {
-        setIsAnalyzing(true);
-        setError(null);
-        console.log("videoFile:", videoFile, "metadata:", metadata);
-        try {
-            // Get analysis from Gemini (or mock data)
-             const analysisResult = await geminiService.analyzeGolfSwing(videoFile, metadata);
-
-            // Save to Firestore if user is logged in
-              if (currentUser) {
-                const savedSwing = await firestoreService.saveSwingAnalysis(
-                  analysisResult,
-                  currentUser.uid,
-                  videoFile, // This will be null for YouTube videos
-                  metadata // Pass the entire metadata object, including club data (if any) AND youtubeVideo data
-                );
-
-                // Update state with the saved data (includes Firestore ID)
-                setSwingData(savedSwing);
-                setSwingHistory(prev => [savedSwing, ...prev]);
-
-                // Refresh user stats
-                const stats = await firestoreService.getUserStats(currentUser.uid);
-                setUserStats(stats);
-              } else {
-                // Just use the local data if not logged in
-                const localResult = {
-                  ...analysisResult,
-                      _isLocalOnly: true,
-                      ...(videoFile ? { videoUrl: URL.createObjectURL(videoFile) } : {}), // Only createObjectURL if it's a file
-                      ...(metadata.youtubeVideo ? { videoUrl: metadata.youtubeVideo.embedUrl, youtubeVideoId: metadata.youtubeVideo.videoId, isYouTubeVideo: true } : {}),
-                      recordedDate: metadata.recordedDate,  // Include recorded date
-                      ...(metadata.clubId && { clubId: metadata.clubId }), //spread clubdata if it exists
-                      ...(metadata.clubName && { clubName: metadata.clubName }),
-                      ...(metadata.clubType && { clubType: metadata.clubType }),
-                      ...(metadata.outcome && { outcome: metadata.outcome }),
-                };
-
-                setSwingData(localResult);
-                setSwingHistory(prev => [localResult, ...prev]);
-
-                // Prompt user to login to save their data
-                setIsLoginModalOpen(true);
-              }
-
-              navigateTo('analysis');
-            } catch (error) {
-              console.error("Error analyzing swing:", error);
-              setError(error.message || "Failed to analyze swing. Please try again.");
-            } finally {
-              setIsAnalyzing(false);
-            }
-          };
+  const handleVideoUpload = async (videoFile, metadata) => {
+    setIsAnalyzing(true);
+    setError(null);
+    console.log("videoFile:", videoFile, "metadata:", metadata);
+    
+    try {
+      // Get analysis from Gemini (or mock data)
+      const analysisResult = await geminiService.analyzeGolfSwing(videoFile, metadata);
+  
+      // Save to Firestore if user is logged in
+      if (currentUser) {
+        const savedSwing = await firestoreService.saveSwingAnalysis(
+          analysisResult,
+          currentUser.uid,
+          videoFile, // This will be null for YouTube videos
+          metadata // Pass the entire metadata object, including club data (if any) AND youtubeVideo data
+        );
+  
+        // Update state with the saved data (includes Firestore ID)
+        setSwingData(savedSwing);
+        
+        // Only add to swing history if it's the user's own swing
+        // Check the ownership information from metadata
+        if (metadata.swingOwnership === 'self') {
+          setSwingHistory(prev => [savedSwing, ...prev]);
+          
+          // Refresh user stats
+          const stats = await firestoreService.getUserStats(currentUser.uid);
+          setUserStats(stats);
+        } else {
+          console.log(`Swing for ${metadata.swingOwnership} not added to user's history/tracker`);
+        }
+      } else {
+        // Just use the local data if not logged in
+        const localResult = {
+          ...analysisResult,
+          _isLocalOnly: true,
+          ...(videoFile ? { videoUrl: URL.createObjectURL(videoFile) } : {}), // Only createObjectURL if it's a file
+          ...(metadata.youtubeVideo ? { videoUrl: metadata.youtubeVideo.embedUrl, youtubeVideoId: metadata.youtubeVideo.videoId, isYouTubeVideo: true } : {}),
+          recordedDate: metadata.recordedDate,  // Include recorded date
+          ...(metadata.clubId && { clubId: metadata.clubId }), //spread clubdata if it exists
+          ...(metadata.clubName && { clubName: metadata.clubName }),
+          ...(metadata.clubType && { clubType: metadata.clubType }),
+          ...(metadata.outcome && { outcome: metadata.outcome }),
+          swingOwnership: metadata.swingOwnership // Make sure ownership is included
+        };
+  
+        setSwingData(localResult);
+        
+        // Only add to swing history if it's the user's own swing
+        if (metadata.swingOwnership === 'self') {
+          setSwingHistory(prev => [localResult, ...prev]);
+        } else {
+          console.log(`Swing for ${metadata.swingOwnership} not added to user's history/tracker`);
+        }
+  
+        // Prompt user to login to save their data
+        setIsLoginModalOpen(true);
+      }
+  
+      navigateTo('analysis');
+    } catch (error) {
+      console.error("Error analyzing swing:", error);
+      setError(error.message || "Failed to analyze swing. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   // Render appropriate component based on current page
   const renderPage = () => {

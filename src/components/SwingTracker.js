@@ -13,8 +13,19 @@ const SwingTracker = ({ swingHistory, setSwingHistory, navigateTo }) => {
 
   useEffect(() => {
     if (swingHistory) {
-      const clubs = new Set(swingHistory.map(swing => swing.clubName).filter(Boolean));
+      // Filter to only include swings that are the user's own
+      const userOwnSwings = swingHistory.filter(swing => swing.swingOwnership === 'self' || !swing.swingOwnership);
+      
+      // Set available clubs from filtered swings
+      const clubs = new Set(userOwnSwings.map(swing => swing.clubName).filter(Boolean));
       setAvailableClubs(['all', ...clubs]);
+      
+      // Update local state if needed
+      if (userOwnSwings.length !== swingHistory.length) {
+        console.log(`Filtered out ${swingHistory.length - userOwnSwings.length} swings that weren't the user's own`);
+        // If you need to update the complete swing history, uncomment the next line
+        // setSwingHistory(userOwnSwings);
+      }
     }
   }, [swingHistory]);
 
@@ -711,33 +722,37 @@ const SwingTracker = ({ swingHistory, setSwingHistory, navigateTo }) => {
 
       {/* Swing History List */}
       <div className="history-list" style={{ marginTop: '20px' }}>
-        <h3>Swing History ({filteredHistory.length} swings)</h3>
-        <div style={{
-          maxHeight: '350px',
-          overflowY: 'auto',
-          border: '1px solid #ddd',
-          borderRadius: '10px',
-          marginTop: '10px'
-        }}>
-          {[...filteredHistory].reverse().map((swing, index) => (
-            <div
-              key={swing.id || index}
-              className="swing-history-item"
-              onClick={() => navigateTo('analysis', swing)}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '12px 15px',
-                borderBottom: index < filteredHistory.length - 1 ? '1px solid #ecf0f1' : 'none',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
-                backgroundColor: '#fff',
-                borderRadius: index === 0 ? '10px 10px 0 0' : index === filteredHistory.length - 1 ? '0 0 10px 10px' : '0'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#fff'}
-            >
+  <h3>Swing History ({filteredHistory.length} swings)</h3>
+  <div style={{
+    maxHeight: '350px',
+    overflowY: 'auto',
+    border: '1px solid #ddd',
+    borderRadius: '10px',
+    marginTop: '10px'
+  }}>
+    {[...filteredHistory]
+      // Filter to only include the user's own swings
+      .filter(swing => swing.swingOwnership === 'self' || !swing.swingOwnership)
+      .reverse()
+      .map((swing, index, filteredArray) => (
+        <div
+          key={swing.id || index}
+          className="swing-history-item"
+          onClick={() => navigateTo('analysis', swing)}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '12px 15px',
+            borderBottom: index < filteredArray.length - 1 ? '1px solid #ecf0f1' : 'none',
+            cursor: 'pointer',
+            transition: 'background-color 0.2s',
+            backgroundColor: '#fff',
+            borderRadius: index === 0 ? '10px 10px 0 0' : index === filteredArray.length - 1 ? '0 0 10px 10px' : '0'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#fff'}
+        >
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {/* Split date display to show year on separate line */}
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
