@@ -829,40 +829,11 @@ const analyzeGolfSwing = async (videoFile, metadata = null) => {
           console.error('Error loading reference models:', error);
           // Continue even if reference models couldn't be loaded
         }
-
-        // Build enhanced prompt using reference models if available
-        let enhancedPromptText = promptText;
-        
-        // Add reference model information to the prompt if available
-        if (Object.keys(referenceModels).length > 0) {
-          let referenceSection = "\n\n* Use these professional reference guidelines for scoring specific metrics:";
-          
-          Object.entries(referenceModels).forEach(([metricKey, modelData]) => {
-            if (modelData.referenceAnalysis) {
-              const analysis = modelData.referenceAnalysis;
-              
-              referenceSection += `\n\n* ${metricKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} (0-100):`;
-              referenceSection += `\n  * Technical Guidelines: ${analysis.technicalGuidelines.slice(0, 3).join('; ')}`;
-              referenceSection += `\n  * Ideal Form: ${analysis.idealForm.slice(0, 2).join('; ')}`;
-              referenceSection += `\n  * Common Mistakes: ${analysis.commonMistakes.slice(0, 2).join('; ')}`;
-              
-              if (analysis.scoringRubric) {
-                referenceSection += `\n  * Scoring Criteria:`;
-                referenceSection += `\n    * 90+: ${analysis.scoringRubric['90+']}`;
-                referenceSection += `\n    * 70-89: ${analysis.scoringRubric['70-89']}`;
-                referenceSection += `\n    * 50-69: ${analysis.scoringRubric['50-69']}`;
-                referenceSection += `\n    * <50: ${analysis.scoringRubric['<50']}`;
-              }
-            }
-          });
-          
-          enhancedPromptText += referenceSection;
-        }
-
         let clubInfo = "";
         if (metadata?.clubName) {
             clubInfo = `\n\nThis swing was performed with a ${metadata.clubName}. Take this into account in your analysis.`;
         }
+        
 
         const promptText = 
 `* You are a PGA Master Professional with 30 years of experience coaching elite golfers, specializing in biomechanics and swing analysis.
@@ -989,6 +960,34 @@ Format your response ONLY as a valid JSON object with this exact structure:
   ]
 }`;
 
+        // Build enhanced prompt using reference models if available
+        let enhancedPromptText = promptText;
+        
+        if (Object.keys(referenceModels).length > 0) {
+          let referenceSection = "\n\n* Use these professional reference guidelines for scoring specific metrics:";
+          
+          Object.entries(referenceModels).forEach(([metricKey, modelData]) => {
+            if (modelData.referenceAnalysis) {
+              const analysis = modelData.referenceAnalysis;
+              
+              referenceSection += `\n\n* ${metricKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} (0-100):`;
+              referenceSection += `\n  * Technical Guidelines: ${analysis.technicalGuidelines.slice(0, 3).join('; ')}`;
+              referenceSection += `\n  * Ideal Form: ${analysis.idealForm.slice(0, 2).join('; ')}`;
+              referenceSection += `\n  * Common Mistakes: ${analysis.commonMistakes.slice(0, 2).join('; ')}`;
+              
+              if (analysis.scoringRubric) {
+                referenceSection += `\n  * Scoring Criteria:`;
+                referenceSection += `\n    * 90+: ${analysis.scoringRubric['90+']}`;
+                referenceSection += `\n    * 70-89: ${analysis.scoringRubric['70-89']}`;
+                referenceSection += `\n    * 50-69: ${analysis.scoringRubric['50-69']}`;
+                referenceSection += `\n    * <50: ${analysis.scoringRubric['<50']}`;
+              }
+            }
+          });
+          
+          enhancedPromptText += referenceSection;
+        }
+
         let payload;
 
         if (isYouTubeAnalysis) {
@@ -1051,7 +1050,7 @@ Format your response ONLY as a valid JSON object with this exact structure:
                 contents: [
                     {
                         parts: [
-                            { text: promptText },
+                            { text: enhancedPromptText },
                             {
                                 inlineData: {
                                     mimeType: videoFile.type,
