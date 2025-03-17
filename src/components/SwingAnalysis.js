@@ -482,6 +482,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
 
   // Render video based on type (YouTube or regular file)
   const renderVideo = () => {
+    // Handle YouTube videos
     if (swingData.isYouTubeVideo) {
       return (
         <div className="video-container">
@@ -513,7 +514,54 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
           </div>
         </div>
       );
-    } else {
+    } 
+    // Handle non-user swings where video was skipped
+    else if (swingData.isVideoSkipped || swingData.videoUrl === 'non-user-swing') {
+      return (
+        <div className="video-container">
+          <div style={{
+            width: '100%',
+            maxWidth: '600px',
+            height: '300px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '8px',
+            margin: '0 auto',
+            padding: '20px',
+            textAlign: 'center'
+          }}>
+            <svg 
+              width="64" 
+              height="64" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="#3498db" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+            <p style={{ marginTop: '15px', fontSize: '1.1rem' }}>
+              {swingData.swingOwnership === 'pro' 
+                ? `Analysis for ${swingData.proGolferName || 'professional golfer'}'s swing` 
+                : swingData.swingOwnership === 'other' 
+                  ? "Analysis for friend's swing" 
+                  : "Video not saved to optimize storage"}
+            </p>
+            <p style={{ marginTop: '5px', fontSize: '0.9rem', color: '#666' }}>
+              This swing was analyzed but the video wasn't stored since it's not your own swing.
+            </p>
+          </div>
+        </div>
+      );
+    } 
+    // Handle regular uploaded videos
+    else {
       return (
         <div className="video-container">
           <video

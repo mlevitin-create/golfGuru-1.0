@@ -236,6 +236,19 @@ const AppContent = () => {
   
       // Save to Firestore if user is logged in
       if (currentUser) {
+        // For non-user swings, inform user about storage optimization
+        let infoMessage = null;
+        if (metadata.swingOwnership !== 'self' && videoFile) {
+          infoMessage = {
+            type: 'info',
+            message: metadata.swingOwnership === 'pro' 
+              ? `Analysis for ${metadata.proGolferName || 'a professional golfer'}'s swing. Video not stored to optimize storage.` 
+              : "Analysis for a friend's swing. Video not stored to optimize storage."
+          };
+          // Set info message if needed
+          setError(infoMessage);
+        }
+  
         const savedSwing = await firestoreService.saveSwingAnalysis(
           analysisResult,
           currentUser.uid,
@@ -256,20 +269,30 @@ const AppContent = () => {
           setUserStats(stats);
         } else {
           console.log(`Swing for ${metadata.swingOwnership} not added to user's history/tracker`);
+          
+          // For non-YouTube, non-user swings, mark as video skipped
+          if (!metadata.youtubeVideo && videoFile) {
+            savedSwing.isVideoSkipped = true;
+          }
         }
       } else {
         // Just use the local data if not logged in
+        const isNonUserSwing = metadata.swingOwnership !== 'self';
+        
         const localResult = {
           ...analysisResult,
           _isLocalOnly: true,
-          ...(videoFile ? { videoUrl: URL.createObjectURL(videoFile) } : {}), // Only createObjectURL if it's a file
+          // For non-user swings that aren't from YouTube, don't create object URL to save memory
+          ...(videoFile && !isNonUserSwing ? { videoUrl: URL.createObjectURL(videoFile) } : {}),
           ...(metadata.youtubeVideo ? { videoUrl: metadata.youtubeVideo.embedUrl, youtubeVideoId: metadata.youtubeVideo.videoId, isYouTubeVideo: true } : {}),
           recordedDate: metadata.recordedDate,  // Include recorded date
           ...(metadata.clubId && { clubId: metadata.clubId }), //spread clubdata if it exists
           ...(metadata.clubName && { clubName: metadata.clubName }),
           ...(metadata.clubType && { clubType: metadata.clubType }),
           ...(metadata.outcome && { outcome: metadata.outcome }),
-          swingOwnership: metadata.swingOwnership // Make sure ownership is included
+          swingOwnership: metadata.swingOwnership, // Make sure ownership is included
+          // Flag non-user, non-YouTube swings
+          isVideoSkipped: isNonUserSwing && !metadata.youtubeVideo
         };
   
         setSwingData(localResult);
@@ -279,6 +302,16 @@ const AppContent = () => {
           setSwingHistory(prev => [localResult, ...prev]);
         } else {
           console.log(`Swing for ${metadata.swingOwnership} not added to user's history/tracker`);
+          
+          // Display info message for non-user swings
+          if (videoFile) {
+            setError({
+              type: 'info',
+              message: metadata.swingOwnership === 'pro' 
+                ? `Analysis for ${metadata.proGolferName || 'a professional golfer'}'s swing.` 
+                : "Analysis for a friend's swing."
+            });
+          }
         }
   
         // Prompt user to login to save their data

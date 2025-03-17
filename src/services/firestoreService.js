@@ -60,14 +60,23 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
     // Determine if this is a YouTube video or file upload
     const isYouTubeAnalysis = !videoFile && metadata?.youtubeVideo;
     
+    // Check if this is the user's own swing
+    const isUserOwnSwing = metadata?.swingOwnership === 'self';
+    
     if (isYouTubeAnalysis) {
       // For YouTube videos, use the embed URL directly
       videoUrl = metadata.youtubeVideo.embedUrl;
       console.log('Using YouTube video URL:', videoUrl);
-    } else {
-      // For regular file uploads, upload to storage
-      console.log('Uploading video file to storage');
-      videoUrl = await uploadVideo(userId, videoFile);
+    } else if (videoFile) {
+      // For regular file uploads, only upload to storage if it's the user's own swing
+      if (isUserOwnSwing) {
+        console.log('Uploading user\'s own video file to storage');
+        videoUrl = await uploadVideo(userId, videoFile);
+      } else {
+        // For others' swings, don't upload to storage, just use a flag
+        console.log('Not uploading video for non-user swing');
+        videoUrl = 'non-user-swing';
+      }
     }
     
     // Prepare data for Firestore with recorded date
@@ -107,14 +116,21 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
       swingData.youtubeVideoId = metadata.youtubeVideo.videoId;
     }
     
+    // Flag for non-user swings without a video URL
+    if (!isUserOwnSwing && !isYouTubeAnalysis) {
+      swingData.isVideoSkipped = true;
+    }
+    
     // Remove client-specific properties
     delete swingData._isMockData;
     
     // Add to Firestore
     const docRef = await addDoc(collection(db, 'swings'), swingData);
     
-    // Update user stats after adding new swing
-    await updateUserStats(userId);
+    // Only update user stats if this is the user's own swing
+    if (isUserOwnSwing) {
+      await updateUserStats(userId);
+    }
     
     // Return saved data with the document ID
     return {
@@ -396,7 +412,6 @@ const updateUserStats = async (userId) => {
     // Don't throw the error to avoid disrupting the main flow
   }
 };
-
 /**
  * Get user statistics
  * @param {String} userId - The user ID
