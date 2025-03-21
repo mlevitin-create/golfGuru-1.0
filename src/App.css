@@ -463,3 +463,151 @@ img, video {
 * {
   box-sizing: border-box;
 }
+
+/* Enhanced Mobile Optimizations */
+@media (max-width: 768px) {
+  /* General mobile improvements */
+  h1 {
+    font-size: 1.8rem !important;
+  }
+  
+  h2 {
+    font-size: 1.5rem !important;
+    margin-bottom: 15px !important;
+  }
+  
+  .card {
+    padding: 15px !important;
+    margin-bottom: 15px !important;
+    border-radius: 8px !important;
+  }
+  
+  /* Dashboard specific improvements */
+  .dashboard-content {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .tabs-container {
+    width: 100% !important;
+    margin-right: 0 !important;
+    margin-bottom: 15px !important;
+    order: 2;
+  }
+  
+  .stats-display {
+    width: 100% !important;
+    order: 1;
+    margin-bottom: 20px !important;
+  }
+  
+  .stat-card {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    padding: 10px 15px !important;
+  }
+  
+  .stat-card > div:first-child {
+    font-size: 2rem !important;
+    text-align: left;
+  }
+  
+  /* Improved tab buttons for mobile */
+  .tab-button {
+    padding: 10px 15px !important;
+    margin-bottom: 8px !important;
+    border-radius: 30px !important;
+  }
+  
+  /* Video upload improvements */
+  .upload-area {
+    padding: 20px 15px !important;
+  }
+  
+  .upload-options {
+    flex-direction: column !important;
+    gap: 15px !important;
+  }
+  
+  .upload-option {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  
+  /* Swing analysis improvements */
+  .analysis-container {
+    flex-direction: column !important;
+  }
+  
+  .metrics-container {
+    width: 100% !important;
+    margin-right: 0 !important;
+    order: 2;
+  }
+  
+  .video-container {
+    width: 100% !important;
+    margin-bottom: 20px !important;
+    order: 1;
+  }
+  
+  /* Fix metric bars for better mobile view */
+  .metric-container {
+    margin-bottom: 15px !important;
+  }
+  
+  .metric-label {
+    font-size: 0.9rem !important;
+  }
+  
+  /* Better action buttons for mobile */
+  .action-buttons {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+  
+  .action-buttons .button {
+    width: 100% !important;
+  }
+  
+  /* Fix modal content on mobile */
+  .modal-content {
+    width: 95% !important;
+    max-height: 85vh !important;
+    padding: 15px !important;
+  }
+  
+  /* Fix tab navigation for profile page */
+  .profile-tabs {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    padding-bottom: 5px !important;
+    scrollbar-width: none; /* Hide scrollbar for Firefox */
+  }
+  
+  .profile-tabs::-webkit-scrollbar {
+    display: none; /* Hide scrollbar for Chrome/Safari */
+  }
+  
+  .profile-tab {
+    padding: 10px 15px !important;
+    white-space: nowrap !important;
+    font-size: 0.9rem !important;
+  }
+  
+  /* Club analytics improvements */
+  .metrics-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  
+  .metric-card {
+    padding: 8px !important;
+  }
+  
+  /* Progress chart scrollable container */
+  .chart-container {
+    overflow-x: auto !important;
+    padding-bottom: 15px !important;
+  }
+}
