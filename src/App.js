@@ -1,8 +1,10 @@
-// src/App.js
+// src/App.js - Updated to handle swing ownership properly for storage
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import VideoUpload from './components/VideoUpload';
 import SwingAnalysis from './components/SwingAnalysis';
+import VideoUploadPreview from './components/VideoUploadPreview';
+import MetricInsights from './components/MetricInsights';
 import SwingTracker from './components/SwingTracker';
 import Navigation from './components/Navigation';
 import MobileNavDropdown from './components/MobileNavDropdown';
@@ -16,10 +18,10 @@ import geminiService from './services/geminiService';
 import firestoreService from './services/firestoreService';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ClubAnalytics from './components/ClubAnalytics';
-// At the top of src/App.js, add these imports:
 import AdminAccessCheck from './components/AdminAccessCheck';
-import AdminFeedbackPanel from './components/AdminFeedbackPanel';
 import AdminPage from './admin/AdminPage';
+import HomePage from './components/HomePage';
+import UserLoginIndicator from './components/UserLoginIndicator';
 
 // Modal component for login and other modal content
 const Modal = ({ isOpen, onClose, children, canClose = true }) => {
@@ -64,7 +66,7 @@ const Modal = ({ isOpen, onClose, children, canClose = true }) => {
 // App content component (wrapped by AuthProvider)
 const AppContent = () => {
   const { currentUser } = useAuth();
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState('home'); // Default to 'home'
   const [pageParams, setPageParams] = useState(null);
   const [swingData, setSwingData] = useState(null);
   const [swingHistory, setSwingHistory] = useState([]);
@@ -76,6 +78,10 @@ const AppContent = () => {
   const [userStats, setUserStats] = useState(null);
   const [userClubs, setUserClubs] = useState([]);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  
+  // State for video preview
+  const [uploadedVideoFile, setUploadedVideoFile] = useState(null);
+  const [uploadedVideoUrl, setUploadedVideoUrl] = useState(null);
   
   // Check if the screen is mobile size
   useEffect(() => {
@@ -89,6 +95,18 @@ const AppContent = () => {
     };
   }, []);
 
+  // Listen for the openLoginModal event
+  useEffect(() => {
+    const handleOpenLoginModal = () => {
+      setIsLoginModalOpen(true);
+    };
+    
+    window.addEventListener('openLoginModal', handleOpenLoginModal);
+    return () => {
+      window.removeEventListener('openLoginModal', handleOpenLoginModal);
+    };
+  }, []);
+
   // Enhanced navigation handler with robust scroll to top functionality
   const navigateTo = (page, params = null) => {
     setCurrentPage(page);
@@ -97,6 +115,16 @@ const AppContent = () => {
     // If navigating to analysis page with specific swing data, update current swing data
     if (page === 'analysis' && params && params.swingData) {
       setSwingData(params.swingData);
+    }
+    
+    // If navigating away from upload-preview, clean up video preview
+    if (currentPage === 'upload-preview' && page !== 'upload-preview') {
+      // Clean up previous preview URL if exists
+      if (uploadedVideoUrl) {
+        URL.revokeObjectURL(uploadedVideoUrl);
+      }
+      setUploadedVideoFile(null);
+      setUploadedVideoUrl(null);
     }
     
     setError(null);
@@ -108,129 +136,29 @@ const AppContent = () => {
     });
   };
 
-  // User setup status check - defined outside useEffect to avoid recreation
-  const checkUserSetupStatus = async () => {
-    if (currentUser) {
-      try {
-        // First check localStorage flag set during login/signup
-        const needsProfileSetup = localStorage.getItem('needsProfileSetup');
-        
-        if (needsProfileSetup === 'true') {
-          console.log("User needs profile setup, showing setup modal");
-          setIsProfileSetupModalOpen(true);
-          return;
-        }
-        
-        // Double check Firestore for setup status (as a backup)
-        const userData = await firestoreService.getUserData(currentUser.uid);
-        
-        if (userData) {
-          if (userData.setupCompleted === false) {
-            // User needs to complete setup - set flag and show setup modal
-            localStorage.setItem('needsProfileSetup', 'true');
-            setIsProfileSetupModalOpen(true);
-            return;
-          }
-        } else {
-          // No user data found, they likely need to complete setup
-          localStorage.setItem('needsProfileSetup', 'true');
-          setIsProfileSetupModalOpen(true);
-          return;
-        }
-        
-        // If we got here, the user has completed setup
-        console.log("User has completed setup, proceeding to dashboard");
-        
-        // Ensure they have clubs (just in case)
-        const userClubs = await firestoreService.getUserClubs(currentUser.uid);
-        if (!userClubs || userClubs.length === 0) {
-          // Add default clubs in the background
-          try {
-            const DEFAULT_CLUBS = [
-              { id: 'driver', name: 'Driver', type: 'Wood', confidence: 5, distance: 230 },
-              { id: '3-wood', name: '3 Wood', type: 'Wood', confidence: 5, distance: 210 },
-              { id: '5-wood', name: '5 Wood', type: 'Wood', confidence: 5, distance: 195 },
-              { id: '4-iron', name: '4 Iron', type: 'Iron', confidence: 5, distance: 180 },
-              { id: '5-iron', name: '5 Iron', type: 'Iron', confidence: 5, distance: 170 },
-              { id: '6-iron', name: '6 Iron', type: 'Iron', confidence: 5, distance: 160 },
-              { id: '7-iron', name: '7 Iron', type: 'Iron', confidence: 5, distance: 150 },
-              { id: '8-iron', name: '8 Iron', type: 'Iron', confidence: 5, distance: 140 },
-              { id: '9-iron', name: '9 Iron', type: 'Iron', confidence: 5, distance: 130 },
-              { id: 'pw', name: 'Pitching Wedge', type: 'Wedge', confidence: 5, distance: 120 },
-              { id: 'sw', name: 'Sand Wedge', type: 'Wedge', confidence: 5, distance: 100 },
-              { id: 'lw', name: 'Lob Wedge', type: 'Wedge', confidence: 5, distance: 80 },
-              { id: 'putter', name: 'Putter', type: 'Putter', confidence: 5, distance: 0 }
-            ];
-            await firestoreService.saveUserClubs(currentUser.uid, DEFAULT_CLUBS);
-            console.log("Default clubs saved as a backup measure");
-          } catch (clubSaveError) {
-            console.error("Error saving default clubs:", clubSaveError);
-          }
-        }
-        
-      } catch (error) {
-        console.error('Error checking user setup status:', error);
-      }
-    } else {
-      // For non-authenticated users, check localStorage
-      const hasVisitedBefore = localStorage.getItem('hasVisitedBefore');
-      if (!hasVisitedBefore) {
-        setIsWelcomeModalOpen(true);
-        localStorage.setItem('hasVisitedBefore', 'true');
-      }
+  // NEW: Handle video file upload to show preview
+  const handleVideoFileSelect = (file) => {
+    // Clean up previous preview URL if exists
+    if (uploadedVideoUrl) {
+      URL.revokeObjectURL(uploadedVideoUrl);
     }
+    
+    // Create a new URL for the preview
+    const videoUrl = URL.createObjectURL(file);
+    
+    // Set state for the preview component
+    setUploadedVideoFile(file);
+    setUploadedVideoUrl(videoUrl);
+    
+    // Navigate to the preview screen
+    navigateTo('upload-preview');
   };
 
-  // Run the user setup check when the current user changes
-  useEffect(() => {
-    checkUserSetupStatus();
-  }, [currentUser]); // Depend only on currentUser, not navigateTo
-  
-  // Load user data when authenticated
-  useEffect(() => {
-    const loadUserData = async () => {
-      console.log('Loading user data. CurrentUser:', currentUser);
-      if (currentUser) {
-        try {
-          // Fetch user's swing history
-          const swings = await firestoreService.getUserSwings(currentUser.uid);
-          setSwingHistory(swings);
-          
-          // Set the most recent swing as the current swing data if on dashboard
-          if (swings.length > 0 && currentPage === 'dashboard') {
-            setSwingData(swings[0]);
-          }
-          
-          // Get user stats
-          const stats = await firestoreService.getUserStats(currentUser.uid);
-          setUserStats(stats);
-          
-          // Get user clubs
-          const clubs = await firestoreService.getUserClubs(currentUser.uid);
-          setUserClubs(clubs || []);
-          
-        } catch (error) {
-          console.error('Error loading user data:', error);
-          setError('Failed to load your data. Please try again later.');
-        }
-      } else {
-        // Clear user data when logged out
-        setSwingHistory([]);
-        setUserStats(null);
-        setUserClubs([]);
-      }
-    };
-    
-    loadUserData();
-  }, [currentUser, currentPage]);
-
-  // Function to analyze swing with optional club data
-  // In App.js, modify handleVideoUpload to create temporary objectURLs for all videos
-
+  // Function to analyze swing with ownership metadata
   const handleVideoUpload = async (videoFile, metadata) => {
     setIsAnalyzing(true);
     setError(null);
-    console.log("videoFile:", videoFile, "metadata:", metadata);
+    console.log("Analyzing video with metadata:", metadata);
     
     try {
       // Get analysis from Gemini (or mock data)
@@ -238,7 +166,7 @@ const AppContent = () => {
 
       // Save to Firestore if user is logged in
       if (currentUser) {
-        // For non-user swings, inform user about storage optimization
+        // Important: For non-user swings, inform user that video won't be stored
         let infoMessage = null;
         if (metadata.swingOwnership !== 'self' && videoFile) {
           infoMessage = {
@@ -247,20 +175,20 @@ const AppContent = () => {
               ? `Analysis for ${metadata.proGolferName || 'a professional golfer'}'s swing. Video not stored to optimize storage.` 
               : "Analysis for a friend's swing. Video not stored to optimize storage."
           };
-          // Set info message if needed
+          // Set info message
           setError(infoMessage);
         }
 
         const savedSwing = await firestoreService.saveSwingAnalysis(
           analysisResult,
           currentUser.uid,
-          videoFile, // This will be null for YouTube videos
-          metadata // Pass the entire metadata object, including club data (if any) AND youtubeVideo data
+          metadata.swingOwnership === 'self' ? videoFile : null, // Only save video if it's the user's own swing
+          metadata // Pass metadata including ownership info
         );
 
-        // Create a temporary videoUrl for analysis even for non-user swings
+        // For non-user swings, create a temporary videoUrl for analysis display
         // This will be used for in-memory analysis but won't be saved to Storage
-        if (videoFile && !savedSwing.isYouTubeVideo && metadata.swingOwnership !== 'self') {
+        if (videoFile && metadata.swingOwnership !== 'self') {
           savedSwing._temporaryVideoUrl = URL.createObjectURL(videoFile);
           // Add flag to track temporary URLs so we can revoke them later
           savedSwing._hasTemporaryUrl = true;
@@ -270,7 +198,6 @@ const AppContent = () => {
         setSwingData(savedSwing);
         
         // Only add to swing history if it's the user's own swing
-        // Check the ownership information from metadata
         if (metadata.swingOwnership === 'self') {
           setSwingHistory(prev => [savedSwing, ...prev]);
           
@@ -281,39 +208,40 @@ const AppContent = () => {
           console.log(`Swing for ${metadata.swingOwnership} not added to user's history/tracker`);
         }
       } else {
-        // Just use the local data if not logged in
+        // For non-authenticated users
         const isNonUserSwing = metadata.swingOwnership !== 'self';
         
         const localResult = {
           ...analysisResult,
           _isLocalOnly: true,
-          // MODIFIED: Always create object URL for all video files for analysis purposes
-          // But mark non-user swings so we know to display placeholders in the UI
-          ...(videoFile ? { 
-            videoUrl: URL.createObjectURL(videoFile),
-            // Flag to determine display behavior in the UI
-            isVideoSkipped: isNonUserSwing
-          } : {}),
+          // Create object URL for video display
+          videoUrl: videoFile ? URL.createObjectURL(videoFile) : null,
+          // For YouTube videos
           ...(metadata.youtubeVideo ? { 
             videoUrl: metadata.youtubeVideo.embedUrl, 
             youtubeVideoId: metadata.youtubeVideo.videoId, 
             isYouTubeVideo: true 
           } : {}),
-          recordedDate: metadata.recordedDate,  // Include recorded date
-          ...(metadata.clubId && { clubId: metadata.clubId }), //spread clubdata if it exists
+          // Flag non-user swings appropriately
+          isVideoSkipped: isNonUserSwing,
+          // Include all metadata
+          recordedDate: metadata.recordedDate,
+          swingOwnership: metadata.swingOwnership,
+          proGolferName: metadata.proGolferName,
+          // Club data if available
+          ...(metadata.clubId && { clubId: metadata.clubId }),
           ...(metadata.clubName && { clubName: metadata.clubName }),
           ...(metadata.clubType && { clubType: metadata.clubType }),
-          ...(metadata.outcome && { outcome: metadata.outcome }),
-          swingOwnership: metadata.swingOwnership // Make sure ownership is included
+          ...(metadata.outcome && { outcome: metadata.outcome })
         };
 
         setSwingData(localResult);
         
-        // Only add to swing history if it's the user's own swing
+        // Only add to local swing history if it's the user's own swing
         if (metadata.swingOwnership === 'self') {
           setSwingHistory(prev => [localResult, ...prev]);
         } else {
-          console.log(`Swing for ${metadata.swingOwnership} not added to user's history/tracker`);
+          console.log(`Swing for ${metadata.swingOwnership} not added to local history`);
           
           // Display info message for non-user swings
           if (videoFile) {
@@ -330,6 +258,15 @@ const AppContent = () => {
         setIsLoginModalOpen(true);
       }
 
+      // Clean up video preview if we came from there
+      if (currentPage === 'upload-preview') {
+        if (uploadedVideoUrl) {
+          URL.revokeObjectURL(uploadedVideoUrl);
+        }
+        setUploadedVideoFile(null);
+        setUploadedVideoUrl(null);
+      }
+
       navigateTo('analysis');
     } catch (error) {
       console.error("Error analyzing swing:", error);
@@ -342,6 +279,13 @@ const AppContent = () => {
   // Render appropriate component based on current page
   const renderPage = () => {
     switch (currentPage) {
+      case 'home':
+        return <HomePage 
+          navigateTo={navigateTo} 
+          swingHistory={swingHistory} 
+          userStats={userStats}
+          userClubs={userClubs}
+        />;
       case 'dashboard':
         return <Dashboard 
           swingHistory={swingHistory} 
@@ -352,8 +296,36 @@ const AppContent = () => {
       case 'upload':
         return <VideoUpload 
           onVideoUpload={handleVideoUpload}
+          onVideoSelect={handleVideoFileSelect} // Pass the new handler
           isAnalyzing={isAnalyzing}
           navigateTo={navigateTo}
+        />;
+      case 'upload-preview':
+        return <VideoUploadPreview 
+          videoFile={uploadedVideoFile}
+          videoUrl={uploadedVideoUrl}
+          onAnalyze={(metadata) => {
+            // Start analysis with the uploaded video file and ownership metadata
+            if (uploadedVideoFile) {
+              handleVideoUpload(uploadedVideoFile, {
+                // Default date if not provided
+                recordedDate: new Date(),
+                // Ownership data from the component
+                ...metadata
+              });
+            }
+          }}
+          onDelete={() => {
+            // Clean up and go back to upload
+            if (uploadedVideoUrl) {
+              URL.revokeObjectURL(uploadedVideoUrl);
+            }
+            setUploadedVideoFile(null);
+            setUploadedVideoUrl(null);
+            navigateTo('upload');
+          }}
+          navigateTo={navigateTo}
+          isProcessing={isAnalyzing}
         />;
       case 'analysis':
         return <SwingAnalysis 
@@ -380,8 +352,6 @@ const AppContent = () => {
           setupClubsTab={pageParams?.setupClubs}
           pageParams={pageParams}
         />;
-      // In the renderPage function of App.js, replace the 'admin' case:
-
       case 'admin':
         if (!currentUser) {
           return (
@@ -397,105 +367,126 @@ const AppContent = () => {
             </div>
           );
         }
-        
-        // Use the AdminPage component instead of AdminFeedbackPanel
         return <AdminAccessCheck><AdminPage /></AdminAccessCheck>;
       default:
-        return <Dashboard 
+        return <HomePage 
+          navigateTo={navigateTo} 
           swingHistory={swingHistory} 
-          navigateTo={navigateTo}
           userStats={userStats}
           userClubs={userClubs}
         />;
     }
   };
 
+  // Simplified header for specific pages
+  const usesSimplifiedHeader = ['home', 'upload-preview'].includes(currentPage);
+
   return (
     <div className="App">
-      <header className="App-header">
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          width: '100%' 
-        }}>
-          <h1 
-            onClick={() => navigateTo('dashboard')}
-            style={{
-              cursor: 'pointer',
-              margin: 0,
-              userSelect: 'none' // Prevents text selection when clicking
-            }}
-          >
-            GOLF GURU
-          </h1>
-          
-          {currentUser ? (
-            <div 
-              className="user-avatar" 
-              onClick={() => navigateTo('profile')}
+      {!usesSimplifiedHeader && (
+        <header className="App-header">
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            width: '100%' 
+          }}>
+            <h1 
+              onClick={() => navigateTo('home')}
               style={{
                 cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center'
+                margin: 0,
+                userSelect: 'none'
               }}
             >
-              <span style={{ 
-                marginRight: '10px', 
-                color: 'white',
-                display: isMobile ? 'none' : 'inline' 
-              }}>
-                {currentUser.displayName?.split(' ')[0] || 'User'}
-              </span>
-              <img 
-                src={currentUser.photoURL || '/default-avatar.png'} 
-                alt="Avatar" 
+              Swing AI
+            </h1>
+            
+            {currentUser ? (
+              <div 
+                className="user-avatar" 
+                onClick={() => navigateTo('profile')}
                 style={{
-                  width: '35px',
-                  height: '35px',
-                  borderRadius: '50%',
-                  border: '2px solid white'
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center'
                 }}
+              >
+                <span style={{ 
+                  marginRight: '10px', 
+                  color: '#546e47',
+                  display: isMobile ? 'none' : 'inline' 
+                }}>
+                  {currentUser.displayName?.split(' ')[0] || 'User'}
+                </span>
+                <img 
+                  src={currentUser.photoURL || '/default-avatar.png'} 
+                  alt="Avatar" 
+                  style={{
+                    width: '35px',
+                    height: '35px',
+                    borderRadius: '50%',
+                    border: '2px solid #546e47'
+                  }}
+                />
+              </div>
+            ) : (
+              <button 
+                className="button" 
+                onClick={() => setIsLoginModalOpen(true)}
+                style={{
+                  padding: isMobile ? '6px 12px' : '8px 16px',
+                  fontSize: isMobile ? '0.8rem' : '0.9rem',
+                  backgroundColor: '#546e47'
+                }}
+              >
+                Sign In
+              </button>
+            )}
+          </div>
+          <p style={{ color: '#546e47' }}>Improving your golf swing using next-gen AI</p>
+          
+          {/* Mobile Dropdown Navigation */}
+          {isMobile && (
+            <div style={{ marginTop: '10px', width: '100%' }}>
+              <MobileNavDropdown 
+                currentPage={currentPage} 
+                navigateTo={navigateTo} 
+                showProfile={!!currentUser}
+                pageParams={pageParams}
               />
             </div>
-          ) : (
-            <button 
-              className="button" 
-              onClick={() => setIsLoginModalOpen(true)}
-              style={{
-                padding: isMobile ? '6px 12px' : '8px 16px',
-                fontSize: isMobile ? '0.8rem' : '0.9rem'
-              }}
-            >
-              Sign In
-            </button>
           )}
-        </div>
-        <p>AI-Powered Swing Analysis</p>
-        
-        {/* Mobile Dropdown Navigation */}
-        {isMobile && (
-          <div style={{ marginTop: '10px', width: '100%' }}>
-            <MobileNavDropdown 
-              currentPage={currentPage} 
-              navigateTo={navigateTo} 
-              showProfile={!!currentUser}
-              pageParams={pageParams}
-            />
-          </div>
-        )}
-      </header>
+        </header>
+      )}
       
       <main className="App-main">
+        {error && (
+          <div style={{ 
+            backgroundColor: error.type === 'info' ? '#e1f5fe' : '#f8d7da', 
+            color: error.type === 'info' ? '#0277bd' : '#721c24', 
+            padding: '10px 15px', 
+            borderRadius: '5px', 
+            marginBottom: '15px',
+            textAlign: 'center',
+            maxWidth: '800px',
+            margin: '0 auto 15px auto'
+          }}>
+            {error.message || error}
+          </div>
+        )}
+        
         {renderPage()}
       </main>
       
       {/* Show navigation for both mobile and desktop - this keeps the bottom navigation */}
-      <Navigation 
-        currentPage={currentPage} 
-        navigateTo={navigateTo} 
-        showProfile={!!currentUser}
-      />
+      {!usesSimplifiedHeader && (
+        <Navigation 
+          currentPage={currentPage} 
+          navigateTo={navigateTo} 
+          showProfile={!!currentUser}
+        />
+      )}
       
       {/* Modals */}
       <Modal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)}>
@@ -512,7 +503,6 @@ const AppContent = () => {
           onClose={() => {
             setIsProfileSetupModalOpen(false);
             // After profile setup is complete, refresh user data
-            // This ensures we have the latest club data, etc.
             if (currentUser) {
               firestoreService.getUserClubs(currentUser.uid)
                 .then(clubs => setUserClubs(clubs || []))

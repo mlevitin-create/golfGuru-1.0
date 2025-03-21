@@ -49,7 +49,7 @@ const uploadVideo = async (userId, videoFile) => {
  * Save a swing analysis to Firestore
  * @param {Object} analysisData - The swing analysis data
  * @param {string} userId - The user ID
- * @param {File} videoFile - The video file (null for YouTube videos)
+ * @param {File} videoFile - The video file (null for YouTube videos or non-user swings)
  * @param {Object} metadata - Additional metadata (club, date, YouTube info, ownership, etc.)
  * @returns {Promise<Object>} The saved swing data with ID
  */
@@ -61,16 +61,19 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
     // Determine if this is a YouTube video or file upload
     const isYouTubeAnalysis = !videoFile && metadata?.youtubeVideo;
     
-    // Check if this is the user's own swing
-    const isUserOwnSwing = metadata?.swingOwnership === 'self';
+    // Extract ownership information
+    const swingOwnership = metadata?.swingOwnership || 'self'; // Default to self if not specified
+    const proGolferName = metadata?.proGolferName || null;
+    const isUnknownPro = metadata?.isUnknownPro || false;
     
+    // Only upload video to storage if it's the user's own swing
     if (isYouTubeAnalysis) {
       // For YouTube videos, use the embed URL directly
       videoUrl = metadata.youtubeVideo.embedUrl;
       console.log('Using YouTube video URL:', videoUrl);
     } else if (videoFile) {
-      // For regular file uploads, only upload to storage if it's the user's own swing
-      if (isUserOwnSwing) {
+      // For file uploads, only upload to storage if it's the user's own swing
+      if (swingOwnership === 'self') {
         console.log('Uploading user\'s own video file to storage');
         videoUrl = await uploadVideo(userId, videoFile);
       } else {
@@ -89,11 +92,6 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
     const recordedDate = metadata?.recordedDate ? 
       new Date(metadata.recordedDate) : 
       (analysisData.recordedDate ? new Date(analysisData.recordedDate) : new Date());
-    
-    // Extract ownership data from metadata
-    const swingOwnership = metadata?.swingOwnership || 'self'; // Default to self if not specified
-    const proGolferName = metadata?.proGolferName || null;
-    const isUnknownPro = metadata?.isUnknownPro || false;
     
     // Create Firestore document
     const swingData = {
@@ -122,19 +120,29 @@ const saveSwingAnalysis = async (analysisData, userId, videoFile, metadata = nul
     }
     
     // Flag for non-user swings without a video URL
-    if (!isUserOwnSwing && !isYouTubeAnalysis) {
+    if (swingOwnership !== 'self' && !isYouTubeAnalysis) {
       swingData.isVideoSkipped = true;
     }
     
     // Remove client-specific properties
     delete swingData._isMockData;
     
-    // Add to Firestore
-    const docRef = await addDoc(collection(db, 'swings'), swingData);
+    // Add to Firestore only if this is the user's own swing or a YouTube video
+    // Non-user, non-YouTube swings don't get saved to conserve storage
+    let docRef;
     
-    // Only update user stats if this is the user's own swing
-    if (isUserOwnSwing) {
-      await updateUserStats(userId);
+    if (swingOwnership === 'self' || isYouTubeAnalysis) {
+      console.log('Saving swing to Firestore - user\'s own swing or YouTube video');
+      docRef = await addDoc(collection(db, 'swings'), swingData);
+      
+      // Only update user stats if this is the user's own swing
+      if (swingOwnership === 'self') {
+        await updateUserStats(userId);
+      }
+    } else {
+      console.log('Not saving non-user swing to Firestore to conserve storage');
+      // Generate a temporary ID for non-stored swings
+      docRef = { id: `temp_${Date.now()}` };
     }
     
     // Return saved data with the document ID

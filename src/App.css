@@ -1,86 +1,135 @@
+/* Complete App.css file for Swing AI Golf App */
+
+/* Base styles */
 .App {
   text-align: center;
-  font-family: 'Roboto', sans-serif;
-  color: #333;
+  font-family: sans-serif;
+  color: #546e47;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background-color: #f7f7f5;
 }
 
+body {
+  background-color: #f7f7f5;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* Header */
 .App-header {
-  background-color: #2c3e50;
+  background-color: transparent;
   padding: 20px;
-  color: white;
-  border-radius: 0 0 10px 10px;
-  margin-bottom: 20px;
+  color: #546e47;
+  margin-bottom: 10px;
+  text-align: center;
 }
 
 .App-header h1 {
   margin: 0;
-  font-size: 2.5rem;
+  font-size: 2rem;
   cursor: pointer;
+  font-family: serif;
+  font-weight: 400;
 }
 
 .App-header p {
   margin: 5px 0 0;
   font-size: 1rem;
+  font-family: serif;
 }
 
+/* Main content area */
 .App-main {
   flex: 1;
-  padding: 20px;
-  background-color: #f5f5f5;
-  border-radius: 10px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  padding: 0 20px;
+  background-color: transparent;
   margin-bottom: 20px;
 }
 
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: serif;
+  font-weight: 400;
+  color: #546e47;
+}
+
+.accent-text {
+  color: #d4784f;
+}
+
+p {
+  font-family: sans-serif;
+  line-height: 1.5;
+}
+
+/* Navigation */
 .navigation {
   display: flex;
   justify-content: space-around;
   flex-wrap: wrap;
-  padding: 15px;
-  background-color: #2c3e50;
-  border-radius: 10px;
-  margin-bottom: 20px;
+  padding: 0;
+  background-color: #f2f2f0;
+  border-radius: 50px;
+  margin: 0 auto 20px auto;
+  max-width: 400px;
+  border: 1px solid #eee;
+  overflow: hidden;
 }
 
 .nav-item {
-  color: white;
-  padding: 10px 15px;
+  color: #546e47;
+  padding: 12px 0;
   cursor: pointer;
-  border-radius: 5px;
   transition: background-color 0.3s;
   text-align: center;
   flex: 1 0 auto;
   min-width: 70px;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: sans-serif;
+  text-transform: uppercase;
 }
 
 .nav-item:hover {
-  background-color: #34495e;
+  background-color: rgba(84, 110, 71, 0.1);
 }
 
 .nav-item.active {
-  background-color: #3498db;
+  background-color: white;
 }
 
+/* Buttons */
 .button {
-  background-color: #3498db;
+  background-color: #546e47;
   color: white;
   border: none;
   padding: 12px 24px;
   font-size: 1rem;
-  border-radius: 5px;
+  border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.3s;
+  font-family: sans-serif;
+  font-weight: normal;
 }
 
 .button:hover {
-  background-color: #2980b9;
+  background-color: #455c3a;
+}
+
+.button.secondary {
+  background-color: transparent;
+  color: #546e47;
+  border: 1px solid #546e47;
+}
+
+.button.secondary:hover {
+  background-color: rgba(84, 110, 71, 0.1);
 }
 
 .button:disabled {
@@ -88,39 +137,44 @@
   cursor: not-allowed;
 }
 
+/* Cards */
 .card {
   background-color: white;
   border-radius: 10px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 20px;
   margin-bottom: 20px;
 }
 
+/* Upload area */
 .upload-area {
-  border: 2px dashed #bdc3c7;
+  border: 1px dashed #ccc;
   border-radius: 10px;
-  padding: 40px;
+  padding: 40px 20px;
   text-align: center;
   cursor: pointer;
-  margin: 20px 0;
+  margin: 20px auto;
   transition: border-color 0.3s;
+  background-color: white;
+  max-width: 400px;
 }
 
 .upload-area:hover {
-  border-color: #3498db;
+  border-color: #546e47;
 }
 
 .upload-area p {
   margin: 10px 0;
-  color: #7f8c8d;
+  color: #999;
 }
 
+/* Loading spinner */
 .spinner {
-  border: 4px solid rgba(0, 0, 0, 0.1);
+  border: 4px solid rgba(84, 110, 71, 0.1);
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border-left-color: #3498db;
+  border-left-color: #546e47;
   animation: spin 1s linear infinite;
   margin: 20px auto;
 }
@@ -134,6 +188,7 @@
   }
 }
 
+/* Metric visualization */
 .metric-bar {
   background-color: #ecf0f1;
   height: 20px;
@@ -145,7 +200,7 @@
 .metric-fill {
   height: 100%;
   border-radius: 10px;
-  background-color: #3498db;
+  background-color: #546e47;
   transition: width 1s ease-in-out;
 }
 
@@ -155,6 +210,7 @@
   margin-bottom: 5px;
 }
 
+/* Recommendations */
 .recommendations {
   margin-top: 30px;
 }
@@ -164,6 +220,7 @@
   text-align: left;
 }
 
+/* Video display */
 .video-container {
   max-width: 100%;
   margin: 20px 0;
@@ -174,11 +231,13 @@
   border-radius: 10px;
 }
 
+/* Charts */
 .chart-container {
   height: 300px;
   margin: 20px 0;
 }
 
+/* Dashboard layout */
 .dashboard-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -220,7 +279,7 @@
 .dashboard-card {
   background-color: white;
   border-radius: 10px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -231,6 +290,7 @@
   margin-top: 0;
 }
 
+/* Swing history */
 .swing-history-item {
   display: flex;
   justify-content: space-between;
@@ -243,12 +303,14 @@
   background-color: #f8f9fa;
 }
 
+/* Pro comparison */
 .pro-comparison-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
 
+/* Profile tabs */
 .profile-tabs {
   display: flex;
   margin-bottom: 20px;
@@ -263,7 +325,32 @@
 }
 
 .profile-tab.active {
-  border-bottom: 2px solid #3498db;
+  border-bottom: 2px solid #546e47;
+  color: #546e47;
+}
+
+/* Footer styles */
+.footer-line {
+  border: none; 
+  height: 1px; 
+  background-color: #546e47; 
+  opacity: 0.3;
+  margin: 10px 0 20px 0;
+}
+
+.footer-text {
+  font-size: 0.9rem;
+  color: #546e47;
+  opacity: 0.7;
+  font-family: serif;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Cloud icon gradient styles */
+.cloud-icon-gradient {
+  --gradient-start: #BCA5FF;
+  --gradient-end: #A5D8FF;
 }
 
 /* Mobile optimizations */
@@ -330,12 +417,20 @@
     flex: 1;
   }
   
+  h1 {
+    font-size: 2.5rem !important;
+  }
+  
   h2 {
-    font-size: 1.5rem;
+    font-size: 1.8rem !important;
   }
   
   h3 {
     font-size: 1.2rem;
+  }
+  
+  p {
+    font-size: 1rem !important;
   }
   
   /* Adjust grids for mobile */

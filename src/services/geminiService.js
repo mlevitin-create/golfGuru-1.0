@@ -1911,106 +1911,56 @@ const metricKeyMapping = {
 };
 
 
+// Updated function in geminiService.js
 /**
- * Enhanced metric insights generator that uses the Swing Recipe information
+ * Enhanced metric insights generator that uses swing data for analysis
  * @param {Object} swingData - The complete swing analysis data
  * @param {string} metricKey - The specific metric to generate insights for
  * @returns {Promise<Object>} Detailed insights for the metric
  */
 const generateMetricInsights = async (swingData, metricKey) => {
   try {
-    // Sanitize and validate input
+    // Validate required inputs
     if (!swingData || !metricKey) {
       console.error('Invalid input: Missing swingData or metricKey');
       return getDefaultInsights(metricKey);
     }
 
-    // Check for video source priority:
-    // 1. _temporaryVideoUrl - created specifically for analysis of non-user swings
-    // 2. regular videoUrl - for user's own swings or YouTube videos
-    // 3. video reference from DOM - if passed in the enhanced swing data
-    const videoUrl = swingData._temporaryVideoUrl || swingData.videoUrl;
+    // Import videoUrlManager if needed
+    let videoUrlManager;
+    try {
+      videoUrlManager = await import('../utils/VideoUrlManager').then(module => module.default);
+    } catch (err) {
+      console.warn('Could not import VideoUrlManager:', err);
+      // Continue without it
+    }
 
-    // Determine if this is a YouTube video
-    const isYouTubeVideo = swingData.isYouTubeVideo || 
-                           (videoUrl && videoUrl.includes('youtube.com'));
+    // Determine video source (avoiding direct fetch of blob URLs)
+    // For YouTube, we'll use the URL directly
+    // For temporary URLs, we'll skip video analysis - using score-based approach
+    const isYouTubeVideo = swingData.isYouTubeVideo || false;
+    const videoUrl = isYouTubeVideo ? swingData.videoUrl : null;
     
-    // Log the video URL being used
-    console.log(`Using video URL for analysis: ${isYouTubeVideo ? 'YouTube' : (videoUrl || 'None')}`);
+    // Log what we're doing
+    console.log(`Sending metric analysis request for ${metricKey} ${isYouTubeVideo ? 'with YouTube video' : 'with score-based approach'}`);
 
-    // Ensure the metric value is a number and within 0-100 range
+    // Make sure the metric value is a number within range
     const metricValue = Number(swingData.metrics[metricKey] || 0);
     const safeMetricValue = Math.max(0, Math.min(100, metricValue));
 
-    // Check if video URL exists and is valid
-    const hasVideo = Boolean(videoUrl) && videoUrl !== 'non-user-swing';
-    console.log('Video URL available:', hasVideo);
+    // Format the metric name for better readability
+    const metricName = metricKey.replace(/([A-Z])/g, ' $1').toLowerCase();
 
     // Get the swing recipe metric key if available
-    const swingRecipeKey = metricKeyMapping[metricKey] || metricKey;
+    const swingRecipeKey = metricKeyMapping ? metricKeyMapping[metricKey] || metricKey : metricKey;
     
     // Get detailed information about this metric from our swing recipe
-    const metricInfo = metricDetails[swingRecipeKey] || null;
+    const metricInfo = metricDetails && metricDetails[swingRecipeKey] ? metricDetails[swingRecipeKey] : null;
     const metricDescription = metricInfo?.description || getGenericMetricDescription(metricKey);
     const metricCategory = metricInfo?.category || "Unknown";
     const metricDifficulty = metricInfo?.difficulty || 5;
     const metricWeight = metricInfo?.weighting || "5.88%";
     const exampleUrl = metricInfo?.exampleUrl || null;
-
-    // Try to fetch the video as base64 if available
-    // Try to fetch the video as base64 if available
-    let base64Video;
-    if (hasVideo && !isYouTubeVideo) {
-      try {
-        // Only try to fetch video if it's not YouTube
-        const response = await fetch(videoUrl);
-        const videoBlob = await response.blob();
-        base64Video = await blobToBase64(videoBlob);
-        console.log('Successfully converted video to base64');
-      } catch (error) {
-        console.error('Error converting video to base64:', error);
-        console.log('Falling back to score-based analysis without video');
-        
-        // Check if this is a non-user swing without authentication
-        const isUnauthenticatedFriendSwing = swingData._isLocalOnly && 
-                                           (swingData.swingOwnership === 'other' || 
-                                            swingData.swingOwnership === 'pro');
-        
-        // If this is an unauthenticated user viewing a friend's swing, add adoption messaging
-        if (isUnauthenticatedFriendSwing) {
-          const defaultInsights = getDefaultInsights(metricKey);
-          
-          // Add account creation prompt to default insights
-          const accountPrompt = [
-            "For AI-powered deep dive analysis of your friend's swings, please create your own account.",
-            "Sign up to unlock advanced video-based metric insights and save your progress!"
-          ];
-          
-          // Add this prompt to various sections of insights
-          return {
-            ...defaultInsights,
-            technicalBreakdown: [
-              ...accountPrompt,
-              ...defaultInsights.technicalBreakdown
-            ],
-            recommendations: [
-              ...accountPrompt,
-              ...defaultInsights.recommendations
-            ]
-          };
-        }
-      }
-    } else if (isYouTubeVideo) {
-      console.log('YouTube video detected - using URL-based analysis instead of video content');
-      // For YouTube videos, we'll rely on the prompt without video content
-    }
-
-    // Rest of the function remains the same...
-    // ... 
-    // (Format prompt, send to API, process response, etc.)
-
-    // Format the metric name for better readability
-    const metricName = metricKey.replace(/([A-Z])/g, ' $1').toLowerCase();
 
     // Create the content for the coaching prompt
     let coachingPrompt = `You are the most renowned golf coach and instructor in the world. You know how to adjust your recommendations based on the type of player and how good they are as a golfer.`;
@@ -2022,6 +1972,18 @@ const generateMetricInsights = async (swingData, metricKey) => {
 
     if (exampleUrl) {
       coachingPrompt += `\n\nAn example of how to provide guidance on this is available at ${exampleUrl}, but you should also draw from your extensive knowledge of golf technique.`;
+    }
+
+    // Add information about swing ownership for context-appropriate feedback
+    if (swingData.swingOwnership === 'pro') {
+      coachingPrompt += `\n\nThis is a professional golfer's swing${swingData.proGolferName ? ` (${swingData.proGolferName})` : ''}, so focus on high-level technical aspects that would be relevant to advanced players.`;
+    } else if (swingData.swingOwnership === 'other') {
+      coachingPrompt += `\n\nThis is someone else's swing (not the user's own), so provide feedback that would be helpful for a coach or friend to relay to the golfer.`;
+    }
+
+    // Add club information if available
+    if (swingData.clubName) {
+      coachingPrompt += `\n\nThis swing was performed with a ${swingData.clubName}. Adjust your analysis accordingly, as different clubs require different techniques and expectations.`;
     }
 
     // Prepare the complete prompt with specific guidance for the selected metric
@@ -2053,13 +2015,13 @@ const generateMetricInsights = async (swingData, metricKey) => {
           recommendations: "array of strings with actionable advice",
           feelTips: "array of strings explaining how correct execution should feel"
       }
-  };
+    };
 
-  // Prepare payload for API request
-  const payload = {
+    // Prepare payload for API request
+    const payload = {
       contents: [{
-          parts: [{
-              text: `You are a PGA Master Professional with 30 years of experience coaching elite golfers. Analyze this golf swing ${isYouTubeVideo ? 'from YouTube' : (hasVideo ? 'video' : 'data')} as a professional golf coach, focusing specifically on the ${metricName} aspect of the swing for a golfer whose skill level you should assume based on the score:
+        parts: [{
+          text: `You are a PGA Master Professional with 30 years of experience coaching elite golfers. Analyze this golf swing ${isYouTubeVideo ? 'from YouTube' : 'data'} as a professional golf coach, focusing specifically on the ${metricName} aspect of the swing for a golfer whose skill level you should assume based on the score:
 
 Coaching Context: ${JSON.stringify(promptContent, null, 2)}
 ${isYouTubeVideo ? `\nYouTube Video URL: ${videoUrl}` : ''}
@@ -2076,155 +2038,120 @@ Please provide a detailed, professional analysis following these guidelines:
 9.  Strictly adhere to the JSON output format
 
 Your response should be a valid JSON object that can be directly parsed.`
-          }]
+        }]
       }]
-  };
+    };
 
-  // Add video if available
-  if (base64Video && !isYouTubeVideo) {
-    const base64Data = base64Video.split('base64,')[1];
-    if (base64Data) {
+    // Add YouTube video reference if available
+    if (isYouTubeVideo && videoUrl) {
       payload.contents[0].parts.push({
-        inlineData: {
-          mimeType: "video/mp4",
-          data: base64Data
+        fileData: {
+          mimeType: "video/*",
+          fileUri: videoUrl
         }
       });
     }
-  }
 
-  // Set generation config
-  payload.generationConfig = {
-    temperature: 0.5, // Lower temperature for more consistent, focused responses
-    maxOutputTokens: 1024
-  };
-
-  // Add comprehensive logging
-  console.log('Sending metric analysis request for:', metricKey);
-  
-  // Make the API request
-  try {
-    const response = await axios.post(
-      `${API_URL}?key=${API_KEY}`,
-      payload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        timeout: 45000 // Increased timeout for video processing
-      }
-    );
-
-    // Parse the response
-    const extractInsights = (responseData) => {
-      try {
-        // Get candidates from response
-        const candidates = responseData?.candidates;
-        if (!candidates || candidates.length === 0) {
-          console.error('No candidates in response');
-          return getDefaultInsights(metricKey);
-        }
-
-        // Get text from response
-        const textResponse = candidates[0]?.content?.parts?.[0]?.text;
-        if (!textResponse) {
-          console.error('No text in response');
-          return getDefaultInsights(metricKey);
-        }
-
-        // Try to extract JSON
-        let jsonText = textResponse;
-
-        // Try to find JSON in markdown code blocks
-        const jsonMatch = textResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-          jsonText = jsonMatch[1];
-        }
-
-        // If no code block, try to extract JSON object directly
-        if (!jsonMatch) {
-          const jsonStartIndex = textResponse.indexOf('{');
-          const jsonEndIndex = textResponse.lastIndexOf('}') + 1;
-          if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
-            jsonText = textResponse.substring(jsonStartIndex, jsonEndIndex);
-          }
-        }
-
-        // Parse the JSON
-        let insights;
-        try {
-          insights = JSON.parse(jsonText);
-        } catch (jsonError) {
-          console.error("Error parsing JSON:", jsonError);
-          console.error("Raw JSON text:", jsonText);
-          return getDefaultInsights(metricKey);
-        }
-
-        // Validate insights structure
-        if (!insights.goodAspects || !insights.improvementAreas || 
-            !insights.technicalBreakdown || !insights.recommendations) {
-          console.error('Invalid insights structure:', insights);
-          return getDefaultInsights(metricKey);
-        }
-
-        return insights;
-      } catch (parseError) {
-        console.error('Parsing error:', parseError);
-        return getDefaultInsights(metricKey);
-      }
+    // Set generation config
+    payload.generationConfig = {
+      temperature: 0.5, // Lower temperature for more consistent, focused responses
+      maxOutputTokens: 1024
     };
 
-    // Extract and return insights
-    return extractInsights(response.data);
+    // Make the API request
+    try {
+      const response = await axios.post(
+        `${API_URL}?key=${API_KEY}`,
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          timeout: 45000 // Increased timeout for video processing
+        }
+      );
+
+      // Parse the response
+      const extractInsights = (responseData) => {
+        try {
+          // Get candidates from response
+          const candidates = responseData?.candidates;
+          if (!candidates || candidates.length === 0) {
+            console.error('No candidates in response');
+            return getDefaultInsights(metricKey, swingData);
+          }
+
+          // Get text from response
+          const textResponse = candidates[0]?.content?.parts?.[0]?.text;
+          if (!textResponse) {
+            console.error('No text in response');
+            return getDefaultInsights(metricKey, swingData);
+          }
+
+          // Try to extract JSON
+          let jsonText = textResponse;
+
+          // Try to find JSON in markdown code blocks
+          const jsonMatch = textResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[1];
+          }
+
+          // If no code block, try to extract JSON object directly
+          if (!jsonMatch) {
+            const jsonStartIndex = textResponse.indexOf('{');
+            const jsonEndIndex = textResponse.lastIndexOf('}') + 1;
+            if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
+              jsonText = textResponse.substring(jsonStartIndex, jsonEndIndex);
+            }
+          }
+
+          // Parse the JSON
+          let insights;
+          try {
+            insights = JSON.parse(jsonText);
+          } catch (jsonError) {
+            console.error("Error parsing JSON:", jsonError);
+            console.error("Raw JSON text:", jsonText);
+            return getDefaultInsights(metricKey, swingData);
+          }
+
+          // Validate insights structure
+          if (!insights.goodAspects || !insights.improvementAreas || 
+              !insights.technicalBreakdown || !insights.recommendations) {
+            console.error('Invalid insights structure:', insights);
+            return getDefaultInsights(metricKey, swingData);
+          }
+
+          return insights;
+        } catch (parseError) {
+          console.error('Parsing error:', parseError);
+          return getDefaultInsights(metricKey, swingData);
+        }
+      };
+
+      // Extract and return insights
+      return extractInsights(response.data);
+    } catch (error) {
+      console.error('Error in API request for metric insights:', error);
+      console.log('Falling back to score-based analysis without video');
+      return getDefaultInsights(metricKey, swingData);
+    }
+
   } catch (error) {
-    console.error('Error in API request for metric insights:', error);
-    // In case of error, return default insights WITH swing data
+    // Log error details
+    console.error('Error in generateMetricInsights:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      responseData: error.response?.data,
+      responseStatus: error.response?.status
+    });
+
+    // Return default insights on any error
     return getDefaultInsights(metricKey, swingData);
   }
-
-} catch (error) {
-  // Log error details
-  console.error('Error in generateMetricInsights:', {
-    message: error.message,
-    name: error.name,
-    stack: error.stack,
-    responseData: error.response?.data,
-    responseStatus: error.response?.status
-  });
-
-  // Return default insights on any error
-  const defaultInsights = getDefaultInsights(metricKey);
-  
-  // Check if this is a non-user swing without authentication
-  const isUnauthenticatedFriendSwing = swingData._isLocalOnly && 
-                                     (swingData.swingOwnership === 'other' || 
-                                      swingData.swingOwnership === 'pro');
-  
-  // If this is an unauthenticated user viewing a friend's swing, add adoption messaging
-  if (isUnauthenticatedFriendSwing) {
-    // Add account creation prompt to default insights
-    const accountPrompt = [
-      "For AI-powered deep dive analysis of your friend's swings, please create your own account.",
-      "Sign up to unlock advanced video-based metric insights and save your progress!"
-    ];
-    
-    // Add this prompt to various sections of insights
-    return {
-      ...defaultInsights,
-      technicalBreakdown: [
-        ...accountPrompt,
-        ...defaultInsights.technicalBreakdown
-      ],
-      recommendations: [
-        ...accountPrompt,
-        ...defaultInsights.recommendations
-      ]
-    };
-  }
-  
-  return getDefaultInsights(metricKey, swingData);
-}
 };
 
 // Helper function to convert Blob to base64
