@@ -83,30 +83,6 @@ const AppContent = () => {
   const [uploadedVideoFile, setUploadedVideoFile] = useState(null);
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState(null);
   
-  useEffect(() => {
-    // Only run this check when on upload-preview page and user is logged in
-    if (currentPage === 'upload-preview' && currentUser) {
-      // Check if the user has previous swing data
-      const checkPreviousSwings = async () => {
-        try {
-          // Get user's swings
-          const userSwings = await firestoreService.getUserSwings(currentUser.uid);
-          
-          // If user has previous swings, redirect to dashboard
-          if (userSwings && userSwings.length > 0) {
-            console.log('User has previous swings, redirecting to dashboard');
-            navigateTo('dashboard');
-          }
-        } catch (error) {
-          console.error('Error checking previous swings:', error);
-          // Continue with upload preview if there's an error
-        }
-      };
-      
-      checkPreviousSwings();
-    }
-  }, [currentPage, currentUser]);
-
   // Check if the screen is mobile size
   useEffect(() => {
     const handleResize = () => {
@@ -134,31 +110,10 @@ const AppContent = () => {
   // Update the navigateTo function in App.js
   const navigateTo = (page, params = null) => {
     // Special handling for upload-preview page
-    if (page === 'upload-preview' && currentUser) {
-      // Check if user has previous swings before navigating
-      firestoreService.getUserSwings(currentUser.uid)
-        .then(swings => {
-          if (swings && swings.length > 0) {
-            console.log('User has previous swings, redirecting to dashboard');
-            setCurrentPage('dashboard');
-            setPageParams(null);
-          } else {
-            // No previous swings, continue to upload preview
-            setCurrentPage(page);
-            setPageParams(params);
-          }
-        })
-        .catch(error => {
-          console.error('Error checking previous swings:', error);
-          // On error, still navigate to the requested page
-          setCurrentPage(page);
-          setPageParams(params);
-        });
-    } else {
+
       // Normal navigation for other pages
       setCurrentPage(page);
       setPageParams(params);
-    }
     
     // Rest of navigation code...
     setError(null);
@@ -197,7 +152,7 @@ const AppContent = () => {
     try {
       // Get analysis from Gemini (or mock data)
       const analysisResult = await geminiService.analyzeGolfSwing(videoFile, metadata);
-
+  
       // Save to Firestore if user is logged in
       if (currentUser) {
         // Important: For non-user swings, inform user that video won't be stored
@@ -212,14 +167,14 @@ const AppContent = () => {
           // Set info message
           setError(infoMessage);
         }
-
+  
         const savedSwing = await firestoreService.saveSwingAnalysis(
           analysisResult,
           currentUser.uid,
           metadata.swingOwnership === 'self' ? videoFile : null, // Only save video if it's the user's own swing
           metadata // Pass metadata including ownership info
         );
-
+  
         // For non-user swings, create a temporary videoUrl for analysis display
         // This will be used for in-memory analysis but won't be saved to Storage
         if (videoFile && metadata.swingOwnership !== 'self') {
@@ -227,7 +182,7 @@ const AppContent = () => {
           // Add flag to track temporary URLs so we can revoke them later
           savedSwing._hasTemporaryUrl = true;
         }
-
+  
         // Update state with the saved data (includes Firestore ID)
         setSwingData(savedSwing);
         
@@ -268,7 +223,7 @@ const AppContent = () => {
           ...(metadata.clubType && { clubType: metadata.clubType }),
           ...(metadata.outcome && { outcome: metadata.outcome })
         };
-
+  
         setSwingData(localResult);
         
         // Only add to local swing history if it's the user's own swing
@@ -287,11 +242,12 @@ const AppContent = () => {
             });
           }
         }
-
+  
         // Prompt user to login to save their data
-        setIsLoginModalOpen(true);
+        // We'll keep this commented out for now to avoid immediate login prompt
+        // setIsLoginModalOpen(true);
       }
-
+  
       // Clean up video preview if we came from there
       if (currentPage === 'upload-preview') {
         if (uploadedVideoUrl) {
@@ -300,7 +256,8 @@ const AppContent = () => {
         setUploadedVideoFile(null);
         setUploadedVideoUrl(null);
       }
-
+  
+      // CRITICAL CHANGE: Always navigate to analysis page instead of dashboard
       navigateTo('analysis');
     } catch (error) {
       console.error("Error analyzing swing:", error);

@@ -36,29 +36,6 @@ const VideoUploadPreview = ({
   // Reference to the video element
   const videoRef = useRef(null);
   
-  // Check if user should be redirected to dashboard (has previous swings)
-  useEffect(() => {
-    // Check if user is logged in and has swings
-    if (currentUser) {
-      // Import the service at runtime to avoid issues
-      import('../services/firestoreService').then(module => {
-        const firestoreService = module.default;
-        firestoreService.getUserSwings(currentUser.uid)
-          .then(swings => {
-            // If user has swings, redirect to dashboard
-            if (swings && swings.length > 0) {
-              console.log('User has previous swings, redirecting to dashboard');
-              navigateTo('dashboard');
-            }
-          })
-          .catch(error => {
-            console.error('Error checking user swings:', error);
-            // Continue with upload preview if there's an error
-          });
-      });
-    }
-  }, [currentUser, navigateTo]);
-  
   // Load user clubs when needed
   useEffect(() => {
     if (currentUser && step === 'club' && swingOwnership === 'self') {
