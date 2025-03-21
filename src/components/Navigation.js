@@ -59,15 +59,15 @@ const Navigation = ({ currentPage, navigateTo, showProfile = false }) => {
         Upload
       </div>
       <div 
-        className={`nav-item ${currentPage === 'tracker' ? 'active' : ''}`}
-        onClick={() => navigateTo('tracker')}
+        className={`nav-item ${currentPage === 'progress' ? 'active' : ''}`}
+        onClick={() => navigateTo('profile', { activeTab: 'progress' })}
         style={{ 
           padding: '10px 20px', 
           cursor: 'pointer',
-          borderBottom: currentPage === 'tracker' ? '2px solid #3498db' : 'none'
+          borderBottom: currentPage === 'progress' ? '2px solid #3498db' : 'none'
         }}
       >
-        Tracker
+        Progress
       </div>
       <div 
         className={`nav-item ${currentPage === 'comparison' ? 'active' : ''}`}

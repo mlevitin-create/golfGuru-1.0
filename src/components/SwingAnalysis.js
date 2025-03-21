@@ -313,10 +313,10 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
         <div className="action-buttons" style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between' }}>
           <button 
             className="button"
-            onClick={() => navigateTo('tracker')}
+            onClick={() => navigateTo('profile', { activeTab: 'progress' })}
             style={{ backgroundColor: '#95a5a6' }}
           >
-            Back to Tracker
+            Back to Progress
           </button>
           
           {currentUser && swingData?.id && swingData.swingOwnership === 'self' && (

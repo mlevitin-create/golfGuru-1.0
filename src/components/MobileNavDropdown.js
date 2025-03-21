@@ -28,7 +28,7 @@ const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false, pageP
   const pageNames = {
     'dashboard': 'Dashboard',
     'upload': 'Upload Swing',
-    'tracker': 'Tracker',
+    'progress': 'Progress Analysis',
     'comparison': 'Pro Comparison',
     'profile': 'Profile',
     'analysis': 'Swing Analysis'
@@ -118,18 +118,18 @@ const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false, pageP
             Upload Swing
           </div>
           <div 
-            className={`dropdown-item ${currentPage === 'tracker' ? 'active' : ''}`}
-            onClick={() => handleNavigate('tracker')}
+            className={`dropdown-item ${currentPage === 'progress' ? 'active' : ''}`}
+            onClick={() => handleNavigate('profile', { activeTab: 'progress' })}
             style={{
               padding: '12px 16px',
               cursor: 'pointer',
-              backgroundColor: currentPage === 'tracker' ? '#f0f7ff' : 'transparent',
+              backgroundColor: currentPage === 'progress' ? '#f0f7ff' : 'transparent',
               borderBottom: '1px solid #eee',
               color: '#333',
-              fontWeight: currentPage === 'tracker' ? 'bold' : 'normal'
+              fontWeight: currentPage === 'progress' ? 'bold' : 'normal'
             }}
           >
-            Progress Tracker
+            Progress Analysis
           </div>
           <div 
             className={`dropdown-item ${currentPage === 'comparison' ? 'active' : ''}`}
@@ -227,6 +227,20 @@ const MobileNavDropdown = ({ currentPage, navigateTo, showProfile = false, pageP
                 }}
               >
                 Club Analytics
+              </div>
+              <div 
+                className="dropdown-item"
+                onClick={() => handleNavigate('profile', { setupClubs: false, activeTab: 'progress' })}
+                style={{
+                  padding: '12px 16px 12px 24px',
+                  cursor: 'pointer',
+                  backgroundColor: currentPage === 'profile' && pageParams && pageParams.activeTab === 'progress' ? '#f0f7ff' : 'transparent',
+                  borderBottom: '1px solid #eee',
+                  color: '#333',
+                  fontWeight: currentPage === 'profile' && pageParams && pageParams.activeTab === 'progress' ? 'bold' : 'normal'
+                }}
+              >
+                Progress Analysis
               </div>
             </>
           )}

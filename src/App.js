@@ -83,6 +83,30 @@ const AppContent = () => {
   const [uploadedVideoFile, setUploadedVideoFile] = useState(null);
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState(null);
   
+  useEffect(() => {
+    // Only run this check when on upload-preview page and user is logged in
+    if (currentPage === 'upload-preview' && currentUser) {
+      // Check if the user has previous swing data
+      const checkPreviousSwings = async () => {
+        try {
+          // Get user's swings
+          const userSwings = await firestoreService.getUserSwings(currentUser.uid);
+          
+          // If user has previous swings, redirect to dashboard
+          if (userSwings && userSwings.length > 0) {
+            console.log('User has previous swings, redirecting to dashboard');
+            navigateTo('dashboard');
+          }
+        } catch (error) {
+          console.error('Error checking previous swings:', error);
+          // Continue with upload preview if there's an error
+        }
+      };
+      
+      checkPreviousSwings();
+    }
+  }, [currentPage, currentUser]);
+
   // Check if the screen is mobile size
   useEffect(() => {
     const handleResize = () => {
@@ -107,26 +131,36 @@ const AppContent = () => {
     };
   }, []);
 
-  // Enhanced navigation handler with robust scroll to top functionality
+  // Update the navigateTo function in App.js
   const navigateTo = (page, params = null) => {
-    setCurrentPage(page);
-    setPageParams(params);
-    
-    // If navigating to analysis page with specific swing data, update current swing data
-    if (page === 'analysis' && params && params.swingData) {
-      setSwingData(params.swingData);
+    // Special handling for upload-preview page
+    if (page === 'upload-preview' && currentUser) {
+      // Check if user has previous swings before navigating
+      firestoreService.getUserSwings(currentUser.uid)
+        .then(swings => {
+          if (swings && swings.length > 0) {
+            console.log('User has previous swings, redirecting to dashboard');
+            setCurrentPage('dashboard');
+            setPageParams(null);
+          } else {
+            // No previous swings, continue to upload preview
+            setCurrentPage(page);
+            setPageParams(params);
+          }
+        })
+        .catch(error => {
+          console.error('Error checking previous swings:', error);
+          // On error, still navigate to the requested page
+          setCurrentPage(page);
+          setPageParams(params);
+        });
+    } else {
+      // Normal navigation for other pages
+      setCurrentPage(page);
+      setPageParams(params);
     }
     
-    // If navigating away from upload-preview, clean up video preview
-    if (currentPage === 'upload-preview' && page !== 'upload-preview') {
-      // Clean up previous preview URL if exists
-      if (uploadedVideoUrl) {
-        URL.revokeObjectURL(uploadedVideoUrl);
-      }
-      setUploadedVideoFile(null);
-      setUploadedVideoUrl(null);
-    }
-    
+    // Rest of navigation code...
     setError(null);
     
     // Scroll to the top of the page
@@ -296,7 +330,7 @@ const AppContent = () => {
       case 'upload':
         return <VideoUpload 
           onVideoUpload={handleVideoUpload}
-          onVideoSelect={handleVideoFileSelect} // Pass the new handler
+          onVideoSelect={handleVideoFileSelect}
           isAnalyzing={isAnalyzing}
           navigateTo={navigateTo}
         />;
@@ -325,58 +359,62 @@ const AppContent = () => {
             navigateTo('upload');
           }}
           navigateTo={navigateTo}
-          isProcessing={isAnalyzing}
-        />;
-      case 'analysis':
-        return <SwingAnalysis 
-          swingData={swingData} 
-          navigateTo={navigateTo}
-          setSwingHistory={setSwingHistory}
-        />;
-      case 'tracker':
-        return <SwingTracker 
-          swingHistory={swingHistory}
-          setSwingHistory={setSwingHistory}
-          navigateTo={navigateTo}
-        />;
-      case 'comparison':
-        return <ProComparison 
-          swingData={swingData} 
-        />;
-      case 'profile':
-        return <UserProfile 
-          navigateTo={navigateTo}
-          userStats={userStats}
-          userClubs={userClubs}
-          setUserClubs={setUserClubs}
-          setupClubsTab={pageParams?.setupClubs}
-          pageParams={pageParams}
-        />;
-      case 'admin':
-        if (!currentUser) {
-          return (
-            <div className="card">
-              <h2>Authentication Required</h2>
-              <p>You need to log in to access this page.</p>
-              <button 
-                className="button"
-                onClick={() => setIsLoginModalOpen(true)}
-              >
-                Sign In
-              </button>
-            </div>
-          );
-        }
-        return <AdminAccessCheck><AdminPage /></AdminAccessCheck>;
-      default:
-        return <HomePage 
-          navigateTo={navigateTo} 
-          swingHistory={swingHistory} 
-          userStats={userStats}
-          userClubs={userClubs}
-        />;
-    }
-  };
+        isProcessing={isAnalyzing}
+      />;
+    case 'analysis':
+      return <SwingAnalysis 
+        swingData={swingData} 
+        navigateTo={navigateTo}
+        setSwingHistory={setSwingHistory}
+      />;
+    case 'progress': // Changed from 'tracker'
+      // Redirect to the profile page with the progress tab active
+      navigateTo('profile', { activeTab: 'progress' });
+      // Return a loading state temporarily while redirect happens
+      return (
+        <div className="card">
+          <h2>Loading Progress Analysis...</h2>
+          <div className="spinner"></div>
+        </div>
+      );
+    case 'comparison':
+      return <ProComparison 
+        swingData={swingData} 
+      />;
+    case 'profile':
+      return <UserProfile 
+        navigateTo={navigateTo}
+        userStats={userStats}
+        userClubs={userClubs}
+        setUserClubs={setUserClubs}
+        setupClubsTab={pageParams?.setupClubs}
+        pageParams={pageParams}
+      />;
+    case 'admin':
+      if (!currentUser) {
+        return (
+          <div className="card">
+            <h2>Authentication Required</h2>
+            <p>You need to log in to access this page.</p>
+            <button 
+              className="button"
+              onClick={() => setIsLoginModalOpen(true)}
+            >
+              Sign In
+            </button>
+          </div>
+        );
+      }
+      return <AdminAccessCheck><AdminPage /></AdminAccessCheck>;
+    default:
+      return <HomePage 
+        navigateTo={navigateTo} 
+        swingHistory={swingHistory} 
+        userStats={userStats}
+        userClubs={userClubs}
+      />;
+  }
+};
 
   // Simplified header for specific pages
   const usesSimplifiedHeader = ['home', 'upload-preview'].includes(currentPage);

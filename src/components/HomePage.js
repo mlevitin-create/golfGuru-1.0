@@ -3,15 +3,6 @@ import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import UserLoginIndicator from './UserLoginIndicator';
 
-/**
- * New home page component with modern design
- * @param {Object} props
- * @param {Function} props.navigateTo - Navigation function
- * @param {Array} props.swingHistory - User's swing history
- * @param {Object} props.userStats - User statistics
- * @param {Array} props.userClubs - User's club information
- * @returns {JSX.Element}
- */
 const HomePage = ({ navigateTo, swingHistory, userStats, userClubs }) => {
   const { currentUser } = useAuth();
   
@@ -109,9 +100,10 @@ const HomePage = ({ navigateTo, swingHistory, userStats, userClubs }) => {
           Upload Swing
         </button>
         
-        {hasData && (
+        {/* Add dashboard button if user is logged in */}
+        {currentUser && (
           <button
-            onClick={() => navigateTo('tracker')}
+            onClick={() => navigateTo('dashboard')}
             style={{
               width: '100%',
               padding: '15px 0',
@@ -138,9 +130,11 @@ const HomePage = ({ navigateTo, swingHistory, userStats, userClubs }) => {
               strokeLinejoin="round"
               style={{ marginRight: '10px' }}
             >
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="3" y1="9" x2="21" y2="9"></line>
+              <line x1="9" y1="21" x2="9" y2="9"></line>
             </svg>
-            View My Progress
+            Take Me to My Dashboard
           </button>
         )}
       </div>
@@ -375,7 +369,7 @@ const HomePage = ({ navigateTo, swingHistory, userStats, userClubs }) => {
           {swingHistory.length > 3 && (
             <div style={{ textAlign: 'center', marginTop: '15px' }}>
               <button
-                onClick={() => navigateTo('tracker')}
+                onClick={() => navigateTo('profile', { activeTab: 'progress' })}
                 style={{
                   backgroundColor: 'transparent',
                   color: '#546e47',
@@ -390,6 +384,40 @@ const HomePage = ({ navigateTo, swingHistory, userStats, userClubs }) => {
                 View all {swingHistory.length} swings →
               </button>
             </div>
+          )}
+          {hasData && (
+            <button
+              onClick={() => navigateTo('profile', { activeTab: 'progress' })}
+              style={{
+                width: '100%',
+                padding: '15px 0',
+                backgroundColor: 'white',
+                color: '#546e47',
+                border: '1px solid #546e47',
+                borderRadius: '30px',
+                fontSize: '1.1rem',
+                fontWeight: '500',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <svg 
+                width="24" 
+                height="24" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                style={{ marginRight: '10px' }}
+              >
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+              View My Progress
+            </button>
           )}
         </div>
       )}
