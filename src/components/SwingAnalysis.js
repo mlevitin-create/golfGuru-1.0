@@ -1,5 +1,5 @@
 // Mobile-Optimized SwingAnalysis.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import SwingOwnershipHandler from './SwingOwnershipHandler';
 import useVideoUrl from '../hooks/useVideoUrl';
@@ -67,22 +67,6 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     setActiveTooltip(null);
   }, [swingData]);
   
-  if (!swingData) {
-    return (
-      <div className="card">
-        <h2>No Swing Analysis Available</h2>
-        <p>Please select or upload a swing to analyze.</p>
-        <button 
-          className="button"
-          onClick={() => navigateTo('upload')}
-          style={{ marginTop: '15px', width: isMobile ? '100%' : 'auto' }}
-        >
-          Upload Swing
-        </button>
-      </div>
-    );
-  }
-
   // Toggle section expansion
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -206,35 +190,22 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     
     return metricMap[key] || key;
   };
-
-  const metricKeyMap = {
-    'swingBack': 'backswing',
-    'clubTrajectoryBackswing': 'backswing',
-    'swingForward': 'downswing',
-    'clubTrajectoryForswing': 'downswing',
-    'pacing': 'tempo & rhythm'
-  };
   
-  // Handle metric click to generate insights
-  const handleMetricClick = async (metricKey) => {
-    if (loadingInsights) return;
-    
-    // Normalize the metric key to handle duplicates
+  // Using useCallback to ensure function reference stability
+  const generateAIAnalysis = useCallback(async (metricKey) => {
+    // Normalize the metric key
     const normalizedKey = normalizeMetricKey(metricKey);
     
-    // If clicking the same metric, toggle off
-    if (selectedMetric === normalizedKey) {
-      setSelectedMetric(null);
-      setMetricInsights(null);
-      return;
-    }
-    
+    // Update UI state
     setSelectedMetric(normalizedKey);
     setLoadingInsights(true);
     setError(null);
     
+    // Close any open tooltips
+    setActiveTooltip(null);
+    
     try {
-      // Get insights from Gemini service - real analysis
+      // Get insights from Gemini service
       const insights = await metricInsightsGenerator.generateMetricInsights(swingData, normalizedKey);
       setMetricInsights(insights);
     } catch (error) {
@@ -247,49 +218,47 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     } finally {
       setLoadingInsights(false);
     }
-  };
+  }, [swingData]);
   
-  // Function to get the display name for a metric
-  const getMetricDisplayName = (key) => {
-    // Check if we have a custom display name for this metric
-    if (metricKeyMap[key]) {
-      // Convert the mapped name to proper case
-      return metricKeyMap[key].charAt(0).toUpperCase() + metricKeyMap[key].slice(1);
+  // Handle metric click for desktop - initiates analysis directly
+  const handleDesktopMetricClick = useCallback((metricKey) => {
+    if (loadingInsights) return;
+    
+    const normalizedKey = normalizeMetricKey(metricKey);
+    
+    // If clicking the same metric, toggle off
+    if (selectedMetric === normalizedKey) {
+      setSelectedMetric(null);
+      setMetricInsights(null);
+      return;
     }
     
-    // Use the getMetricInfo method if available
-    if (getMetricInfo) {
-      return getMetricInfo(key).title;
-    }
-    
-    // Fallback: Format the raw key with spaces and capitalization
-    return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-  };
+    // On desktop: directly perform analysis
+    generateAIAnalysis(normalizedKey);
+  }, [loadingInsights, selectedMetric, generateAIAnalysis]);
 
-  // Function to deduplicate metrics by combining similar ones
-  const deduplicateMetrics = (metrics) => {
-    const uniqueMetrics = {};
-    
-    // First pass: Group metrics by their normalized names
-    Object.entries(metrics).forEach(([key, value]) => {
-      const normalizedKey = metricKeyMap[key] || key.toLowerCase();
-      
-      // If we haven't processed this metric type yet or this score is higher
-      if (!uniqueMetrics[normalizedKey] || value > uniqueMetrics[normalizedKey].value) {
-        uniqueMetrics[normalizedKey] = { 
-          originalKey: key, 
-          value: value 
-        };
-      }
-    });
-    
-    // Convert back to an object with original metric keys
-    const result = {};
-    Object.entries(uniqueMetrics).forEach(([normalizedKey, data]) => {
-      result[data.originalKey] = data.value;
-    });
-    
-    return result;
+  if (!swingData) {
+    return (
+      <div className="card">
+        <h2>No Swing Analysis Available</h2>
+        <p>Please select or upload a swing to analyze.</p>
+        <button 
+          className="button"
+          onClick={() => navigateTo('upload')}
+          style={{ marginTop: '15px', width: isMobile ? '100%' : 'auto' }}
+        >
+          Upload Swing
+        </button>
+      </div>
+    );
+  }
+
+  const metricKeyMap = {
+    'swingBack': 'backswing',
+    'clubTrajectoryBackswing': 'backswing',
+    'swingForward': 'downswing',
+    'clubTrajectoryForswing': 'downswing',
+    'pacing': 'tempo & rhythm'
   };
   
   // Sort metrics by score
@@ -320,6 +289,32 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     acc[metric.category].push(metric);
     return acc;
   }, {});
+
+  // Function to deduplicate metrics by combining similar ones
+  function deduplicateMetrics(metrics) {
+    const uniqueMetrics = {};
+    
+    // First pass: Group metrics by their normalized names
+    Object.entries(metrics).forEach(([key, value]) => {
+      const normalizedKey = metricKeyMap[key] || key.toLowerCase();
+      
+      // If we haven't processed this metric type yet or this score is higher
+      if (!uniqueMetrics[normalizedKey] || value > uniqueMetrics[normalizedKey].value) {
+        uniqueMetrics[normalizedKey] = { 
+          originalKey: key, 
+          value: value 
+        };
+      }
+    });
+    
+    // Convert back to an object with original metric keys
+    const result = {};
+    Object.entries(uniqueMetrics).forEach(([normalizedKey, data]) => {
+      result[data.originalKey] = data.value;
+    });
+    
+    return result;
+  }
 
   return (
     <div className="swing-analysis-container">
@@ -417,7 +412,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                   return (
                     <div 
                       key={key}
-                      onClick={() => handleMetricClick(key)}
+                      onClick={() => handleDesktopMetricClick(key)}
                       style={{ 
                         marginBottom: '5px', 
                         cursor: 'pointer',
@@ -456,7 +451,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                   return (
                     <div 
                       key={key}
-                      onClick={() => handleMetricClick(key)}
+                      onClick={() => handleDesktopMetricClick(key)}
                       style={{ 
                         marginBottom: '5px', 
                         cursor: 'pointer',
@@ -504,11 +499,13 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                   <tr 
                     key={metric.key}
                     className="metric-row"
-                    onClick={() => {
+                    onClick={(e) => {
+                      // On mobile: always show tooltip first
                       if (isMobile) {
                         showTooltip(metricId, metric.key, metric.value);
                       } else {
-                        handleMetricClick(metric.key);
+                        // On desktop: directly generate insights
+                        handleDesktopMetricClick(metric.key);
                         // Auto-scroll to insights section when clicked
                         setTimeout(() => {
                           const insightsElement = document.querySelector('.metric-insights');
@@ -572,14 +569,35 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                         }}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <p>{generateInsightText(metric.key, metric.value)}</p>
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                          marginBottom: '10px'
+                        }}>
+                          <h4 style={{ margin: 0, fontSize: '1.1rem' }}>
+                            {getMetricInfo(metric.key).title}
+                          </h4>
+                          
+                          <div style={{
+                            backgroundColor: getScoreColor(metric.value),
+                            color: 'white',
+                            fontWeight: 'bold',
+                            padding: '3px 10px',
+                            borderRadius: '15px',
+                            fontSize: '0.9rem'
+                          }}>
+                            {metric.value}
+                          </div>
+                        </div>
+                        
+                        <p style={{ margin: '10px 0' }}>{generateInsightText(metric.key, metric.value)}</p>
                         
                         {/* Button for deep dive analytics */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleMetricClick(metric.key);
-                            setActiveTooltip(null);
+                            generateAIAnalysis(metric.key);
                             
                             // Auto-scroll to insights section after clicking
                             setTimeout(() => {
@@ -619,7 +637,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                             <line x1="12" y1="16" x2="12" y2="12" />
                             <line x1="12" y1="8" x2="12" y2="8" />
                           </svg>
-                          Click for AI Deep Dive Analysis
+                          Generate AI Deep Dive Analysis
                         </button>
                       </div>
                     )}

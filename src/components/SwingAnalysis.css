@@ -239,7 +239,7 @@
 
 @media (max-width: 768px) {
   .metric-tooltip {
-    display: none; /* Hide tooltips on mobile */
+    display: block; /* Hide tooltips on mobile */
   }
   
   .mobile-insight {
