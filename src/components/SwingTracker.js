@@ -29,6 +29,26 @@ const SwingTracker = ({ swingHistory, setSwingHistory, navigateTo }) => {
     }
   }, [swingHistory]);
 
+  // In SwingTracker component
+useEffect(() => {
+  const fetchSwings = async () => {
+    if (currentUser && (!swingHistory || swingHistory.length === 0)) {
+      try {
+        const swings = await firestoreService.getUserSwings(currentUser.uid);
+        // Only update if we got data and the component is still mounted
+        if (swings && swings.length > 0) {
+          console.log("Fetched swings for tracker:", swings.length);
+          setSwingHistory(swings);
+        }
+      } catch (error) {
+        console.error("Error fetching swings for tracker:", error);
+      }
+    }
+  };
+
+  fetchSwings();
+}, [currentUser, swingHistory, setSwingHistory]);
+
   if (!swingHistory || swingHistory.length === 0) {
     return (
       <div className="card">

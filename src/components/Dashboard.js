@@ -1,4 +1,4 @@
-// src/components/Dashboard.js
+// Modified Dashboard.js
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import firestoreService from '../services/firestoreService';
@@ -47,55 +47,8 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
     lastScore: hasHistory ? Math.round(localSwingHistory[0]?.overallScore) : 0,
     improvement: localStats?.improvement || 
       (hasHistory && localSwingHistory.length > 1 
-        ? Math.round(localSwingHistory[0].overallScore - localSwingHistory[1].overallScore) 
+        ? Math.round(localSwingHistory[0].overallScore - localSwingHistory[localSwingHistory.length - 1].overallScore) 
         : 0)
-  };
-
-  // Render appropriate content based on active tab
-  const renderTabContent = () => {
-    switch(activeTab) {
-      case 'stats':
-        return (
-          <div className="stats-content">
-            {/* Stats content would go here */}
-            <p>Detailed statistics about your swings will appear here.</p>
-          </div>
-        );
-      case 'trends':
-        return (
-          <div className="trends-content">
-            {/* Trends content would go here */}
-            <p>Performance trends over time will appear here.</p>
-          </div>
-        );
-      case 'compare':
-        return (
-          <div className="compare-content">
-            {/* Compare content would go here */}
-            <p>Compare your swings with others or against your past performance.</p>
-          </div>
-        );
-      case 'recent':
-        return (
-          <div className="recent-content">
-            {/* Recent swings would go here */}
-            <p>Your most recent swing analyses will appear here.</p>
-          </div>
-        );
-      case 'social':
-        return (
-          <div className="social-content">
-            {/* Social content would go here */}
-            <p>Connect with other golfers and share your progress.</p>
-          </div>
-        );
-      default:
-        return (
-          <div className="stats-content">
-            <p>Select a tab to view your swing data.</p>
-          </div>
-        );
-    }
   };
 
   // Show loading state
@@ -123,8 +76,6 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
 
   // If no history, show onboarding
   if (!hasHistory) {
-    console.log("No swing history found:", localSwingHistory);
-    
     return (
       <div className="dashboard-container" style={{
         display: 'flex',
@@ -189,8 +140,6 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
     );
   }
 
-  console.log("Displaying dashboard with data:", { stats, swings: localSwingHistory.length });
-
   // Main dashboard for users with history
   return (
     <div className="dashboard-container" style={{
@@ -208,20 +157,61 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
       }}>
         Swing AI
       </h1>
+      
+      {/* New Upload Button at the top */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        marginBottom: '30px'
+      }}>
+        <button
+          onClick={() => navigateTo('upload')}
+          style={{
+            backgroundColor: '#546e47',
+            color: 'white',
+            border: 'none',
+            borderRadius: '30px',
+            padding: '12px 25px',
+            fontSize: '1rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 4px rgba(84, 110, 71, 0.2)'
+          }}
+        >
+          <svg 
+            width="20" 
+            height="20" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            style={{ marginRight: '8px' }}
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          Upload New Swing
+        </button>
+      </div>
 
       <div className="dashboard-content" style={{
         display: 'flex',
         flexDirection: 'row',
-        gap: '40px',
-        alignItems: 'stretch',
+        gap: '20px',
+        alignItems: 'flex-start',
       }}>
-        {/* Left side - Navigation tabs */}
+        {/* Left side - Navigation tabs - Modified to match image 2 */}
         <div className="tabs-container" style={{
           display: 'flex',
           flexDirection: 'column',
           gap: '15px',
-          flex: '1',
-          maxWidth: '200px'
+          width: '175px', // Fixed width
+          marginRight: '20px'
         }}>
           <button 
             className={`tab-button ${activeTab === 'stats' ? 'active' : ''}`}
@@ -236,9 +226,30 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
               fontWeight: '500',
               textAlign: 'left',
               cursor: 'pointer',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center'
             }}
           >
+            <div style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              backgroundColor: 'white',
+              marginRight: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              {activeTab === 'stats' && (
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: '#546e47'
+                }}></div>
+              )}
+            </div>
             STATS
           </button>
           
@@ -255,9 +266,30 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
               fontWeight: '500',
               textAlign: 'left',
               cursor: 'pointer',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center'
             }}
           >
+            <div style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              backgroundColor: 'white',
+              marginRight: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              {activeTab === 'trends' && (
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: '#546e47'
+                }}></div>
+              )}
+            </div>
             TRENDS
           </button>
           
@@ -274,9 +306,30 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
               fontWeight: '500',
               textAlign: 'left',
               cursor: 'pointer',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center'
             }}
           >
+            <div style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              backgroundColor: 'white',
+              marginRight: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              {activeTab === 'compare' && (
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: '#546e47'
+                }}></div>
+              )}
+            </div>
             COMPARE
           </button>
           
@@ -293,9 +346,30 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
               fontWeight: '500',
               textAlign: 'left',
               cursor: 'pointer',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center'
             }}
           >
+            <div style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              backgroundColor: 'white',
+              marginRight: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              {activeTab === 'recent' && (
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: '#546e47'
+                }}></div>
+              )}
+            </div>
             RECENT
           </button>
           
@@ -312,24 +386,46 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
               fontWeight: '500',
               textAlign: 'left',
               cursor: 'pointer',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center'
             }}
           >
+            <div style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              backgroundColor: 'white',
+              marginRight: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              {activeTab === 'social' && (
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: '#546e47'
+                }}></div>
+              )}
+            </div>
             SOCIAL
           </button>
         </div>
         
-        {/* Right side - Stats display */}
+        {/* Right side - Stats display - Updated layout */}
         <div className="stats-display" style={{
-          flex: '2',
+          flex: '1',
           display: 'flex',
           flexDirection: 'column',
-          gap: '30px'
+          gap: '15px'
         }}>
-          {/* Stats cards */}
+          {/* Stats cards - Updated to match image 2 */}
           <div className="stat-card" style={{
             borderBottom: '1px solid #ddd',
-            paddingBottom: '20px'
+            paddingBottom: '10px',
+            marginBottom: '5px'
           }}>
             <div style={{ fontSize: '3rem', fontWeight: '500', color: '#333' }}>
               {stats.totalSwings}
@@ -341,7 +437,8 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
           
           <div className="stat-card" style={{
             borderBottom: '1px solid #ddd',
-            paddingBottom: '20px'
+            paddingBottom: '10px',
+            marginBottom: '5px'
           }}>
             <div style={{ fontSize: '3rem', fontWeight: '500', color: '#333' }}>
               {stats.averageScore.toFixed(1)}
@@ -353,7 +450,8 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
           
           <div className="stat-card" style={{
             borderBottom: '1px solid #ddd',
-            paddingBottom: '20px'
+            paddingBottom: '10px',
+            marginBottom: '5px'
           }}>
             <div style={{ fontSize: '3rem', fontWeight: '500', color: '#333' }}>
               {stats.lastScore}
@@ -365,14 +463,15 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
           
           <div className="stat-card" style={{
             borderBottom: '1px solid #ddd',
-            paddingBottom: '20px'
+            paddingBottom: '10px',
+            marginBottom: '5px'
           }}>
             <div style={{ 
               fontSize: '3rem', 
               fontWeight: '500', 
               color: stats.improvement >= 0 ? '#27ae60' : '#e74c3c'
             }}>
-              {stats.improvement > 0 ? '+' : ''}{stats.improvement}%
+              {stats.improvement >= 0 ? '+' : ''}{stats.improvement}%
             </div>
             <div style={{ fontSize: '1rem', color: '#555' }}>
               Improvement

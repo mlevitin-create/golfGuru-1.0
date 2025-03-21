@@ -26,20 +26,27 @@ const ClubAnalytics = ({ userClubs, swingHistory, navigateTo }) => {
 
       setLoading(true);
       try {
-        // Use passed props if available, otherwise fetch
-        const userClubsData = userClubs || await firestoreService.getUserClubs(currentUser.uid);
-        const userSwingsData = swingHistory || await firestoreService.getUserSwings(currentUser.uid);
+        // If userClubs is provided, use it; otherwise fetch from Firestore
+        let clubsData = userClubs;
+        if (!clubsData || clubsData.length === 0) {
+          clubsData = await firestoreService.getUserClubs(currentUser.uid);
+        }
+        setClubs(clubsData || []);
 
-        setClubs(userClubsData || []);
-        setSwings(userSwingsData || []);
+        // If swingHistory is provided, use it; otherwise fetch from Firestore
+        let swingsData = swingHistory;
+        if (!swingsData || swingsData.length === 0) {
+          swingsData = await firestoreService.getUserSwings(currentUser.uid);
+        }
+        setSwings(swingsData || []);
 
         // Select first club by default if available
-        if (userClubsData && userClubsData.length > 0) {
-          setSelectedClubId(userClubsData[0].id);
+        if (clubsData && clubsData.length > 0) {
+          setSelectedClubId(clubsData[0].id);
         }
 
         // Generate insights
-        const clubInsights = clubUtils.generateClubInsights(userSwingsData, userClubsData);
+        const clubInsights = clubUtils.generateClubInsights(swingsData, clubsData);
         setInsights(clubInsights);
 
       } catch (error) {

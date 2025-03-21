@@ -266,6 +266,62 @@ const AppContent = () => {
       setIsAnalyzing(false);
     }
   };
+  const ProComparisonWrapper = ({ currentUser, swingData }) => {
+    const [loading, setLoading] = useState(!swingData);
+    const [latestSwing, setLatestSwing] = useState(swingData);
+    
+    useEffect(() => {
+      const fetchLatestSwing = async () => {
+        if (currentUser && !swingData) {
+          try {
+            console.log("ProComparisonWrapper: Fetching latest swing data");
+            const swings = await firestoreService.getUserSwings(currentUser.uid);
+            console.log(`ProComparisonWrapper: Fetched ${swings?.length || 0} swings`);
+            
+            if (swings && swings.length > 0) {
+              // Use the most recent swing for comparison
+              setLatestSwing(swings[0]);
+            }
+          } catch (error) {
+            console.error("Error fetching swing data for comparison:", error);
+          } finally {
+            setLoading(false);
+          }
+        } else {
+          setLoading(false);
+        }
+      };
+      
+      fetchLatestSwing();
+    }, [currentUser, swingData]);
+    
+    if (loading) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px' }}>
+          <div className="spinner"></div>
+          <p>Loading your swing data...</p>
+        </div>
+      );
+    }
+    
+    if (!latestSwing) {
+      return (
+        <div className="card">
+          <h2>No Swing Data Available</h2>
+          <p>Upload and analyze a swing first to use the Pro Comparison feature.</p>
+          <button
+            className="button"
+            onClick={() => navigateTo('upload')}
+            style={{ marginTop: '15px' }}
+          >
+            Upload Swing
+          </button>
+        </div>
+      );
+    }
+    
+    return <ProComparison swingData={latestSwing} />;
+  };
 
   // Render appropriate component based on current page
   const renderPage = () => {
@@ -334,10 +390,13 @@ const AppContent = () => {
           <div className="spinner"></div>
         </div>
       );
-    case 'comparison':
-      return <ProComparison 
-        swingData={swingData} 
-      />;
+      case 'comparison':
+        return <ProComparisonWrapper 
+          currentUser={currentUser} 
+          swingData={swingData}
+          navigateTo={navigateTo} 
+        />;
+      
     case 'profile':
       return <UserProfile 
         navigateTo={navigateTo}
@@ -346,6 +405,8 @@ const AppContent = () => {
         setUserClubs={setUserClubs}
         setupClubsTab={pageParams?.setupClubs}
         pageParams={pageParams}
+        swingHistory={swingHistory} // Add this line to pass swingHistory
+        setSwingHistory={setSwingHistory} // Add this to allow updates
       />;
     case 'admin':
       if (!currentUser) {
