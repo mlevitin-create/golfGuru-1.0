@@ -236,3 +236,22 @@
     padding: 15px 10px;  /* Larger touch target on mobile */
   }
 }
+
+@media (max-width: 768px) {
+  .metric-tooltip {
+    display: none; /* Hide tooltips on mobile */
+  }
+  
+  .mobile-insight {
+    display: block;
+    font-size: 0.9rem;
+    color: #666;
+    padding: 5px 0;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-insight {
+    display: none; /* Hide mobile insights on desktop */
+  }
+}

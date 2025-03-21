@@ -438,7 +438,7 @@ const AppContent = () => {
   const usesSimplifiedHeader = ['home', 'upload-preview'].includes(currentPage);
 
   return (
-    <div className="App">
+    <div className="App" style={{ backgroundColor: '#ffffff' }}>
       {!usesSimplifiedHeader && (
         <header className="App-header">
           <div style={{ 

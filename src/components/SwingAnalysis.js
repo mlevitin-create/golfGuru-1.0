@@ -13,12 +13,30 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
   const [metricInsights, setMetricInsights] = useState(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [error, setError] = useState(null);
+  const [activeRowId, setActiveRowId] = useState(null);
   
   // Handle video URL management
   const { videoUrl, isTemporary, isYouTube, hasVideo } = useVideoUrl(swingData);
   
   // Get ownership information
   const ownershipHandler = SwingOwnershipHandler({ swingData });
+
+  // Add document-level click handler to hide tooltips when clicking elsewhere
+  useEffect(() => {
+    const handleDocumentClick = (e) => {
+      // Check if the click was outside any tooltip
+      if (activeTooltip && !activeTooltip.contains(e.target) && 
+          !e.target.classList.contains('metric-row')) {
+        hideAllTooltips();
+      }
+    };
+    
+    document.addEventListener('click', handleDocumentClick);
+    
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, []);
   
   useEffect(() => {
     // Reset selected metric when swing data changes
@@ -42,6 +60,82 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     );
   }
 
+  // First, add a function to generate insight text based on the metric and its score
+const generateInsightText = (metricKey, score) => {
+  // Default insights map with score ranges and corresponding messages
+  const insights = {
+    backswing: {
+      high: "Your backswing shows excellent form with proper rotation and club position.",
+      medium: "Your backswing is decent but could use more consistency in positioning.",
+      low: "Your backswing needs work - focus on proper rotation and club position."
+    },
+    stance: {
+      high: "Your stance provides excellent stability and alignment for consistent shots.",
+      medium: "Your stance is adequate but could be improved for better balance.",
+      low: "Your stance needs significant improvement for better stability."
+    },
+    grip: {
+      high: "Your grip is excellent, allowing for proper club control through impact.",
+      medium: "Your grip is functional but could be adjusted for better control.",
+      low: "Your grip needs refinement to improve overall control and consistency."
+    },
+    focus: {
+      high: "Your mental focus is exceptional throughout the swing.",
+      medium: "Your focus is good but occasionally wavers during the swing.",
+      low: "Your focus needs improvement - try establishing a consistent pre-shot routine."
+    },
+    hipRotation: {
+      high: "Your hip rotation generates excellent power transfer through impact.",
+      medium: "Your hip rotation is adequate but could generate more power.",
+      low: "Your hip rotation is limited, reducing power and consistency."
+    },
+    shallowing: {
+      high: "Your club shallowing is excellent, creating an ideal attack angle.",
+      medium: "Your shallowing is adequate but could be more consistent.",
+      low: "Your club path is too steep - work on proper shallowing technique."
+    },
+    confidence: {
+      high: "Your confidence is exceptional, allowing for committed swings.",
+      medium: "Your confidence is good but could be more consistent.",
+      low: "Work on building confidence through positive reinforcement."
+    },
+    swingSpeed: {
+      high: "Your swing speed generates excellent distance while maintaining control.",
+      medium: "Your swing speed is good but could be optimized for better results.",
+      low: "Your swing speed needs work - focus on proper sequencing for more power."
+    },
+    pacing: {
+      high: "Your tempo and rhythm are excellent, creating a smooth, powerful swing.",
+      medium: "Your tempo is good but could be more consistent.",
+      low: "Your swing rhythm needs work - practice with a metronome."
+    },
+    // Add more metrics as needed
+  };
+
+  // Get the normalized key for consistency
+  const normalizedKey = metricKeyMap[metricKey] || metricKey.toLowerCase();
+  
+  // Determine score range
+  let range;
+  if (score >= 80) range = "high";
+  else if (score >= 60) range = "medium";
+  else range = "low";
+  
+  // Get insight for the specific metric and score range
+  if (insights[normalizedKey] && insights[normalizedKey][range]) {
+    return insights[normalizedKey][range];
+  }
+  
+  // Default insights if specific one not found
+  const defaultInsights = {
+    high: `You scored ${score} due to strong technique and proper execution.`,
+    medium: `You scored ${score}, showing decent performance with room for improvement.`,
+    low: `You scored ${score}, indicating this area needs focused practice.`
+  };
+  
+  return defaultInsights[range];
+};
+
   const normalizeMetricKey = (key) => {
     // Map alternative names to standard ones
     const metricMap = {
@@ -60,6 +154,50 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
     'swingForward': 'downswing',
     'clubTrajectoryForswing': 'downswing',
     'pacing': 'tempo & rhythm'
+  };
+
+  let activeTooltip = null;
+
+  // Function to create and show tooltip
+  const showTooltip = (element, metricKey, score) => {
+    // Remove any existing tooltip first
+    hideAllTooltips();
+    
+    // Create new tooltip
+    const tooltip = document.createElement('div');
+    tooltip.className = 'metric-tooltip';
+    tooltip.innerHTML = `
+      <div style="padding: 15px; max-width: 300px;">
+        <p>${generateInsightText(metricKey, score)}</p>
+        <p style="margin-top: 10px; font-style: italic; color: #666;">Click for detailed analysis</p>
+      </div>
+    `;
+    
+    // Style the tooltip
+    tooltip.style.position = 'absolute';
+    tooltip.style.zIndex = '100';
+    tooltip.style.backgroundColor = 'white';
+    tooltip.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+    tooltip.style.borderRadius = '8px';
+    tooltip.style.left = '50%';
+    tooltip.style.transform = 'translateX(-50%)';
+    tooltip.style.width = '300px';
+    tooltip.style.top = `${element.offsetHeight}px`;
+    
+    // Add to DOM
+    element.appendChild(tooltip);
+    
+    // Update active tooltip reference
+    activeTooltip = tooltip;
+  };
+  
+  // Function to hide all tooltips
+  const hideAllTooltips = () => {
+    const tooltips = document.querySelectorAll('.metric-tooltip');
+    tooltips.forEach(tooltip => {
+      tooltip.parentNode.removeChild(tooltip);
+    });
+    activeTooltip = null;
   };
   
   // Function to get the display name for a metric
@@ -199,155 +337,199 @@ const deduplicateMetrics = (metrics) => {
       )}
       
       <div className="analysis-content" style={{ 
-        display: 'flex', 
-        flexDirection: 'column',
         maxWidth: '800px',
         margin: '0 auto'
       }}>
-        {/* Overall Score */}
-        <div className="overall-score-section" style={{ marginBottom: '20px' }}>
+        {/* Overall Score Section with Table on Right */}
+        <div style={{ 
+          display: 'flex',
+          borderTop: '1px solid #ccc',
+          borderBottom: '1px solid #ccc',
+          padding: '10px 0'
+        }}>
+          {/* Left side - Overall score and attributes */}
           <div style={{ 
-            borderTop: '1px solid #ccc',
-            borderBottom: '1px solid #ccc',
-            padding: '10px 0',
-            display: 'flex'
+            display: 'flex',
+            flexDirection: 'column',
+            width: '40%',
+            paddingRight: '20px'
           }}>
-            <div style={{ 
-              fontSize: '6rem', 
-              fontWeight: 'bold', 
-              color: '#333',
-              width: '200px'
-            }}>
-              {Math.round(swingData.overallScore)}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'normal', color: '#666', marginBottom: '5px' }}>
+            {/* Overall Score */}
+            <div style={{ marginBottom: '30px' }}>
+              <div style={{ 
+                fontSize: '6rem', 
+                fontWeight: 'bold', 
+                color: '#333',
+                lineHeight: '1'
+              }}>
+                {Math.round(swingData.overallScore)}
+              </div>
+              <div style={{ fontSize: '1.2rem', color: '#666' }}>
                 Out of 100
               </div>
-              {swingData.clubName && (
-                <div style={{ fontSize: '1rem', color: '#666' }}>
-                  Club: {swingData.clubName}
-                </div>
-              )}
-              {swingData.recordedDate && (
-                <div style={{ fontSize: '1rem', color: '#666' }}>
-                  {new Date(swingData.recordedDate).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'short', 
-                    day: 'numeric' 
-                  })}
-                </div>
-              )}
+              <div style={{ fontSize: '1rem', color: '#666' }}>
+                {new Date(swingData.recordedDate).toLocaleDateString('en-US', { 
+                  year: 'numeric', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </div>
             </div>
             
-            {/* Metrics Overview Table - Right Column */}
-            <div style={{ flex: 1, marginLeft: '20px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#546e47', color: 'white' }}>
-                    <th style={{ padding: '5px 10px', textAlign: 'left' }}>Category</th>
-                    <th style={{ padding: '5px 10px', textAlign: 'center' }}>Score</th>
-                    <th style={{ padding: '5px 10px', textAlign: 'right' }}>vs Average</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allMetrics.map((metric) => (
-                    <tr 
-                      key={metric.key} 
-                      onClick={() => handleMetricClick(metric.key)}
+            {/* Top 3 Attributes */}
+            <div style={{
+              borderTop: '1px solid #ccc',
+              paddingTop: '15px',
+              marginBottom: '20px'
+            }}>
+              <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>Top 3 Attributes</h3>
+              <div>
+                {topMetrics.map(([key, value], index) => {
+                  const metricInfo = getMetricInfo(key);
+                  return (
+                    <div 
+                      key={key}
+                      onClick={() => handleMetricClick(key)}
                       style={{ 
+                        marginBottom: '5px', 
                         cursor: 'pointer',
-                        backgroundColor: selectedMetric === metric.key ? '#f0f7ff' : 'transparent',
-                        opacity: loadingInsights && selectedMetric !== metric.key ? 0.5 : 1
+                        color: selectedMetric === key ? '#546e47' : 'inherit',
+                        fontWeight: selectedMetric === key ? 'bold' : 'normal'
                       }}
                     >
-                      <td style={{ 
-                        padding: '5px 10px', 
-                        borderBottom: '1px dotted #ddd',
-                        color: selectedMetric === metric.key ? '#000' : '#666'
-                      }}>
-                        {metric.title}
-                      </td>
-                      <td style={{ 
-                        padding: '5px 10px', 
-                        textAlign: 'center', 
-                        borderBottom: '1px dotted #ddd',
-                        fontWeight: selectedMetric === metric.key ? 'bold' : 'normal' 
-                      }}>
-                        {metric.value}
-                      </td>
-                      <td style={{ 
-                        padding: '5px 10px', 
-                        textAlign: 'right', 
-                        borderBottom: '1px dotted #ddd',
-                        color: metric.value > 70 ? 'green' : 'red' 
-                      }}>
-                        {metric.value > 70 ? '+' : '-'}x%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      <span style={{ fontWeight: 'bold', marginRight: '10px', fontSize: '1.1rem', color: '#333' }}>
+                        {value}
+                      </span>
+                      <span>{metricInfo.title}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </div>
-        
-        {/* Top and Bottom Metrics */}
-        <div className="metrics-highlights" style={{ marginBottom: '20px' }}>
-          <div style={{
-            borderBottom: '1px solid #ccc',
-            paddingBottom: '10px',
-            marginBottom: '10px'
-          }}>
-            <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>Top 3 Attributes</h3>
-            <div>
-              {topMetrics.map(([key, value], index) => {
-                const metricInfo = getMetricInfo(key);
-                return (
-                  <div 
-                    key={key}
-                    onClick={() => handleMetricClick(key)}
-                    style={{ 
-                      marginBottom: '5px', 
-                      cursor: 'pointer',
-                      color: selectedMetric === normalizeMetricKey(key) ? '#546e47' : 'inherit',
-                      fontWeight: selectedMetric === normalizeMetricKey(key) ? 'bold' : 'normal'
-                    }}
-                  >
-                    <span style={{ fontWeight: 'bold', marginRight: '10px', fontSize: '1.1rem' }}>
-                      {value}
-                    </span>
-                    <span>{getMetricInfo(key).title}</span>
-                  </div>
-                );
-              })}
+            
+            {/* Bottom 3 Attributes */}
+            <div style={{
+              borderTop: '1px solid #ccc',
+              paddingTop: '15px'
+            }}>
+              <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>Bottom 3 Attributes</h3>
+              <div>
+                {bottomMetrics.map(([key, value], index) => {
+                  const metricInfo = getMetricInfo(key);
+                  return (
+                    <div 
+                      key={key}
+                      onClick={() => handleMetricClick(key)}
+                      style={{ 
+                        marginBottom: '5px', 
+                        cursor: 'pointer',
+                        color: selectedMetric === key ? '#546e47' : 'inherit',
+                        fontWeight: selectedMetric === key ? 'bold' : 'normal'
+                      }}
+                    >
+                      <span style={{ fontWeight: 'bold', marginRight: '10px', fontSize: '1.1rem', color: '#333' }}>
+                        {value}
+                      </span>
+                      <span>{metricInfo.title}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
           
-          <div>
-            <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>Bottom 3 Attributes</h3>
-            <div>
-              {bottomMetrics.map(([key, value], index) => {
-                const metricInfo = getMetricInfo(key);
-                return (
-                  <div 
-                    key={key}
-                    onClick={() => handleMetricClick(key)}
-                    style={{ 
-                      marginBottom: '5px', 
-                      cursor: 'pointer',
-                      color: selectedMetric === key ? '#546e47' : 'inherit',
-                      fontWeight: selectedMetric === key ? 'bold' : 'normal'
-                    }}
-                  >
-                    <span style={{ fontWeight: 'bold', marginRight: '10px', fontSize: '1.1rem' }}>
-                      {value}
-                    </span>
-                    <span>{metricInfo.title}</span>
-                  </div>
-                );
-              })}
-            </div>
+          {/* Right side - Metrics Table */}
+          <div style={{ flex: '1' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#546e47', color: 'white' }}>
+                  <th style={{ padding: '5px 10px', textAlign: 'left' }}>Category</th>
+                  <th style={{ padding: '5px 10px', textAlign: 'center' }}>Score</th>
+                  <th style={{ padding: '5px 10px', textAlign: 'right' }}>vs Average</th>
+                </tr>
+              </thead>
+              <tbody>
+              {allMetrics.map((metric, index) => {
+              const rowId = `metric-row-${index}`;
+              const isActive = activeRowId === rowId;
+              
+              return (
+                <tr 
+                  key={metric.key}
+                  id={rowId}
+                  className="metric-row"
+                  onClick={() => {
+                    handleMetricClick(metric.key);
+                    // Auto-scroll to insights section when clicked
+                    setTimeout(() => {
+                      const insightsElement = document.querySelector('.metric-insights');
+                      if (insightsElement) {
+                        insightsElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }
+                    }, 200);
+                  }}
+                  style={{ 
+                    cursor: 'pointer',
+                    backgroundColor: selectedMetric === metric.key ? '#f0f7ff' : 'transparent',
+                    opacity: loadingInsights && selectedMetric !== metric.key ? 0.5 : 1,
+                    position: 'relative' // For the tooltip positioning
+                  }}
+                  onMouseEnter={() => setActiveRowId(rowId)}
+                  onMouseLeave={() => setActiveRowId(null)}
+                >
+                  <td style={{ 
+                    padding: '5px 10px', 
+                    borderBottom: '1px dotted #ddd',
+                    color: selectedMetric === metric.key ? '#000' : '#666'
+                  }}>
+                    {metric.title}
+                  </td>
+                  <td style={{ 
+                    padding: '5px 10px', 
+                    textAlign: 'center', 
+                    borderBottom: '1px dotted #ddd',
+                    fontWeight: selectedMetric === metric.key ? 'bold' : 'normal' 
+                  }}>
+                    {metric.value}
+                  </td>
+                  <td style={{ 
+                    padding: '5px 10px', 
+                    textAlign: 'right', 
+                    borderBottom: '1px dotted #ddd',
+                    color: metric.value > 70 ? 'green' : 'red' 
+                  }}>
+                    {metric.value > 70 ? '+' : '-'}x%
+                  </td>
+                  
+                  {/* Tooltip - rendered conditionally instead of added/removed from DOM */}
+                  {isActive && (
+                    <div 
+                      className="metric-tooltip"
+                      style={{
+                        position: 'absolute',
+                        zIndex: '100',
+                        backgroundColor: 'white',
+                        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                        borderRadius: '8px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: '300px',
+                        top: '100%',
+                        padding: '15px',
+                        pointerEvents: 'none' // Make tooltip non-interactive to prevent hover issues
+                      }}
+                    >
+                      <p>{generateInsightText(metric.key, metric.value)}</p>
+                      <p style={{ marginTop: '10px', fontStyle: 'italic', color: '#666' }}>
+                        Click for detailed analysis
+                      </p>
+                    </div>
+                  )}
+                </tr>
+              );
+            })}
+              </tbody>
+            </table>
           </div>
         </div>
         
@@ -360,7 +542,7 @@ const deduplicateMetrics = (metrics) => {
               borderRadius: '8px',
               boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
               padding: '20px',
-              marginTop: '10px',
+              marginTop: '20px',
               position: 'relative'
             }}
           >

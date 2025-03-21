@@ -209,7 +209,7 @@ const VideoUploadPreview = ({
       maxWidth: '800px',
       margin: '0 auto',
       position: 'relative',
-      backgroundColor: '#f7f7f5',
+      backgroundColor: '#ffffff',
       minHeight: '80vh'
     }}>
       {/* Login status indicator in the top right */}
