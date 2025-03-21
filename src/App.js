@@ -430,7 +430,7 @@ const AppContent = () => {
             width: '100%' 
           }}>
             <h1 
-              onClick={() => navigateTo('home')}
+              onClick={() => navigateTo('dashboard')}
               style={{
                 cursor: 'pointer',
                 margin: 0,

@@ -42,7 +42,7 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
     totalSwings: localStats?.totalSwings || localSwingHistory.length || 0,
     averageScore: localStats?.averageScore || 
       (hasHistory 
-        ? Math.round(localSwingHistory.reduce((sum, swing) => sum + swing.overallScore, 0) / localSwingHistory.length) 
+        ? parseFloat((localSwingHistory.reduce((sum, swing) => sum + swing.overallScore, 0) / localSwingHistory.length).toFixed(1)) 
         : 0),
     lastScore: hasHistory ? Math.round(localSwingHistory[0]?.overallScore) : 0,
     improvement: localStats?.improvement || 
@@ -344,7 +344,7 @@ const Dashboard = ({ swingHistory, navigateTo, userStats, userClubs }) => {
             paddingBottom: '20px'
           }}>
             <div style={{ fontSize: '3rem', fontWeight: '500', color: '#333' }}>
-              {stats.averageScore}
+              {stats.averageScore.toFixed(1)}
             </div>
             <div style={{ fontSize: '1rem', color: '#555' }}>
               Average Score
