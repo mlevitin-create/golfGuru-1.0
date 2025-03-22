@@ -584,10 +584,10 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                             backgroundColor: 'white',
                             boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
                             borderRadius: '8px',
-                            left: isMobile ? '0' : '50%',
-                            width: isMobile ? '100%' : '300px',
-                            transform: isMobile ? 'none' : 'translateX(-50%)',
-                            top: isMobile ? '100%' : '-120px',
+                            left: '0', // Set left to 0 for both mobile and desktop
+                            width: '100%', // Full width for both mobile and desktop
+                            transform: 'none', // Remove the translateX
+                            top: '100%', // Always position below the row
                             padding: '15px',
                             border: '1px solid #ddd'
                           }}
