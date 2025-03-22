@@ -693,19 +693,18 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                 </tr>
               </thead>
               <tbody>
+                {/* Inside the table's mapping function where allMetrics are being rendered */}
                 {allMetrics.map((metric, index) => {
                   const metricId = `metric-${index}`;
                   return (
                   <tr 
                     key={metric.key}
                     className="metric-row"
-                    onClick={(e) => {
-                      // On mobile: always show tooltip first
+                    onClick={() => {
                       if (isMobile) {
                         showTooltip(metricId, metric.key, metric.value);
                       } else {
-                        // On desktop: directly generate insights
-                        handleDesktopMetricClick(metric.key);
+                        handleMetricClick(metric.key);
                         // Auto-scroll to insights section when clicked
                         setTimeout(() => {
                           const insightsElement = document.querySelector('.metric-insights');
@@ -749,7 +748,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                       {metric.value > 70 ? '+' : '-'}x%
                     </td>
                     
-                    {/* Tooltip - only display when active */}
+                    {/* Tooltip - completely replaced positioning */}
                     {activeTooltip === metricId && (
                       <div 
                         ref={tooltipRef}
@@ -760,44 +759,23 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                           backgroundColor: 'white',
                           boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
                           borderRadius: '8px',
-                          left: '0', // Set left to 0 for both mobile and desktop
-                          width: '100%', // Full width for both mobile and desktop
-                          transform: 'none', // Remove the translateX
-                          top: '100%', // Always position below the row
+                          left: '0',
+                          right: '0',
+                          width: '100%',
+                          top: '100%',
                           padding: '15px',
                           border: '1px solid #ddd'
                         }}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center',
-                          marginBottom: '10px'
-                        }}>
-                          <h4 style={{ margin: 0, fontSize: '1.1rem' }}>
-                            {getMetricInfo(metric.key).title}
-                          </h4>
-                          
-                          <div style={{
-                            backgroundColor: getScoreColor(metric.value),
-                            color: 'white',
-                            fontWeight: 'bold',
-                            padding: '3px 10px',
-                            borderRadius: '15px',
-                            fontSize: '0.9rem'
-                          }}>
-                            {metric.value}
-                          </div>
-                        </div>
-                        
-                        <p style={{ margin: '10px 0' }}>{generateInsightText(metric.key, metric.value)}</p>
+                        <p>{generateInsightText(metric.key, metric.value)}</p>
                         
                         {/* Button for deep dive analytics */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            generateAIAnalysis(metric.key);
+                            handleMetricClick(metric.key);
+                            setActiveTooltip(null);
                             
                             // Auto-scroll to insights section after clicking
                             setTimeout(() => {
@@ -837,7 +815,7 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                             <line x1="12" y1="16" x2="12" y2="12" />
                             <line x1="12" y1="8" x2="12" y2="8" />
                           </svg>
-                          Generate AI Deep Dive Analysis
+                          Click for AI Deep Dive Analysis
                         </button>
                       </div>
                     )}
