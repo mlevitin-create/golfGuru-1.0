@@ -108,14 +108,14 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
     }
     
     // Scroll to the metric row after a short delay to allow DOM update
-    if (isMobile) {
+    /*if (isMobile) {
       setTimeout(() => {
         const metricRow = document.getElementById(`metric-row-${metricKey}`);
         if (metricRow) {
           metricRow.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }, 100);
-    }
+    }*/
   };
   
   // Handle deep dive button click (second click)
@@ -130,14 +130,14 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
     generateAIAnalysis(metricKey);
     
     // Scroll to the metric row after a short delay to allow DOM update
-    if (isMobile) {
+    /*if (isMobile) {
       setTimeout(() => {
         const metricRow = document.getElementById(`metric-row-${metricKey}`);
         if (metricRow) {
           metricRow.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }, 100);
-    }
+    }*/
   };
 
   if (!swingData) {
