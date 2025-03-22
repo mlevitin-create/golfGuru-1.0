@@ -1,55 +1,68 @@
+/* SwingAnalysis.css with improved mobile handling for metric insights */
+
 .video-container {
   max-width: 100%;
   margin: 0 auto;
   border-radius: 8px;
   overflow: hidden;
-  background-color: #2c3e50; /* Dark background color */
+  background-color: #2c3e50;
   display: flex;
   justify-content: center;
-  align-items: center; /* Vertically center the video */
+  align-items: center;
 }
 
 .video-container video {
-  max-width: 100%; /* Make video responsive */
-  max-height: 500px; /* Limit video height */
-  width: auto; /* Maintain aspect ratio */
+  max-width: 100%;
+  max-height: 500px;
+  width: auto;
   height: auto;
-  object-fit: contain; /* Ensure video fits within container */
+  object-fit: contain;
   display: block;
   border-radius: 8px;
-  background-color: #2c3e50; /* Ensure background color is set */
+  background-color: #2c3e50;
 }
 
 /* Media query for larger screens (desktop) */
 @media (min-width: 768px) {
   .video-container video {
-    max-width: 600px; /* Maximum width on desktop */
+    max-width: 600px;
   }
 }
 
-/* Metric label styling */
-.metric-label {
+/* Metric row styling */
+.metric-row {
   cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 8px;
-  border-radius: 8px;
-  margin-bottom: 8px;
   transition: background-color 0.2s;
-  -webkit-tap-highlight-color: transparent; /* Remove default mobile tap highlight */
+  position: relative;
 }
 
-.metric-label:hover {
+.metric-row:hover {
   background-color: #f5f5f5;
 }
 
-.metric-label:active {
-  background-color: #e9ecef;
+.metric-row.active {
+  background-color: #f0f7ff !important;
+  border-radius: 8px 8px 0 0 !important;
+  border-bottom: none !important;
 }
 
-.metric-label.expanded {
-  background-color: #f0f0f0;
+/* In-table insights styling */
+.in-table-insights {
+  border: 1px solid #ddd;
+  border-top: none;
+  margin-top: -8px !important;
+  margin-bottom: 15px !important;
+  border-radius: 0 0 8px 8px !important;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+  background-color: #fff;
+}
+
+.insights-row {
+  background-color: transparent;
+}
+
+.insights-row td {
+  padding: 0 !important;
 }
 
 /* Section headers in metric insights */
@@ -61,7 +74,11 @@
   padding: 8px 0;
   margin-bottom: 5px;
   -webkit-tap-highlight-color: transparent;
-  position: relative;
+  border-radius: 5px;
+}
+
+.section-header:hover {
+  background-color: #f8f9fa;
 }
 
 .section-header:active {
@@ -147,44 +164,54 @@
   animation: pulse 1.5s infinite;
 }
 
+/* Loading spinner animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.spinner {
+  border: 4px solid rgba(84, 110, 71, 0.1);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border-left-color: #546e47;
+  animation: spin 1s linear infinite;
+  margin: 20px auto;
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
-  .metric-label {
-    padding: 15px 10px;
-    background-color: #f8f9fa;
-    margin-bottom: 12px;
+  /* Enhanced table rows for mobile */
+  .metrics-table-container {
+    margin-bottom: 20px;
   }
   
-  .metric-label.expanded {
-    margin-bottom: 0;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
+  .metric-row {
+    padding: 10px 0;
   }
   
-  .metric-label:active {
-    background-color: #e9ecef;
+  .metric-row.active {
+    z-index: 5;
   }
   
-  .metric-insights {
-    margin-bottom: 12px;
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
-    border: 1px solid #eee;
-    border-top: none;
+  /* Better insight display for mobile */
+  .in-table-insights {
+    width: 100%;
+    z-index: 2;
   }
   
   .section-header {
-    padding: 14px 10px;
+    padding: 12px 10px;
     background-color: #f8f9fa;
     border-radius: 8px;
     margin-bottom: 8px;
   }
   
   .toggle-button {
-    font-size: 26px;
-    padding: 0 8px;
-    height: 44px;
-    width: 44px;
+    font-size: 24px;
+    height: 42px;
+    width: 42px;
   }
   
   /* Enhance tap targets */
@@ -193,65 +220,12 @@
   }
   
   .metric-insights li {
-    padding: 5px 0;
+    padding: 8px 0;
+    line-height: 1.4;
   }
   
-  /* Fix video container for mobile */
-  .video-container {
-    margin: 15px 0;
-  }
-  
-  /* Add extra space for buttons on mobile */
-  .action-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .action-buttons button {
-    margin: 0 !important;
-    width: 100%;
-  }
-  
-  /* Add loading animation */
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  
-  .spinner {
-    animation: spin 1s linear infinite;
-  }
-}
-
-.metric-label, .section-header {
-  padding: 12px 8px;
-  margin-bottom: 8px;
-  transition: background-color 0.2s;
-  -webkit-tap-highlight-color: transparent;
-}
-
-@media (max-width: 768px) {
-  .metric-label, .section-header {
-    padding: 15px 10px;  /* Larger touch target on mobile */
-  }
-}
-
-@media (max-width: 768px) {
-  .metric-tooltip {
-    display: block; /* Hide tooltips on mobile */
-  }
-  
-  .mobile-insight {
-    display: block;
-    font-size: 0.9rem;
-    color: #666;
-    padding: 5px 0;
-  }
-}
-
-@media (min-width: 769px) {
-  .mobile-insight {
-    display: none; /* Hide mobile insights on desktop */
+  /* Fix table scrolling when insights are open */
+  .metrics-table-container {
+    overflow-x: auto;
   }
 }
