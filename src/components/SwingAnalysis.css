@@ -40,10 +40,19 @@
   background-color: #f5f5f5;
 }
 
-.metric-row.active {
+.metric-row.active, .metric-row.showing-basic {
   background-color: #f0f7ff !important;
   border-radius: 8px 8px 0 0 !important;
   border-bottom: none !important;
+}
+
+/* Basic insight row styling */
+.basic-insight-row td {
+  padding: 0 !important;
+}
+
+.basic-insight {
+  transition: all 0.3s ease;
 }
 
 /* In-table insights styling */
