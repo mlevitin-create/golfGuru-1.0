@@ -407,12 +407,20 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                 Top 3 Attributes
               </h3>
               <div>
-                {topMetrics.map(([key, value], index) => {
+              {topMetrics.map(([key, value], index) => {
                   const metricInfo = getMetricInfo(key);
+                  const metricId = `top-metric-${index}`;
                   return (
                     <div 
                       key={key}
-                      onClick={() => handleDesktopMetricClick(key)}
+                      className="metric-row"
+                      onClick={() => {
+                        if (isMobile) {
+                          showTooltip(metricId, key, value);
+                        } else {
+                          handleDesktopMetricClick(key);
+                        }
+                      }}
                       style={{ 
                         marginBottom: '5px', 
                         cursor: 'pointer',
@@ -420,13 +428,106 @@ const SwingAnalysis = ({ swingData, navigateTo, setSwingHistory }) => {
                         fontWeight: selectedMetric === key ? 'bold' : 'normal',
                         padding: isMobile ? '8px 5px' : '5px 0',
                         borderRadius: '5px',
-                        backgroundColor: isMobile && selectedMetric === key ? '#f0f7ff' : 'transparent'
+                        backgroundColor: isMobile && selectedMetric === key ? '#f0f7ff' : 'transparent',
+                        position: 'relative'
                       }}
                     >
                       <span style={{ fontWeight: 'bold', marginRight: '10px', fontSize: '1.1rem', color: '#333' }}>
                         {value}
                       </span>
                       <span>{metricInfo.title}</span>
+                      
+                      {/* Mobile tooltip for top metrics */}
+                      {activeTooltip === metricId && (
+                        <div 
+                          ref={tooltipRef}
+                          className="metric-tooltip"
+                          style={{
+                            position: 'absolute',
+                            zIndex: 100,
+                            backgroundColor: 'white',
+                            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                            borderRadius: '8px',
+                            left: '0',
+                            width: '100%',
+                            top: '100%',
+                            padding: '15px',
+                            border: '1px solid #ddd'
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            marginBottom: '10px'
+                          }}>
+                            <h4 style={{ margin: 0, fontSize: '1.1rem' }}>
+                              {metricInfo.title}
+                            </h4>
+                            
+                            <div style={{
+                              backgroundColor: getScoreColor(value),
+                              color: 'white',
+                              fontWeight: 'bold',
+                              padding: '3px 10px',
+                              borderRadius: '15px',
+                              fontSize: '0.9rem'
+                            }}>
+                              {value}
+                            </div>
+                          </div>
+                          
+                          <p style={{ margin: '10px 0' }}>{generateInsightText(key, value)}</p>
+                          
+                          {/* Button for deep dive analytics */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              generateAIAnalysis(key);
+                              
+                              // Auto-scroll to insights section after clicking
+                              setTimeout(() => {
+                                const insightsElement = document.querySelector('.metric-insights');
+                                if (insightsElement) {
+                                  insightsElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                              }, 200);
+                            }}
+                            style={{
+                              marginTop: '10px',
+                              backgroundColor: '#546e47',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '20px',
+                              padding: '8px 15px',
+                              width: '100%',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.9rem'
+                            }}
+                          >
+                            <svg 
+                              width="16" 
+                              height="16" 
+                              viewBox="0 0 24 24" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="2" 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round"
+                              style={{ marginRight: '5px' }}
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="12" y1="16" x2="12" y2="12" />
+                              <line x1="12" y1="8" x2="12" y2="8" />
+                            </svg>
+                            Generate AI Deep Dive Analysis
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
