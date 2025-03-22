@@ -1,7 +1,4 @@
-// Modified version of the SwingAnalysis.js component
-// This fixes the mobile UI issue where metric insights appear above the table
-// instead of expanding below the clicked row
-
+// src/components/SwingAnalysis.js - Fixed version
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import SwingOwnershipHandler from './SwingOwnershipHandler';
@@ -23,6 +20,13 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
     technicalBreakdown: false,
     recommendations: true,
     feelTips: true
+  });
+  
+  // Track which metric was expanded in which section
+  const [expandedMetric, setExpandedMetric] = useState({
+    topSection: null,
+    bottomSection: null,
+    mainTable: null
   });
   
   // Handle video URL management
@@ -47,6 +51,11 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
   useEffect(() => {
     setSelectedMetric(null);
     setMetricInsights(null);
+    setExpandedMetric({
+      topSection: null,
+      bottomSection: null,
+      mainTable: null
+    });
   }, [swingData]);
   
   // Toggle section expansion
@@ -85,41 +94,101 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
     }
   }, [swingData]);
   
-  // State for showing basic insights (first click)
-  const [showingBasicInsight, setShowingBasicInsight] = useState(null);
-  
-  // Handle basic metric click (first click)
-  const handleMetricClick = (metricKey) => {
+  // Handle metric click in the Top 3 section
+  const handleTopSectionMetricClick = (metricKey) => {
     if (loadingInsights) return;
     
-    // Second click on the same metric - collapse everything
-    if (showingBasicInsight === metricKey) {
-      setShowingBasicInsight(null);
+    // If this metric is already expanded in this section, collapse it
+    if (expandedMetric.topSection === metricKey) {
+      setExpandedMetric({
+        ...expandedMetric,
+        topSection: null
+      });
+      
+      // If this was also the selected metric with full insights, clear it
+      if (selectedMetric === metricKey) {
+        setSelectedMetric(null);
+        setMetricInsights(null);
+      }
       return;
     }
     
-    // First click on this metric - show basic insight
-    setShowingBasicInsight(metricKey);
+    // Close any other expansions in other sections for this metric
+    setExpandedMetric({
+      topSection: metricKey,
+      bottomSection: null,
+      mainTable: null
+    });
     
-    // If full insights are shown for any metric, hide them
-    if (selectedMetric !== null) {
-      setSelectedMetric(null);
-      setMetricInsights(null);
-    }
-    
-    // Scroll to the metric row after a short delay to allow DOM update
-    /*if (isMobile) {
-      setTimeout(() => {
-        const metricRow = document.getElementById(`metric-row-${metricKey}`);
-        if (metricRow) {
-          metricRow.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 100);
-    }*/
+    // Clear any full insights
+    setSelectedMetric(null);
+    setMetricInsights(null);
   };
   
-  // Handle deep dive button click (second click)
-  const handleDeepDiveClick = (metricKey, e) => {
+  // Handle metric click in the Bottom 3 section
+  const handleBottomSectionMetricClick = (metricKey) => {
+    if (loadingInsights) return;
+    
+    // If this metric is already expanded in this section, collapse it
+    if (expandedMetric.bottomSection === metricKey) {
+      setExpandedMetric({
+        ...expandedMetric,
+        bottomSection: null
+      });
+      
+      // If this was also the selected metric with full insights, clear it
+      if (selectedMetric === metricKey) {
+        setSelectedMetric(null);
+        setMetricInsights(null);
+      }
+      return;
+    }
+    
+    // Close any other expansions in other sections for this metric
+    setExpandedMetric({
+      topSection: null,
+      bottomSection: metricKey,
+      mainTable: null
+    });
+    
+    // Clear any full insights
+    setSelectedMetric(null);
+    setMetricInsights(null);
+  };
+  
+  // Handle metric click in the main table
+  const handleMainTableMetricClick = (metricKey) => {
+    if (loadingInsights) return;
+    
+    // If this metric is already expanded in this section, collapse it
+    if (expandedMetric.mainTable === metricKey) {
+      setExpandedMetric({
+        ...expandedMetric,
+        mainTable: null
+      });
+      
+      // If this was also the selected metric with full insights, clear it
+      if (selectedMetric === metricKey) {
+        setSelectedMetric(null);
+        setMetricInsights(null);
+      }
+      return;
+    }
+    
+    // Close any other expansions in other sections for this metric
+    setExpandedMetric({
+      topSection: null,
+      bottomSection: null,
+      mainTable: metricKey
+    });
+    
+    // Clear any full insights
+    setSelectedMetric(null);
+    setMetricInsights(null);
+  };
+  
+  // Handle deep dive button click, keeping track of which section initiated it
+  const handleDeepDiveClick = (metricKey, section, e) => {
     // Prevent the click from bubbling up to the row
     if (e) e.stopPropagation();
     
@@ -129,15 +198,26 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
     setSelectedMetric(metricKey);
     generateAIAnalysis(metricKey);
     
-    // Scroll to the metric row after a short delay to allow DOM update
-    /*if (isMobile) {
-      setTimeout(() => {
-        const metricRow = document.getElementById(`metric-row-${metricKey}`);
-        if (metricRow) {
-          metricRow.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 100);
-    }*/
+    // Remember which section we're showing insights for
+    if (section === 'top') {
+      setExpandedMetric({
+        topSection: metricKey,
+        bottomSection: null,
+        mainTable: null
+      });
+    } else if (section === 'bottom') {
+      setExpandedMetric({
+        topSection: null,
+        bottomSection: metricKey,
+        mainTable: null
+      });
+    } else if (section === 'table') {
+      setExpandedMetric({
+        topSection: null,
+        bottomSection: null,
+        mainTable: metricKey
+      });
+    }
   };
 
   if (!swingData) {
@@ -176,8 +256,15 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
   });
 
   // Render the metric insights component
-  const renderMetricInsights = (metricKey) => {
+  const renderMetricInsights = (metricKey, section) => {
     if (!selectedMetric || selectedMetric !== metricKey) return null;
+    
+    // Only render insights in the section where the deep dive was initiated
+    if ((section === 'top' && expandedMetric.topSection !== metricKey) ||
+        (section === 'bottom' && expandedMetric.bottomSection !== metricKey) ||
+        (section === 'table' && expandedMetric.mainTable !== metricKey)) {
+      return null;
+    }
     
     return (
       <div 
@@ -458,15 +545,15 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                     <React.Fragment key={key}>
                       <div 
                         id={metricId}
-                        onClick={() => handleMetricClick(key)}
+                        onClick={() => handleTopSectionMetricClick(key)}
                         style={{ 
-                          marginBottom: showingBasicInsight === key ? 0 : '5px', 
+                          marginBottom: expandedMetric.topSection === key ? 0 : '5px', 
                           cursor: 'pointer',
-                          color: selectedMetric === key ? '#546e47' : 'inherit',
-                          fontWeight: selectedMetric === key ? 'bold' : 'normal',
+                          color: selectedMetric === key && expandedMetric.topSection === key ? '#546e47' : 'inherit',
+                          fontWeight: selectedMetric === key && expandedMetric.topSection === key ? 'bold' : 'normal',
                           padding: '5px 0',
-                          backgroundColor: showingBasicInsight === key ? '#f8f9fa' : 'transparent',
-                          borderRadius: showingBasicInsight === key ? '8px 8px 0 0' : '0',
+                          backgroundColor: expandedMetric.topSection === key ? '#f8f9fa' : 'transparent',
+                          borderRadius: expandedMetric.topSection === key ? '8px 8px 0 0' : '0',
                         }}
                       >
                         <span style={{ fontWeight: 'bold', marginRight: '10px', fontSize: '1.1rem', color: '#333' }}>
@@ -476,7 +563,7 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                       </div>
                       
                       {/* Basic insight (first click) */}
-                      {showingBasicInsight === key && selectedMetric !== key && (
+                      {expandedMetric.topSection === key && selectedMetric !== key && (
                         <div 
                           className="basic-insight"
                           style={{
@@ -523,7 +610,7 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                           
                           {/* Button for deep dive analytics */}
                           <button
-                            onClick={(e) => handleDeepDiveClick(key, e)}
+                            onClick={(e) => handleDeepDiveClick(key, 'top', e)}
                             style={{
                               marginTop: '10px',
                               backgroundColor: '#546e47',
@@ -560,184 +647,7 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                       )}
                       
                       {/* Full AI analysis (second click) */}
-                      {selectedMetric === key && (
-                        <div 
-                          className="metric-insights"
-                          style={{
-                            backgroundColor: '#fff',
-                            borderRadius: '0 0 8px 8px',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                            padding: isMobile ? '15px' : '20px',
-                            marginBottom: '15px',
-                            borderTop: '1px solid #e0e0e0',
-                            position: 'relative'
-                          }}
-                        >
-                          {loadingInsights ? (
-                            <div style={{ 
-                              display: 'flex', 
-                              flexDirection: 'column', 
-                              alignItems: 'center',
-                              padding: '30px 0'
-                            }}>
-                              <div className="spinner"></div>
-                              <p style={{ marginTop: '15px' }}>Analyzing {getMetricInfo(key).title}...</p>
-                            </div>
-                          ) : metricInsights ? (
-                            <>
-                              <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: '15px'
-                              }}>
-                                <h3 style={{ margin: 0, fontSize: isMobile ? '1.2rem' : '1.3rem' }}>
-                                  {getMetricInfo(key).title} Analysis
-                                </h3>
-                                
-                                <div style={{
-                                  backgroundColor: getScoreColor(value),
-                                  color: 'white',
-                                  fontWeight: 'bold',
-                                  padding: '3px 10px',
-                                  borderRadius: '15px',
-                                  fontSize: '0.9rem'
-                                }}>
-                                  {value}
-                                </div>
-                              </div>
-
-                              {/* Same collapsible sections as before */}
-                              <div className="goodAspects">
-                                <div 
-                                  className="section-header" 
-                                  onClick={() => toggleSection('goodAspects')}
-                                >
-                                  <h4>What You're Doing Well</h4>
-                                  <button className="toggle-button">
-                                    {isSectionExpanded('goodAspects') ? '−' : '+'}
-                                  </button>
-                                </div>
-                                {isSectionExpanded('goodAspects') && (
-                                  <ul>
-                                    {metricInsights.goodAspects.map((aspect, index) => (
-                                      <li key={`good-${index}`}>{aspect}</li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-
-                              <div className="improvementAreas">
-                                <div 
-                                  className="section-header" 
-                                  onClick={() => toggleSection('improvementAreas')}
-                                >
-                                  <h4>Areas for Improvement</h4>
-                                  <button className="toggle-button">
-                                    {isSectionExpanded('improvementAreas') ? '−' : '+'}
-                                  </button>
-                                </div>
-                                {isSectionExpanded('improvementAreas') && (
-                                  <ul>
-                                    {metricInsights.improvementAreas.map((area, index) => (
-                                      <li key={`improve-${index}`}>{area}</li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-
-                              <div className="technicalBreakdown">
-                                <div 
-                                  className="section-header" 
-                                  onClick={() => toggleSection('technicalBreakdown')}
-                                >
-                                  <h4>Technical Breakdown</h4>
-                                  <button className="toggle-button">
-                                    {isSectionExpanded('technicalBreakdown') ? '−' : '+'}
-                                  </button>
-                                </div>
-                                {isSectionExpanded('technicalBreakdown') && (
-                                  <ul>
-                                    {metricInsights.technicalBreakdown.map((item, index) => (
-                                      <li key={`tech-${index}`}>{item}</li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-
-                              <div className="recommendations">
-                                <div 
-                                  className="section-header" 
-                                  onClick={() => toggleSection('recommendations')}
-                                >
-                                  <h4>Recommendations</h4>
-                                  <button className="toggle-button">
-                                    {isSectionExpanded('recommendations') ? '−' : '+'}
-                                  </button>
-                                </div>
-                                {isSectionExpanded('recommendations') && (
-                                  <ul>
-                                    {metricInsights.recommendations.map((rec, index) => (
-                                      <li key={`rec-${index}`}>{rec}</li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-
-                              {/* Feel tips section */}
-                              {metricInsights.feelTips && metricInsights.feelTips.length > 0 && (
-                                <div className="feel-tips">
-                                  <div 
-                                    className="section-header" 
-                                    onClick={() => toggleSection('feelTips')}
-                                  >
-                                    <h4>Feel Tips</h4>
-                                    <button className="toggle-button">
-                                      {isSectionExpanded('feelTips') ? '−' : '+'}
-                                    </button>
-                                  </div>
-                                  {isSectionExpanded('feelTips') && (
-                                    <ul>
-                                      {metricInsights.feelTips.map((tip, index) => (
-                                        <li key={`feel-${index}`}>{tip}</li>
-                                      ))}
-                                    </ul>
-                                  )}
-                                </div>
-                              )}
-                              
-                              <div style={{ 
-                                display: 'flex', 
-                                justifyContent: 'flex-end',
-                                marginTop: '20px'
-                              }}>
-                                <button
-                                  onClick={() => {
-                                    setSelectedMetric(null);
-                                    setMetricInsights(null);
-                                  }}
-                                  style={{
-                                    backgroundColor: '#f0f0f0',
-                                    border: 'none',
-                                    borderRadius: '5px',
-                                    padding: isMobile ? '10px 15px' : '8px 12px',
-                                    color: '#666',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    fontSize: isMobile ? '1rem' : '0.9rem'
-                                  }}
-                                >
-                                  Close Analysis
-                                  <span style={{ marginLeft: '5px', fontSize: '1.1rem' }}>×</span>
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <p>Error loading insights. Please try again.</p>
-                          )}
-                        </div>
-                      )}
+                      {renderMetricInsights(key, 'top')}
                     </React.Fragment>
                   );
                 })}
@@ -764,15 +674,15 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                     <React.Fragment key={key}>
                       <div 
                         id={metricId}
-                        onClick={() => handleMetricClick(key)}
+                        onClick={() => handleBottomSectionMetricClick(key)}
                         style={{ 
-                          marginBottom: showingBasicInsight === key ? 0 : '5px', 
+                          marginBottom: expandedMetric.bottomSection === key ? 0 : '5px', 
                           cursor: 'pointer',
-                          color: selectedMetric === key ? '#546e47' : 'inherit',
-                          fontWeight: selectedMetric === key ? 'bold' : 'normal',
+                          color: selectedMetric === key && expandedMetric.bottomSection === key ? '#546e47' : 'inherit',
+                          fontWeight: selectedMetric === key && expandedMetric.bottomSection === key ? 'bold' : 'normal',
                           padding: '5px 0',
-                          backgroundColor: showingBasicInsight === key ? '#f8f9fa' : 'transparent',
-                          borderRadius: showingBasicInsight === key ? '8px 8px 0 0' : '0',
+                          backgroundColor: expandedMetric.bottomSection === key ? '#f8f9fa' : 'transparent',
+                          borderRadius: expandedMetric.bottomSection === key ? '8px 8px 0 0' : '0',
                         }}
                       >
                         <span style={{ fontWeight: 'bold', marginRight: '10px', fontSize: '1.1rem', color: '#333' }}>
@@ -782,7 +692,7 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                       </div>
                       
                       {/* Basic insight (first click) */}
-                      {showingBasicInsight === key && selectedMetric !== key && (
+                      {expandedMetric.bottomSection === key && selectedMetric !== key && (
                         <div 
                           className="basic-insight"
                           style={{
@@ -829,7 +739,7 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                           
                           {/* Button for deep dive analytics */}
                           <button
-                            onClick={(e) => handleDeepDiveClick(key, e)}
+                            onClick={(e) => handleDeepDiveClick(key, 'bottom', e)}
                             style={{
                               marginTop: '10px',
                               backgroundColor: '#546e47',
@@ -866,192 +776,14 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                       )}
                       
                       {/* Full AI analysis (second click) */}
-                      {selectedMetric === key && (
-                        <div 
-                          className="metric-insights"
-                          style={{
-                            backgroundColor: '#fff',
-                            borderRadius: '0 0 8px 8px',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                            padding: isMobile ? '15px' : '20px',
-                            marginBottom: '15px',
-                            borderTop: '1px solid #e0e0e0',
-                            position: 'relative'
-                          }}
-                        >
-                          {loadingInsights ? (
-                            <div style={{ 
-                              display: 'flex', 
-                              flexDirection: 'column', 
-                              alignItems: 'center',
-                              padding: '30px 0'
-                            }}>
-                              <div className="spinner"></div>
-                              <p style={{ marginTop: '15px' }}>Analyzing {getMetricInfo(key).title}...</p>
-                            </div>
-                          ) : metricInsights ? (
-                            <>
-                              <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: '15px'
-                              }}>
-                                <h3 style={{ margin: 0, fontSize: isMobile ? '1.2rem' : '1.3rem' }}>
-                                  {getMetricInfo(key).title} Analysis
-                                </h3>
-                                
-                                <div style={{
-                                  backgroundColor: getScoreColor(value),
-                                  color: 'white',
-                                  fontWeight: 'bold',
-                                  padding: '3px 10px',
-                                  borderRadius: '15px',
-                                  fontSize: '0.9rem'
-                                }}>
-                                  {value}
-                                </div>
-                              </div>
-
-                              {/* Collapsible sections as before */}
-                              <div className="goodAspects">
-                                <div 
-                                  className="section-header" 
-                                  onClick={() => toggleSection('goodAspects')}
-                                >
-                                  <h4>What You're Doing Well</h4>
-                                  <button className="toggle-button">
-                                    {isSectionExpanded('goodAspects') ? '−' : '+'}
-                                  </button>
-                                </div>
-                                {isSectionExpanded('goodAspects') && (
-                                  <ul>
-                                    {metricInsights.goodAspects.map((aspect, index) => (
-                                      <li key={`good-${index}`}>{aspect}</li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-
-                              {/* Other sections as before */}
-                              <div className="improvementAreas">
-                                <div 
-                                  className="section-header" 
-                                  onClick={() => toggleSection('improvementAreas')}
-                                >
-                                  <h4>Areas for Improvement</h4>
-                                  <button className="toggle-button">
-                                    {isSectionExpanded('improvementAreas') ? '−' : '+'}
-                                  </button>
-                                </div>
-                                {isSectionExpanded('improvementAreas') && (
-                                  <ul>
-                                    {metricInsights.improvementAreas.map((area, index) => (
-                                      <li key={`improve-${index}`}>{area}</li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-
-                              <div className="technicalBreakdown">
-                                <div 
-                                  className="section-header" 
-                                  onClick={() => toggleSection('technicalBreakdown')}
-                                >
-                                  <h4>Technical Breakdown</h4>
-                                  <button className="toggle-button">
-                                    {isSectionExpanded('technicalBreakdown') ? '−' : '+'}
-                                  </button>
-                                </div>
-                                {isSectionExpanded('technicalBreakdown') && (
-                                  <ul>
-                                    {metricInsights.technicalBreakdown.map((item, index) => (
-                                      <li key={`tech-${index}`}>{item}</li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-
-                              <div className="recommendations">
-                                <div 
-                                  className="section-header" 
-                                  onClick={() => toggleSection('recommendations')}
-                                >
-                                  <h4>Recommendations</h4>
-                                  <button className="toggle-button">
-                                    {isSectionExpanded('recommendations') ? '−' : '+'}
-                                  </button>
-                                </div>
-                                {isSectionExpanded('recommendations') && (
-                                  <ul>
-                                    {metricInsights.recommendations.map((rec, index) => (
-                                      <li key={`rec-${index}`}>{rec}</li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-
-                              {/* Feel tips section */}
-                              {metricInsights.feelTips && metricInsights.feelTips.length > 0 && (
-                                <div className="feel-tips">
-                                  <div 
-                                    className="section-header" 
-                                    onClick={() => toggleSection('feelTips')}
-                                  >
-                                    <h4>Feel Tips</h4>
-                                    <button className="toggle-button">
-                                      {isSectionExpanded('feelTips') ? '−' : '+'}
-                                    </button>
-                                  </div>
-                                  {isSectionExpanded('feelTips') && (
-                                    <ul>
-                                      {metricInsights.feelTips.map((tip, index) => (
-                                        <li key={`feel-${index}`}>{tip}</li>
-                                      ))}
-                                    </ul>
-                                  )}
-                                </div>
-                              )}
-                              
-                              <div style={{ 
-                                display: 'flex', 
-                                justifyContent: 'flex-end',
-                                marginTop: '20px'
-                              }}>
-                                <button
-                                  onClick={() => {
-                                    setSelectedMetric(null);
-                                    setMetricInsights(null);
-                                  }}
-                                  style={{
-                                    backgroundColor: '#f0f0f0',
-                                    border: 'none',
-                                    borderRadius: '5px',
-                                    padding: isMobile ? '10px 15px' : '8px 12px',
-                                    color: '#666',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    fontSize: isMobile ? '1rem' : '0.9rem'
-                                  }}
-                                >
-                                  Close Analysis
-                                  <span style={{ marginLeft: '5px', fontSize: '1.1rem' }}>×</span>
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <p>Error loading insights. Please try again.</p>
-                          )}
-                        </div>
-                      )}
+                      {renderMetricInsights(key, 'bottom')}
                     </React.Fragment>
                   );
                 })}
               </div>
             </div>
           </div>
-          
+
           {/* Right side - Metrics Table - Mobile optimized */}
           <div style={{ 
             flex: '1', 
@@ -1077,28 +809,28 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                     <React.Fragment key={metric.key}>
                       <tr 
                         id={`metric-row-${metric.key}`}
-                        className={`metric-row ${selectedMetric === metric.key ? 'active' : ''} ${showingBasicInsight === metric.key ? 'showing-basic' : ''}`}
-                        onClick={() => handleMetricClick(metric.key)}
+                        className={`metric-row ${selectedMetric === metric.key && expandedMetric.mainTable === metric.key ? 'active' : ''} ${expandedMetric.mainTable === metric.key ? 'showing-basic' : ''}`}
+                        onClick={() => handleMainTableMetricClick(metric.key)}
                         style={{ 
                           cursor: 'pointer',
-                          backgroundColor: selectedMetric === metric.key ? '#f0f7ff' : (showingBasicInsight === metric.key ? '#f8f9fa' : 'transparent'),
+                          backgroundColor: selectedMetric === metric.key && expandedMetric.mainTable === metric.key ? '#f0f7ff' : (expandedMetric.mainTable === metric.key ? '#f8f9fa' : 'transparent'),
                           opacity: loadingInsights && selectedMetric !== metric.key ? 0.5 : 1,
-                          borderRadius: (selectedMetric === metric.key || showingBasicInsight === metric.key) ? '8px 8px 0 0' : '0',
+                          borderRadius: (selectedMetric === metric.key && expandedMetric.mainTable === metric.key) || expandedMetric.mainTable === metric.key ? '8px 8px 0 0' : '0',
                           position: 'relative'
                         }}
                       >
                         <td style={{ 
                           padding: isMobile ? '12px 8px' : '8px 10px', 
-                          borderBottom: (selectedMetric === metric.key || showingBasicInsight === metric.key) ? 'none' : '1px dotted #ddd',
-                          color: (selectedMetric === metric.key || showingBasicInsight === metric.key) ? '#000' : '#666'
+                          borderBottom: (selectedMetric === metric.key && expandedMetric.mainTable === metric.key) || expandedMetric.mainTable === metric.key ? 'none' : '1px dotted #ddd',
+                          color: (selectedMetric === metric.key && expandedMetric.mainTable === metric.key) || expandedMetric.mainTable === metric.key ? '#000' : '#666'
                         }}>
                           {metric.title}
                         </td>
                         <td style={{ 
                           padding: isMobile ? '12px 8px' : '8px 10px', 
                           textAlign: 'center', 
-                          borderBottom: (selectedMetric === metric.key || showingBasicInsight === metric.key) ? 'none' : '1px dotted #ddd',
-                          fontWeight: (selectedMetric === metric.key || showingBasicInsight === metric.key) ? 'bold' : 'normal',
+                          borderBottom: (selectedMetric === metric.key && expandedMetric.mainTable === metric.key) || expandedMetric.mainTable === metric.key ? 'none' : '1px dotted #ddd',
+                          fontWeight: (selectedMetric === metric.key && expandedMetric.mainTable === metric.key) || expandedMetric.mainTable === metric.key ? 'bold' : 'normal',
                           fontSize: isMobile ? '1rem' : 'inherit'
                         }}>
                           {metric.value}
@@ -1106,7 +838,7 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                         <td style={{ 
                           padding: isMobile ? '12px 8px' : '8px 10px', 
                           textAlign: 'right', 
-                          borderBottom: (selectedMetric === metric.key || showingBasicInsight === metric.key) ? 'none' : '1px dotted #ddd',
+                          borderBottom: (selectedMetric === metric.key && expandedMetric.mainTable === metric.key) || expandedMetric.mainTable === metric.key ? 'none' : '1px dotted #ddd',
                           color: metric.value > 70 ? 'green' : 'red' 
                         }}>
                           {metric.value > 70 ? '+' : '-'}x%
@@ -1114,7 +846,7 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                       </tr>
                       
                       {/* Basic insight (first click) */}
-                      {showingBasicInsight === metric.key && selectedMetric !== metric.key && (
+                      {expandedMetric.mainTable === metric.key && selectedMetric !== metric.key && (
                         <tr className="basic-insight-row">
                           <td colSpan="3" style={{ padding: 0, borderBottom: '1px dotted #ddd' }}>
                             <div 
@@ -1164,7 +896,7 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                               
                               {/* Button for deep dive analytics */}
                               <button
-                                onClick={(e) => handleDeepDiveClick(metric.key, e)}
+                                onClick={(e) => handleDeepDiveClick(metric.key, 'table', e)}
                                 style={{
                                   marginTop: '10px',
                                   backgroundColor: '#546e47',
@@ -1203,13 +935,7 @@ const SwingAnalysis = ({ swingData, navigateTo }) => {
                       )}
                       
                       {/* Detailed insights (second click) */}
-                      {selectedMetric === metric.key && (
-                        <tr className="insights-row">
-                          <td colSpan="3" style={{ padding: 0, borderBottom: '1px dotted #ddd' }}>
-                            {renderMetricInsights(metric.key)}
-                          </td>
-                        </tr>
-                      )}
+                      {renderMetricInsights(metric.key, 'table')}
                     </React.Fragment>
                   ))}
                 </tbody>
